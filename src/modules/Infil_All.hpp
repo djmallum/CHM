@@ -33,9 +33,9 @@
 /**
  * \ingroup modules infil soils exp
  * @{
- * \class Gray_inf
+ * \class Infil_All
  *
- *
+ * TODO some of this is correct, but likely will be outdated eventually.
  * Estimates areal snowmelt infiltration into frozen soils for:
  *    a) Restricted -  Water entry impeded by surface conditions
  *    b) Limited - Capiliary flow dominates and water flow influenced by soil physical properties
@@ -66,13 +66,13 @@
  * Hydrological Processes  15(16), 3095-3111. https://dx.doi.org/10.1002/hyp.320
  * @}
  */
-class Gray_inf : public module_base
+class Infil_All : public module_base
 {
-REGISTER_MODULE_HPP(Gray_inf)
+REGISTER_MODULE_HPP(Infil_All)
 public:
-    Gray_inf(config_file cfg);
+    Infil_All(config_file cfg);
 
-    ~Gray_inf();
+    ~Infil_All();
 
     void run(mesh_elem &face);
     void init(mesh& domain);

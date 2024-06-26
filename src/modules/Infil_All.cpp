@@ -21,11 +21,11 @@
 // <http://www.gnu.org/licenses/>.
 //
 
-#include "Gray_inf.hpp"
-REGISTER_MODULE_CPP(Gray_inf);
+#include "Infil_All.hpp"
+REGISTER_MODULE_CPP(Infil_All);
 
-Gray_inf::Gray_inf(config_file cfg)
-        : module_base("Gray_inf", parallel::data, cfg)
+Infil_All::Infil_All(config_file cfg)
+        : module_base("Infil_All", parallel::data, cfg)
 {
 
     depends("swe");
@@ -42,12 +42,12 @@ Gray_inf::Gray_inf(config_file cfg)
 
 }
 
-Gray_inf::~Gray_inf()
+Infil_All::~Infil_All()
 {
 
 }
 
-void Gray_inf::init(mesh& domain)
+void Infil_All::init(mesh& domain)
 {
 
     //store all of snobals global variables from this timestep to be used as ICs for the next timestep
@@ -55,7 +55,7 @@ void Gray_inf::init(mesh& domain)
     for (size_t i = 0; i < domain->size_faces(); i++)
     {
         auto face = domain->face(i);
-        auto& d = face->make_module_data<Gray_inf::data>(ID);
+        auto& d = face->make_module_data<Infil_All::data>(ID);
 
         d.soil_depth = 400;
         d.porosity = .4;
@@ -67,9 +67,15 @@ void Gray_inf::init(mesh& domain)
         d.opportunity_time=0.;
         d.total_inf = 0.;
         d.total_excess = 0.;
+        d.total_rain_on_snow = 0.;
+
+
+        d.frozen = false; // TODO not real currently, crhm equivalent is crackon in PrairieInfiltration
+        d.frozen_phase = 0; // TODO  not real currently, crhm equivalent is crackstat in PrairieInfiltration
+
     }
 }
-void Gray_inf::run(mesh_elem &face)
+void Infil_All::run(mesh_elem &face)
 {
     if(is_water(face))
     {
@@ -78,26 +84,68 @@ void Gray_inf::run(mesh_elem &face)
     }
 
 
-    auto& d = face->get_module_data<Gray_inf::data>(ID);
+    auto& d = face->get_module_data<Infil_All::data>(ID);
 
     auto id = face->cell_local_id;
+    // TODO These are old and for the parametric equation
     double C = 2.;
     double S0 = 1;
     double SI = face->get_initial_condition("sm")/100.;
 
     double TI = 272.;
-
+    // CRHM does total infil for snow and total infil separately, wonder if I should do this
     double runoff = 0.;
     double inf = 0.;
 
     double snowmelt = (*face)["snowmelt_int"_s];
+    double rainfall = (*face)["snowmelt_int"_s]; // TODO Get correct input, likely from observations
+    double swe = (*face)["swe"_s];
 
     double potential_inf = d.last_ts_potential_inf;
     double avail_storage = (d.max_storage - d.storage);
 
-    if(snowmelt > 0)
+    if (swe > 25.0 && !d.frozen)
     {
-        d.opportunity_time += global_param->dt() / 3600.;
+        d.frozen = true; // Initiate frozen soil at 25 mm depth (as in CRHM)
+        d.frozen_phase = 0;
+    }
+    
+    if (d.frozen)
+    {
+        if (rainfall > 0.0)
+        {
+            d.total_rain_on_snow += rainfall;
+        }
+
+        if (snowmelt > 0.0)
+        {
+            if (d.frozen_phase == 0)
+            {
+                inf += snowmelt;
+                d.crackstatus = 1; 
+            }
+            else if (d.frozen_phase == 1)
+                if (snowmelt > = Major || d.crackstatus >= 1)
+                    if (swe > 
+        }
+    }
+    else if (d.ThawType == 0) // Ayers
+    {
+
+    }
+    else if (d.ThawType == 1) // GreenAmpt
+    {
+
+    }
+    
+
+
+    if(snowmelt > 0 || rainfall > 0)
+    {
+        
+        // Note: The potential INF uses the parametric equation which John advises against. So I will need to change this
+        // Also doesn't appear to consider RESTRICTED, LIMITED and UNLIMITED specifiers
+        // d.opportunity_time += global_param->dt() / 3600.;
         double t0 = d.opportunity_time;
         potential_inf = C * pow(S0,2.92) * pow((1. - SI),1.64) * pow((273.15 - TI) / 273.15, -0.45) * pow(t0,0.44);
 
