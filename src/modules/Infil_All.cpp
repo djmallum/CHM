@@ -72,6 +72,9 @@ void Infil_All::init(mesh& domain)
 
         d.frozen = false; // TODO not real currently, crhm equivalent is crackon in PrairieInfiltration
         d.frozen_phase = 0; // TODO  not real currently, crhm equivalent is crackstat in PrairieInfiltration
+        
+        d.Xinfil = new double*[3]; // TODO This has some utility. Xinfil[0] is INF/SWE, Xinfil[1] is INF
+
 
     }
 }
@@ -99,7 +102,8 @@ void Infil_All::run(mesh_elem &face)
 
     double snowmelt = (*face)["snowmelt_int"_s];
     double rainfall = (*face)["snowmelt_int"_s]; // TODO Get correct input, likely from observations
-    double swe = (*face)["swe"_s];
+    double swe = (*face)["swe"_s]; 
+    double Major = (*face)["Major"_s]; // TODO Add this and figure out if it is defined elsewhere.
 
     double potential_inf = d.last_ts_potential_inf;
     double avail_storage = (d.max_storage - d.storage);
@@ -126,7 +130,7 @@ void Infil_All::run(mesh_elem &face)
             }
             else if (d.frozen_phase == 1)
                 if (snowmelt > = Major || d.crackstatus >= 1)
-                    if (swe > 
+                    if (swe > Xinfil[2] && snowmelt >= Major) 
         }
     }
     else if (d.ThawType == 0) // Ayers
