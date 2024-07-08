@@ -68,6 +68,7 @@ void Infil_All::init(mesh& domain)
         d.total_inf = 0.;
         d.total_excess = 0.;
         d.total_rain_on_snow = 0.;
+        d.rain_on_snow = 0.;
 
 
         d.frozen = false; // TODO not real currently, crhm equivalent is crackon in PrairieInfiltration
@@ -118,19 +119,85 @@ void Infil_All::run(mesh_elem &face)
     {
         if (rainfall > 0.0)
         {
-            d.total_rain_on_snow += rainfall;
+            d.rain_on_snow += rainfall;
         }
 
         if (snowmelt > 0.0)
         {
-            if (d.frozen_phase == 0)
+            if (d.frozen_phase == 0) // Unlimited
             {
                 inf += snowmelt;
                 d.crackstatus = 1; 
             }
-            else if (d.frozen_phase == 1)
-                if (snowmelt > = Major || d.crackstatus >= 1)
-                    if (swe > Xinfil[2] && snowmelt >= Major) 
+            // TODO  Xinfil is not defined
+            else if (d.frozen_phase == 1) // Limited
+            {
+                if (snowmelt >= Major || d.crackstatus >= 1)
+                {
+                    if (swe > Xinfil[2] && snowmelt >= Major)
+                    {
+                        // TODO Add Gray equation here
+                    }
+                    if (snowmelt >= Major)
+                    {
+                        if (d.crackstatus <= 0)
+                        {
+                            d.crackstatus = 1;
+                        }
+                        else
+                        {  
+                            d.crackstatus += 1;
+                        }    
+                        
+                        snowinf += snowmelt * Xinfil[0];
+
+                        if (snowinf > Xinfil[1])
+                        {
+                            snowinf = Xinfil[1];
+                        }
+                    }
+                    else
+                    {
+                        snowinf += snowmelt * Xinfil[0];
+                    }
+
+                    if (d.crackstatus > infDays)
+                    {
+                        snowinf = 0;
+                    }
+                }
+                else
+                {
+                    if (d.Prior_Inf)
+                    {
+                        snowinf = snowmelt;
+                    }
+                }
+            }
+
+
+            else if (d.frozen_phase == 2) // Restricted
+            {
+                snowinf = 0.;
+                d.crackstatus = 1;
+            }
+
+            meltrunoff = snowmelt - snowinf;
+
+            if (snowinfil > 0.0)
+            {
+                snowinf += d.rain_on_snow;
+            }
+            else
+            {
+                meltrunoff = d.rain_on_snow;
+            }
+
+            // TODO total values incremented here
+            // snowinfil, meltrunoff, rainonsnow
+            // Zero somethings
+
+            }
         }
     }
     else if (d.ThawType == 0) // Ayers
