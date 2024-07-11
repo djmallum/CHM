@@ -33,12 +33,12 @@ Infil_All::Infil_All(config_file cfg)
 
     provides("inf");
     provides("total_inf");
+    provides("snowinf"); // NEW
+    provides("total_snowinf"); // NEW
     provides("total_excess");
     provides("runoff");
-    provides("soil_storage");
-    provides("potential_inf");
-    provides("opportunity_time");
-    provides("available_storage");
+    provides("melt_runoff"); // NEW
+    provides("total_rain_on_snow") // NEW
 
 }
 
@@ -57,24 +57,27 @@ void Infil_All::init(mesh& domain)
         auto face = domain->face(i);
         auto& d = face->make_module_data<Infil_All::data>(ID);
 
-        d.soil_depth = 400;
-        d.porosity = .4;
+        d.soil_depth = 400; // TODO uniform soil depth is probably not ideal but ok for now
+        d.porosity = .4; // TODO likewise with  uniform porosity. 
+                         // Future version: user supplies data to CHM depending on soil type to get porosity
+                         // soil depth data could also be supplied similarly
         d.max_storage =  d.soil_depth * d.porosity;
         //        d.storage =  d.max_storage  - (1 - d.max_storage * face->parameter("sm"_s)/100.);
-        d.storage =  d.max_storage * face->parameter("sm"_s)/100.;
+        d.storage =  d.max_storage * face->parameter("sm"_s)/100.; // TODO what is sm? Soil moisture? why is this a parameter? Also _s vs without
 
-        d.last_ts_potential_inf = 0;
-        d.opportunity_time=0.;
         d.total_inf = 0.;
+        d.total_snowinf = 0.; // NEW
         d.total_excess = 0.;
-        d.total_rain_on_snow = 0.;
-        d.rain_on_snow = 0.;
-
-
-        d.frozen = false; // TODO not real currently, crhm equivalent is crackon in PrairieInfiltration
-        d.frozen_phase = 0; // TODO  not real currently, crhm equivalent is crackstat in PrairieInfiltration
+        d.melt_excess = 0.; // NEW
+        d.total_rain_on_snow = 0.; // NEW
         
-        d.Xinfil = new double*[3]; // TODO This has some utility. Xinfil[0] is INF/SWE, Xinfil[1] is INF
+        d.frozen = false; // NEW, Maybe initial condition, not always necessary because of SWE check to freeze the ground
+        d.crackstatus = 0; // NEW, For Gray frozen soil routine, counts number of major melts
+        d.frozen_phase = 0; // NEW, Set by the Volumetric module in crhm, once per season. Crhm uses a % system, I am using a bool system (with three options, 0, 1 and 2)
+        
+        d.Xinfil = new double*[3]; // TODO This has some utility for GA, I might find a better version later. 
+                                   // Xinfil[0] is INF/SWE, Xinfil[1] is INF
+    
 
 
     }
@@ -100,11 +103,14 @@ void Infil_All::run(mesh_elem &face)
     // CRHM does total infil for snow and total infil separately, wonder if I should do this
     double runoff = 0.;
     double inf = 0.;
+    double snowinf = 0.;
+    double melt_runoff = 0.;
+        
 
     double snowmelt = (*face)["snowmelt_int"_s];
-    double rainfall = (*face)["snowmelt_int"_s]; // TODO Get correct input, likely from observations
+    double rainfall = (*face)["rainfall_int"_s]; // NEW
     double swe = (*face)["swe"_s]; 
-    double Major = (*face)["Major"_s]; // TODO Add this and figure out if it is defined elsewhere.
+    double Major = (*face)["Major"_s]; // NEW
 
     double potential_inf = d.last_ts_potential_inf;
     double avail_storage = (d.max_storage - d.storage);
@@ -121,7 +127,7 @@ void Infil_All::run(mesh_elem &face)
         {
             d.rain_on_snow += rainfall;
         }
-
+        
         if (snowmelt > 0.0)
         {
             if (d.frozen_phase == 0) // Unlimited
@@ -197,61 +203,102 @@ void Infil_All::run(mesh_elem &face)
             // snowinfil, meltrunoff, rainonsnow
             // Zero somethings
 
-            }
         }
     }
     else if (d.ThawType == 0) // Ayers
     {
+        if (rainfall > 0.0)
+            double maxinfil = d.texture[texture][groundcover]; // TODO, completey pseduocode, might need units altered
+            if (maxinfil > rainfall)
+            {
+                inf = rainfall;
+            }
+            else
+            {
+                inf = maxinfil;
+                runoff = rainfall - maxinfil;
+            }
 
+            // Increment totals
     }
     else if (d.ThawType == 1) // GreenAmpt
     {
 
-    }
+            inf = 0.0;
+            runoff = 0.0;
+            snowinf = 0.0;
+            meltrunoff = 0.0;
+            F1 = 0.0;
+
+            double melt = snowmelt/Global::Freq; // TODO FREQ is from CRHM, need to make this work for CHM. Freq is timesteps/day, so snowmelt/freq converts from snowmelt/day to snowmelt/timestep (this has units of mm, but often written as mm/interval to reduce confusion (which creates some in me...)
+            double All = rainfall + melt;
+
+            // TODO remove [hh], define variables like pond, look for lines labeled NEW.
+
+            if(All > 0.0) {
+
+              // TODO Old line, CRHM converted All to mm/h for consistency, not necessarily needed except to ensure units are correct, FIX for CHM
+                intensity = All*Global::Freq/24.0; // TODO convert to mm/h, FIX for CHM
+                bool is_space_in_dry_soil = soil_moist <= 0.0 && soil_moist_max <= All;
+                if(soil_type == 12){ // handle pavement separately
+                  runoff = All;
+                }
+                else if(soil_type[hh] == 0 || is_space_in_dry_soil){ // handle water separately, CRHM version of this simply to check if location is water OR if the soil is dry. I know the soil model handles whether infiltrated actually gets into the soil, but here I changed it to add an upper limit imposed by the space in the soil.
+                  infil[hh] =  All;
+                }
+                else {
+                  F1[hh] = soil_moist; // TODO, need to add soil model which tracks this, total moisture in soil, also not declared
+                  dthbot    = (1.0 - soil_moist/soil_moist_max); // TODO Not yet declared
+                  psidthbot = soilproperties[soil_type[hh]][PSI]*dthbot[hh]; // Not yet declared, also Soil_type not catalogued anywhere
+                  f1[hh] = calcf1(F1[hh], psidthbot[hh])*Global::Interval*24.0; // infiltrate first interval rainfall, TODO, not declared
+
+                  infiltrate(); // TODO add function
+
+                  infil = F1 - F0; // TODO F0 not yet declared
+        //          cuminfil[hh] += infil[hh];
+
+                  if(pond > 0.0){
+
+                    runoff = pond; //TODO pond not yet declared
+                  }
+                }
+              
+
+              if(melt >= infil[hh]){
+                snowinfil[hh] = melt;
+                infil[hh] = 0.0;
+              }
+              else if(melt > 0.0){
+                snowinfil[hh] = melt;
+                infil[hh] -= snowinfil[hh];
+              }
+              else
+                snowinfil[hh] = 0.0;
+
+              if(melt - snowinfil[hh] >= pond){
+                meltrunoff[hh] = melt - snowinfil[hh];
+                runoff[hh] = 0.0;
+              }
+              else if(melt - snowinfil[hh] > 0.0){
+                meltrunoff[hh] = melt - snowinfil[hh];
+                runoff[hh] = pond - meltrunoff[hh];
+              }
+              else{
+                meltrunoff[hh] = 0.0;
+                runoff[hh] = pond;
+              }
+
+              cuminfil[hh] += infil[hh];
+              cumrunoff[hh] += runoff[hh];
+
+              cumsnowinfil[hh] += snowinfil[hh];
+              cummeltrunoff[hh] += meltrunoff[hh];
+
+            } // if(net_rain[hh] + net_snow[hh] > 0.0) greenampt routine
+    }  
+
+
     
-
-
-    if(snowmelt > 0 || rainfall > 0)
-    {
-        
-        // Note: The potential INF uses the parametric equation which John advises against. So I will need to change this
-        // Also doesn't appear to consider RESTRICTED, LIMITED and UNLIMITED specifiers
-        // d.opportunity_time += global_param->dt() / 3600.;
-        double t0 = d.opportunity_time;
-        potential_inf = C * pow(S0,2.92) * pow((1. - SI),1.64) * pow((273.15 - TI) / 273.15, -0.45) * pow(t0,0.44);
-
-
-        //cap the total infiltration to be no more than our available storage
-        if (potential_inf > avail_storage )
-        {
-            potential_inf = avail_storage;
-        }
-
-        d.last_ts_potential_inf = potential_inf;
-
-        if( d.total_inf + snowmelt > potential_inf)
-        {
-            runoff = (d.total_inf + snowmelt) - potential_inf;
-        }
-
-
-        //infiltrate everything else
-        inf    = snowmelt - runoff;
-
-
-        d.storage += inf;
-
-        if (d.storage > d.max_storage)
-        {
-            d.storage = d.max_storage;
-        }
-
-
-        d.total_inf += inf;
-        d.total_excess += runoff;
-
-    }
-
 
     if( !is_nan(face->get_initial_condition("sm")))
     {
@@ -271,3 +318,6 @@ void Infil_All::run(mesh_elem &face)
     }
 
 }
+
+
+
