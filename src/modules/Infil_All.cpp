@@ -30,12 +30,14 @@ Infil_All::Infil_All(config_file cfg)
 
     depends("swe");
     depends("snowmelt_int");
+    depends("rainfall_int"); // NEW
 
     provides("inf");
     provides("total_inf");
     provides("snowinf"); // NEW
     provides("total_snowinf"); // NEW
     provides("total_excess");
+    provides("total_meltexcess"); // NEW
     provides("runoff");
     provides("melt_runoff"); // NEW
     provides("total_rain_on_snow") // NEW
@@ -68,13 +70,13 @@ void Infil_All::init(mesh& domain)
         d.total_inf = 0.;
         d.total_snowinf = 0.; // NEW
         d.total_excess = 0.;
-        d.melt_excess = 0.; // NEW
+        d.total_meltexcess = 0.; // NEW
         d.total_rain_on_snow = 0.; // NEW
         
         d.frozen = false; // NEW, Maybe initial condition, not always necessary because of SWE check to freeze the ground
         d.crackstatus = 0; // NEW, For Gray frozen soil routine, counts number of major melts
         d.frozen_phase = 0; // NEW, Set by the Volumetric module in crhm, once per season. Crhm uses a % system, I am using a bool system (with three options, 0, 1 and 2)
-        
+        d.Major = 5; // NEW, default is 5 mm/day in crhm 
         d.Xinfil = new double*[3]; // TODO This has some utility for GA, I might find a better version later. 
                                    // Xinfil[0] is INF/SWE, Xinfil[1] is INF
     
@@ -95,11 +97,11 @@ void Infil_All::run(mesh_elem &face)
 
     auto id = face->cell_local_id;
     // TODO These are old and for the parametric equation
-    double C = 2.;
-    double S0 = 1;
-    double SI = face->get_initial_condition("sm")/100.;
+    // double C = 2.;
+    // double S0 = 1;
+    // double SI = face->get_initial_condition("sm")/100.;
+    // double TI = 272.;
 
-    double TI = 272.;
     // CRHM does total infil for snow and total infil separately, wonder if I should do this
     double runoff = 0.;
     double inf = 0.;
@@ -121,7 +123,7 @@ void Infil_All::run(mesh_elem &face)
         d.frozen_phase = 0;
     }
     
-    if (d.frozen)
+    if (d.frozen) // Gray's infiltration, 1985
     {
         if (rainfall > 0.0)
         {
@@ -205,7 +207,7 @@ void Infil_All::run(mesh_elem &face)
 
         }
     }
-    else if (d.ThawType == 0) // Ayers
+    else if (d.ThawType == 0) // if not frozen, do Ayers
     {
         if (rainfall > 0.0)
             double maxinfil = d.texture[texture][groundcover]; // TODO, completey pseduocode, might need units altered
@@ -221,7 +223,7 @@ void Infil_All::run(mesh_elem &face)
 
             // Increment totals
     }
-    else if (d.ThawType == 1) // GreenAmpt
+    else if (d.ThawType == 1) // if not frozen, do GreenAmpt
     {
 
             inf = 0.0;
