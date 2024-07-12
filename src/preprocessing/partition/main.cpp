@@ -599,6 +599,7 @@ class preprocessingTriangulation : public triangulation
         }
         else
         {
+            SPDLOG_DEBUG("Reading mesh");
             auto mesh = read_json(mesh_filename);
 
             // mesh will have been loaded by the geographic check so don't re load it here
