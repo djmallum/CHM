@@ -27,3 +27,4 @@ CRHMr.log
 /docs/_ext/__pycache__
 
 **/*~
+**/*.swp
