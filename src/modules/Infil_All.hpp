@@ -77,6 +77,8 @@ public:
     void run(mesh_elem &face);
     void init(mesh& domain);
 
+    // TODO add pther functions here
+
     class data : public face_info
     {
     public:
