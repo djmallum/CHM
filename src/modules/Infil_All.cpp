@@ -76,10 +76,13 @@ void Infil_All::init(mesh& domain)
         d.total_rain_on_snow = 0.; // NEW
 
         d.frozen = false; // NEW, Maybe initial condition, not always necessary because of SWE check to freeze the ground
-        d.MajorMeltCount = 0; // NEW, For Gray frozen soil routine, counts number of major melts
-        d.Major = 5; // NEW, default is 5 mm/day in crhm 
-        d.Xinfil = new double*[3]; // TODO This has some utility for GA, I might find a better version later. 
-                                   // Xinfil[0] is INF/SWE, Xinfil[1] is INF
+        d.major_melt_count = 0; // NEW, For Gray frozen soil routine, counts number of major melts
+        d.major = 5; // NEW, default is 5 mm/day in crhm 
+        d.index = 0;
+        d.max_major_per_day = 0.;
+        d.init_SWE = 0.;
+        
+        
 
 
 
@@ -116,6 +119,10 @@ void Infil_All::run(mesh_elem &face)
     {
         d.frozen = true; // Initiate frozen soil at 25 mm depth (as in CRHM)
         d.frozen_phase = 0;
+
+        d.Index = 0.;
+        d.max_major_per_day = 0.;
+        d.init_SWE = 0.;
     }
 
     if (d.frozen) // Gray's infiltration, 1985
@@ -130,41 +137,40 @@ void Infil_All::run(mesh_elem &face)
             if (soil_storage_at_freeze == 0) // Unlimited
             {
                 inf += snowmelt;
-                d.crackstatus = 1; 
+                d.major_melt_count = 1; 
             }
-            // TODO  Xinfil is not defined
             else if (soil_storage_at_freeze > 0 && soil_storage_at_freeze < 100) // Limited
             {
-                if (snowmelt >= d.Major || d.crackstatus >= 1)//TODO make sure that snowmelt units are the same as Major units.
+                if (snowmelt >= d.major || d.major_melt_count >= 1)//TODO make sure that snowmelt units are the same as major units.
                 {
-                    if (swe > Xinfil[2] && snowmelt >= d.Major)
+                    if (swe > d.init_SWE && snowmelt >= d.major)
                     {
                         // TODO Add Gray equation here
                     }
-                    if (snowmelt >= d.Major)
+                    if (snowmelt >= d.major)
                     {
-                        if (d.crackstatus <= 0)
+                        if (d.major_melt_count <= 0)
                         {
-                            d.crackstatus = 1;
+                            d.major_melt_count = 1;
                         }
                         else
                         {  
-                            d.crackstatus += 1;
+                            d.major_melt_count += 1;
                         }    
 
-                        snowinf += snowmelt * Xinfil[0];
+                        snowinf += snowmelt * d.index;
 
-                        if (snowinf > Xinfil[1])
+                        if (snowinf > d.max_major_per_day)
                         {
-                            snowinf = Xinfil[1];
+                            snowinf = d.max_major_per_day;
                         }
                     }
                     else
                     {
-                        snowinf += snowmelt * Xinfil[0];
+                        snowinf += snowmelt * d.index;
                     }
 
-                    if (d.crackstatus > infDays)
+                    if (d.major_melt_count > infDays)
                     {
                         snowinf = 0;
                     }
@@ -182,7 +188,7 @@ void Infil_All::run(mesh_elem &face)
             else if (soil_storage_at_freeze == 100) // Restricted
             {
                 snowinf = 0.;
-                d.crackstatus = 1;
+                d.major_melt_count = 1;
             }
 
             melt_runoff = snowmelt - snowinf;
