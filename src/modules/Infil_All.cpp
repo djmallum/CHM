@@ -81,6 +81,7 @@ void Infil_All::init(mesh& domain)
         d.index = 0;
         d.max_major_per_day = 0.;
         d.init_SWE = 0.;
+        d.infDays = 6;
         
         
 
@@ -127,6 +128,13 @@ void Infil_All::run(mesh_elem &face)
 
     if (d.frozen) // Gray's infiltration, 1985
     {
+        // TODO this version is not optimal for CHM because it is hourly and this model is daily only.
+        // Idea for new version:
+        // At the end of every day, check if it is Major and increment the count
+        // problem: How to deal with the issue where if the melt is not major, it all infiltrates?
+        // Suggestion, every hour we examine the rate and if its on pace for major: it obeys mI/S 
+        // and if it is below pace for major, all infiltrates
+        // new problem: in the old system
         if (rainfall > 0.0)
         {
             rain_on_snow = rainfall;
@@ -170,7 +178,7 @@ void Infil_All::run(mesh_elem &face)
                         snowinf += snowmelt * d.index;
                     }
 
-                    if (d.major_melt_count > infDays)
+                    if (d.major_melt_count > d.infDays)
                     {
                         snowinf = 0;
                     }
@@ -193,7 +201,7 @@ void Infil_All::run(mesh_elem &face)
 
             melt_runoff = snowmelt - snowinf;
 
-            if (snowinfil > 0.0)
+            if (snowinf > 0.0)
             {
                 snowinf += d.rain_on_snow;
             }
