@@ -5,11 +5,10 @@ name: CI
 # Controls when the action will run.
 on:
   # Triggers the workflow on push or pull request events but only for the stable/proj7 branch
-  # DISABLED BECAUSE IT DOESN'T WORK RIGHT NOW
-  # push:
-  # pull_request:
-  # schedule:
-  #   - cron: '0 0 * * 0' # run every week
+   push:
+   pull_request:
+   schedule:
+     - cron: '0 0 * * 0' # run every week
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
