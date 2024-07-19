@@ -147,12 +147,21 @@ jobs:
 
       - name: Rebase onto upstream
         run: |
+         IGNORE = ".github/workflows/main.yml READMD.md"
          git checkout Main
-         if ! git rebase develop; then
-          echo "Rebase conflict detected. Aborting rebase."
-          git rebase --abort
-          exit 1
-         fi
+         git rebase develop || {
+           echo "Rebase conflict detected. Handling specific files."
+
+           for file in $IGNORE; do
+            git restore --staged "$file"
+            git restore "$file"
+           done
+
+           git rebase --continue || {
+             echo "Rebase failed after attempting conflict resolution."
+             exit 1
+           }
+         }
 
       - name: Push changes
         run: git push origin develop --force
