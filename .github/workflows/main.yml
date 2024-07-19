@@ -140,6 +140,16 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+      - name: Set up Git
+        run: |
+          git config --global user.name "djmallum"
+          git config --global user.email "donovan.allum@usask.ca"
+
+      - name: Add upstream
+        run: |
+          git checkout develop
+          git remote add upstream "https://github.com/Chrismarsh/CHM"
+
       - name: Fetch upstream
         run: git fetch upstream
 
