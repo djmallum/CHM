@@ -145,18 +145,10 @@ jobs:
           git config --global user.name "djmallum"
           git config --global user.email "donovan.allum@usask.ca"
 
-      - name: Add upstream
-        run: |
-          git checkout develop
-          git remote add upstream "https://github.com/Chrismarsh/CHM"
-
-      - name: Fetch upstream
-        run: git fetch upstream
-
       - name: Rebase onto upstream
         run: |
-         git checkout develop
-         if ! git rebase upstream/develop; then
+         git checkout Main
+         if ! git rebase develop; then
           echo "Rebase conflict detected. Aborting rebase."
           git rebase --abort
           exit 1
