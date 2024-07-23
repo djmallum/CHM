@@ -19,28 +19,28 @@
 // You should have received a copy of the GNU General Public License
 // along with Canadian Hydrological Model.  If not, see
 // <http://www.gnu.org/licenses/>.
-//
-
 
 #include "TPSpline.hpp"
 
-//#include <iostream>
 //#define FUNC_DEBUG
 #include <func/func.hpp>
 #include "TPSBasis.hpp"
 #include <boost/predef.h>
 
 // Build FunC lookup table for -(log(x)+gamma+gsl_sf_expint_E1(x))
+// When built with those stepsizes, each LUT will have errors of at most 2*10^{-8}. We could have FunC rederive both
+// values with generate_by_tol but computing them ahead of time saves lots of time. For the uniform LUT, each
+// subinterval is of that length. For the nonuniform LUT it’s less intuitive, but it’s still guaranteed to use
+// ceil((32-0)/0.149626) = 214 subintervals
 
-// hardcoded error of 2e-8
-// There is a compiler bug fixed in gcc that interfers with boost 1.85.0 math and frounding-math (needed for cgal)
-// so use the uniform spaced LUT to avoid the proplematic call
-// bug is fixed in  12.4/13.3/14.0
+// There is a compiler bug in gcc that interfers with boost 1.85.0 math and -frounding-math (needed for cgal) that
+//  Use the uniform spaced LUT to avoid the proplematic call
+// The compiler bug is fixed in gcc 12.4/13.3/14.0
 // see https://github.com/boostorg/math/issues/1133 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109359
 #if BOOST_COMP_GNUC && BOOST_COMP_GNUC < BOOST_VERSION_NUMBER(13,3,0)
-static func::UniformEqSpaceInterpTable<3,double> TPSBasis_LUT({TPSBasis<double>}, {0, 32, 0.0903141});
+static func::UniformEqSpaceInterpTable<3,double> TPSBasis_LUT({TPSBasis<double>}, {0, 32,  0.107807);
 #else
-static func::NonUniformEqSpaceInterpTable<3,double> TPSBasis_LUT({FUNC_SET_F(TPSBasis,double)}, {0, 32, 0.125391});
+static func::NonUniformExactInterpTable<3,double> TPSBasis_LUT({FUNC_SET_F(TPSBasis,double)}, {0, 32, 0.149626});
 #endif
 
 //static func::DirectEvaluation<double> TPSBasis_LUT({OLD_TPSBasis<double>}, 1e-8, 6500);
@@ -56,7 +56,7 @@ static func::NonUniformEqSpaceInterpTable<3,double> TPSBasis_LUT({FUNC_SET_F(TPS
 double thin_plate_spline::operator()(std::vector< boost::tuple<double,double,double> >& sample_points, boost::tuple<double,double,double>& query_point)
 {
     //func::Timer t;
-    //see if we can reuse our
+    //see if we can reuse our vectors
     if(sample_points.size() + 1 != size)
     {
         size = sample_points.size();
@@ -110,8 +110,8 @@ double thin_plate_spline::operator()(std::vector< boost::tuple<double,double,dou
                     //as the worked example in box 16.2 in Chang
                     //Rd = -(log(dij) + gamma + gsl_sf_expint_E1(dij));
 
-                    if (x < 32.0) Rd = TPSBasis_LUT(dij);
-                    else Rd = -(log(x) + gamma);
+                    if (dij < 32.0) Rd = TPSBasis_LUT(dij);
+                    else Rd = -(log(dij) + gamma);
                 }
 
                 A(i, j + 1) = Rd;
@@ -167,8 +167,8 @@ double thin_plate_spline::operator()(std::vector< boost::tuple<double,double,dou
 
         //double Rd = -(log(dij) + gamma + gsl_sf_expint_E1(dij));
         double Rd = 0;
-        if (x < 32.0) Rd = TPSBasis_LUT(dij);
-        else          Rd = -(log(x) + gamma);
+        if (dij < 32.0) Rd = TPSBasis_LUT(dij);
+        else          Rd = -(log(dij) + gamma);
 
         z0 = z0 + x(i)*Rd;
     }
