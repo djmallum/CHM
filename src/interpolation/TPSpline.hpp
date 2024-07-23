@@ -71,7 +71,7 @@ private:
 
     Eigen::FullPivLU< Eigen::Matrix<double,Eigen::Dynamic, Eigen::Dynamic> > lu;
     double pi;
-    double c; //euler constant
+    double gamma; //euler constant
     double weight;
     bool uninit_lu_decomp;
     size_t size;

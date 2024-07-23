@@ -32,15 +32,15 @@
 
 // Build FunC lookup table for -(log(x)+gamma+gsl_sf_expint_E1(x))
 
-// hardcoded error of 1e-8
+// hardcoded error of 2e-8
 // There is a compiler bug fixed in gcc that interfers with boost 1.85.0 math and frounding-math (needed for cgal)
 // so use the uniform spaced LUT to avoid the proplematic call
 // bug is fixed in  12.4/13.3/14.0
 // see https://github.com/boostorg/math/issues/1133 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109359
 #if BOOST_COMP_GNUC && BOOST_COMP_GNUC < BOOST_VERSION_NUMBER(13,3,0)
-static func::FailureProofTable<func::UniformEqSpaceInterpTable<3,double>,double> TPSBasis_LUT({TPSBasis<double>}, {1e-5, 32, 0.11111});
+static func::UniformEqSpaceInterpTable<3,double> TPSBasis_LUT({TPSBasis<double>}, {0, 32, 0.0903141});
 #else
-static func::FailureProofTable<func::NonUniformEqSpaceInterpTable<3,double>,double> TPSBasis_LUT({FUNC_SET_F(TPSBasis,double)}, {1e-5, 32, 0.154207});
+static func::NonUniformEqSpaceInterpTable<3,double> TPSBasis_LUT({FUNC_SET_F(TPSBasis,double)}, {0, 32, 0.125391});
 #endif
 
 //static func::DirectEvaluation<double> TPSBasis_LUT({OLD_TPSBasis<double>}, 1e-8, 6500);
@@ -108,8 +108,10 @@ double thin_plate_spline::operator()(std::vector< boost::tuple<double,double,dou
                     //And Hengl and Evans in geomorphometry p.52 do not, but have some undefined omega_0/omega_1 weights
                     //it is all rather confusing. But this follows Mitášová exactly, and produces essentially the same answer
                     //as the worked example in box 16.2 in Chang
-                      Rd = -(log(dij) + c + gsl_sf_expint_E1(dij));
-//                    Rd = TPSBasis_LUT(dij);
+                    //Rd = -(log(dij) + gamma + gsl_sf_expint_E1(dij));
+
+                    if (x < 32.0) Rd = TPSBasis_LUT(dij);
+                    else Rd = -(log(x) + gamma);
                 }
 
                 A(i, j + 1) = Rd;
@@ -162,10 +164,12 @@ double thin_plate_spline::operator()(std::vector< boost::tuple<double,double,dou
         double ydiff = (sy  - ey);
         double dij = sqrt(xdiff*xdiff + ydiff*ydiff);
         dij = (dij * weight/2.0) * (dij * weight/2.0);
-        // set Rd equal to -(log(dij) + c + gsl_sf_expint_E1(dij))
-         
-//        double Rd = TPSBasis_LUT(dij);
-        double Rd = -(log(dij) + c + gsl_sf_expint_E1(dij));
+
+        //double Rd = -(log(dij) + gamma + gsl_sf_expint_E1(dij));
+        double Rd = 0;
+        if (x < 32.0) Rd = TPSBasis_LUT(dij);
+        else          Rd = -(log(x) + gamma);
+
         z0 = z0 + x(i)*Rd;
     }
 
@@ -195,12 +199,12 @@ thin_plate_spline::thin_plate_spline(size_t sz, std::map<std::string,std::string
 
 thin_plate_spline::thin_plate_spline()
 {
-    pi          = 3.14159;
-    c           = 0.577215; //euler constant
-    weight      = 0.01;
-    size        = 0;
+    pi       = 3.14159;
+    gamma    = 0.5772156649015328606; //euler constant
+    weight   = 0.01;
+    size     = 0;
 
-    reuse_LU    = false;
+    reuse_LU = false;
     uninit_lu_decomp = true;
 }
 

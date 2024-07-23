@@ -3,14 +3,15 @@
 #include <gsl/gsl_sf_expint.h>
 #include <cmath>
 
+
 /* Basis function used for building a thin plate spline. boost::math::expint is used here instead
  * of gsl_sf_expint because it automatically works with Boost's automatic differentiation */
 template <typename T>
 T TPSBasis(T x){
   T gamma = 0.5772156649015328606;
-  // gsl_sf_expint_E1(x) < epsilon_double and ln(x) > 1 for x > 32
-  // so -(log(x) + c + gsl_sf_expint_E1(x)) == -(log(x) + c) is true for x > 32
-  return (x <= 32) ? -(log(x) + gamma + boost::math::expint(1,x)) : -(log(x) + gamma);
+  if (x < 1e-4) return -((x/18.0-1/4.0)*x+1)*x;
+  else if (x <= 32) return -(log(x) + gamma + boost::math::expint(1,x));
+  else return -(log(x) + gamma);
 }
 
 
