@@ -1041,21 +1041,37 @@ void core::config_output(pt::ptree &value)
             }
             catch (pt::ptree_bad_path &e)
             {
-                SPDLOG_DEBUG("Writing all variables to output mesh");
+                SPDLOG_WARN("Writing all variables to output mesh");
             }
 
-            out.frequency = itr.second.get("frequency",1); //defaults to every timestep
-            SPDLOG_DEBUG("Output every {} timesteps.", out.frequency);
+            out.frequency = itr.second.get_optional<size_t>("frequency"); //defaults to every timestep
 
-            out.only_last_n = itr.second.get("only_last_n",-1); //defaults to keep everything
-            SPDLOG_DEBUG("Output only on last n =  {} timesteps", out.only_last_n);
+            out.only_last_n = itr.second.get_optional<size_t>("only_last_n");
 
-            if(out.frequency > 1 && out.only_last_n != -1)
+            if(out.frequency && out.only_last_n)
             {
                 SPDLOG_WARN("Only only_last_n output option will be used");
+                out.frequency.reset();
             }
 
+            auto specific_datetime = itr.second.get_optional<std::string>("specific_datetime");
+            if(specific_datetime)
+            {
+                out.specific_datetime = boost::posix_time::ptime(boost::posix_time::from_iso_string(*specific_datetime));
+            }
+
+            auto specific_time = itr.second.get_optional<std::string>("specific_time");
+            if(specific_time)
+            {
+                // ptime needs a real date, but we will only ever be checking the minute and hour
+                auto time = "3000-01-01 " + *specific_time + ":00";
+                out.specific_time = boost::posix_time::ptime(boost::posix_time::time_from_string(time));
+            }
+
+
             out.mesh_output_formats.push_back(output_info::mesh_outputs::vtu);
+            out.name = "vtu output";
+            out.list_outputs();
 
         } else
         {
@@ -2125,263 +2141,247 @@ void core::run()
     size_t max_ts = _metdata->n_timestep();
     bool done = false;
 
+    while (!done)
+    {
+        boost::posix_time::ptime t;
 
+        _global->_current_date = _metdata->current_time();
 
-        while (!done)
+        SPDLOG_DEBUG("Timestep: {}\tstep#{}", boost::posix_time::to_simple_string(_global->posix_time()), current_ts);
+
+        std::stringstream ss;
+        ss << _global->posix_time();
+
+        c.tic();
+        size_t chunks = 0;
+        try
         {
-            boost::posix_time::ptime t;
-
-            _global->_current_date = _metdata->current_time();
-
-            SPDLOG_DEBUG("Timestep: {}\tstep#{}", boost::posix_time::to_simple_string(_global->posix_time()), current_ts);
-
-            std::stringstream ss;
-            ss << _global->posix_time();
-
-            c.tic();
-            size_t chunks = 0;
-            try
+            for (auto &itr : _chunked_modules)
             {
-                for (auto &itr : _chunked_modules)
+
+                if (itr.at(0)->parallel_type() == module_base::parallel::data)
                 {
-
-                    if (itr.at(0)->parallel_type() == module_base::parallel::data)
+#ifdef OMP_SAFE_EXCEPTION
+                    ompException e;
+#endif
+                    #pragma omp parallel for
+                    for (size_t i = 0; i < _mesh->size_faces(); i++)
                     {
-#ifdef OMP_SAFE_EXCEPTION
-                        ompException e;
-#endif
-                        #pragma omp parallel for
-                        for (size_t i = 0; i < _mesh->size_faces(); i++)
-                        {
-                            auto face = _mesh->face(i);
-                            if (point_mode.enable && face->_debug_name != _outputs[0].name)
-                                continue;
+                        auto face = _mesh->face(i);
+                        if (point_mode.enable && face->_debug_name != _outputs[0].name)
+                            continue;
 
-                             //module calls
-                             for (auto &jtr : itr)
-                             {
+                         //module calls
+                         for (auto &jtr : itr)
+                         {
 #ifdef OMP_SAFE_EXCEPTION
-                                 e.Run(
-                                     [&]
-                                     {
+                             e.Run(
+                                 [&]
+                                 {
 #endif
-                                         jtr->run(face);
+                                     jtr->run(face);
 #ifdef OMP_SAFE_EXCEPTION
-                                     });
+                                 });
 #endif
-                             }
-                        }
-#ifdef OMP_SAFE_EXCEPTION
-                        e.Rethrow();
-#endif
-
-                    } else
-                    {
-                        //module calls for domain parallel
-                        for (auto &jtr : itr)
-                        {
-                          jtr->run(_mesh);
-                        }
+                         }
                     }
-
-                    chunks++;
-
-                }
-            }
-            catch (exception_base &e)
-            {
-                SPDLOG_ERROR("Exception at timestep: {}", boost::posix_time::to_simple_string(_global->posix_time()));
-                //if we die in a module, try to dump our time series out so we can figure out wtf went wrong
-                SPDLOG_ERROR("Exception has occured. Timeseries and meshes WILL BE INCOMPLETE!");
-                *_end_ts = _global->posix_time();
-                done = true;
-                SPDLOG_ERROR(boost::diagnostic_information(e));
-
-            }
-            catch(std::exception& e)
-            {
-                SPDLOG_ERROR("Exception at timestep: {}", boost::posix_time::to_simple_string(_global->posix_time()));
-                SPDLOG_ERROR(e.what());
-                *_end_ts = _global->posix_time();
-                done = true;
-                SPDLOG_ERROR(e.what());
-            }
-
-            //check that we actually need a mesh output.
-            for (auto &itr : _outputs)
-            {
-                if(itr.type == output_info::output_type::mesh)
-                {
-                    std::vector<std::string> output;
-                    output.assign(itr.variables.begin(),itr.variables.end()); //convert to list to match internal lists
-
-                    _mesh->update_vtk_data(output); //update the internal vtk mesh
-                    break; // we're done as soon as we've called update once. No need to do it multiple times.
-                }
-            }
-
-            // save the current state
-            if(_checkpoint_opts.should_checkpoint(current_ts,
-                                                   (max_ts-1) == current_ts,
-                                                   _hpc_scheduler_info
-                                                   )) // -1 because current_ts is 0 indexed
-            {
-                SPDLOG_DEBUG("Checkpointing...");
-
-                netcdf savestate; //file to save to when checkpointing.
-
-                auto timestamp = _global->posix_time() + boost::posix_time::seconds(_global->_dt);
-                //also write it out in seconds because netcdf is struggling with the string
-                unsigned long long int ts_sec = _global->posix_time_int()+_global->_dt;
-
-                auto timestr = boost::posix_time::to_iso_string(timestamp); // start from current TS + dt
-
-
-                size_t rank = 0;
-#ifdef USE_MPI
-                rank = _comm_world.rank();
+#ifdef OMP_SAFE_EXCEPTION
+                    e.Rethrow();
 #endif
 
-                auto dirpath = _checkpoint_opts.ckpt_path / timestr;
-                boost::filesystem::create_directories(dirpath);
-
-                //this parses both the input and the output paths for the checkpoint.
-                auto fname = ("chkp"+timestr + "_" + std::to_string(rank) + ".nc");
-                auto f = dirpath / fname;
-                savestate.create( f.string());
-
-                c.tic();
-                for (auto &itr : _chunked_modules)
+                } else
                 {
-                    //module calls
+                    //module calls for domain parallel
                     for (auto &jtr : itr)
                     {
-                        jtr->checkpoint(_mesh, savestate);
+                      jtr->run(_mesh);
                     }
                 }
 
-                auto& ids = _mesh->get_global_IDs();
-                savestate.create_variable1D("global_id",ids.size());
+                chunks++;
 
-                for (size_t i = 0; i < ids.size(); i++)
-                {
-                    savestate.put_var1D("global_id", i, ids[i]);
-                }
+            }
+        }
+        catch (exception_base &e)
+        {
+            SPDLOG_ERROR("Exception at timestep: {}", boost::posix_time::to_simple_string(_global->posix_time()));
+            //if we die in a module, try to dump our time series out so we can figure out wtf went wrong
+            SPDLOG_ERROR("Exception has occured. Timeseries and meshes WILL BE INCOMPLETE!");
+            *_end_ts = _global->posix_time();
+            done = true;
+            SPDLOG_ERROR(boost::diagnostic_information(e));
 
-                savestate.get_ncfile().putAtt("restart_time",boost::posix_time::to_simple_string(timestamp));
-                savestate.get_ncfile().putAtt("restart_time_sec", netCDF::ncUint64,ts_sec);
+        }
+        catch(std::exception& e)
+        {
+            SPDLOG_ERROR("Exception at timestep: {}", boost::posix_time::to_simple_string(_global->posix_time()));
+            SPDLOG_ERROR(e.what());
+            *_end_ts = _global->posix_time();
+            done = true;
+            SPDLOG_ERROR(e.what());
+        }
 
-                pt::ptree tree;
+        // check that we actually need a mesh output this timestep
+        for (auto &itr : _outputs)
+        {
+            if(itr.type == output_info::output_type::mesh &&
+                itr.should_output(max_ts, current_ts, _global->_current_date))
+            {
+                std::vector<std::string> output;
+                output.assign(itr.variables.begin(),itr.variables.end()); //convert to list to match internal lists
 
-                int nranks = 1;
+                _mesh->update_vtk_data(output); //update the internal vtk mesh
+                break; // we're done as soon as we've called update once. No need to do it multiple times.
+            }
+        }
+
+        // save the current state
+        if(_checkpoint_opts.should_checkpoint(current_ts,
+                                               (max_ts-1) == current_ts,
+                                               _hpc_scheduler_info
+                                               )) // -1 because current_ts is 0 indexed
+        {
+            SPDLOG_DEBUG("Checkpointing...");
+
+            netcdf savestate; //file to save to when checkpointing.
+
+            auto timestamp = _global->posix_time() + boost::posix_time::seconds(_global->_dt);
+            //also write it out in seconds because netcdf is struggling with the string
+            unsigned long long int ts_sec = _global->posix_time_int()+_global->_dt;
+
+            auto timestr = boost::posix_time::to_iso_string(timestamp); // start from current TS + dt
+
+
+            size_t rank = 0;
 #ifdef USE_MPI
-                nranks = _comm_world.size();
+            rank = _comm_world.rank();
 #endif
 
-                tree.put("ranks", nranks);
-                tree.put("restart_time_sec", ts_sec);
-                tree.put("startdate", timestr);
+            auto dirpath = _checkpoint_opts.ckpt_path / timestr;
+            boost::filesystem::create_directories(dirpath);
 
-                pt::ptree files;
+            //this parses both the input and the output paths for the checkpoint.
+            auto fname = ("chkp"+timestr + "_" + std::to_string(rank) + ".nc");
+            auto f = dirpath / fname;
+            savestate.create( f.string());
 
-                pt::ptree tmp_files;
-                for (size_t i = 0; i < nranks; ++i)
+            c.tic();
+            for (auto &itr : _chunked_modules)
+            {
+                //module calls
+                for (auto &jtr : itr)
                 {
-                    pt::ptree s;
-
-                    s.put("", timestr +"/" + "chkp"+timestr + "_" + std::to_string(i) + ".nc");
-                    tmp_files.push_back(std::make_pair("", s));
-                }
-                tree.add_child("files", tmp_files);
-
-
-                if(rank == 0)
-                {
-                    pt::write_json(
-                        (_checkpoint_opts.ckpt_path / ("checkpoint_" + timestr + ".np" + std::to_string(nranks) + ".json")).string(),
-                        tree);
-                }
-
-                SPDLOG_DEBUG("Done checkpoint [ {} s]", c.toc<s>());
-
-                // if we checkpointed because we are out of time, we need to stop the simulation
-                if(_checkpoint_opts.checkpoint_request_terminate)
-                {
-                    done = true;
-
-                    // we bailed early because of wall clock, so this is not a clean exit
-                    clean_exit = false;
+                    jtr->checkpoint(_mesh, savestate);
                 }
             }
 
-            for (auto &itr : _outputs)
+            auto& ids = _mesh->get_global_IDs();
+            savestate.create_variable1D("global_id",ids.size());
+
+            for (size_t i = 0; i < ids.size(); i++)
             {
-                if (itr.type == output_info::output_type::mesh)
+                savestate.put_var1D("global_id", i, ids[i]);
+            }
+
+            savestate.get_ncfile().putAtt("restart_time",boost::posix_time::to_simple_string(timestamp));
+            savestate.get_ncfile().putAtt("restart_time_sec", netCDF::ncUint64,ts_sec);
+
+            pt::ptree tree;
+
+            int nranks = 1;
+#ifdef USE_MPI
+            nranks = _comm_world.size();
+#endif
+
+            tree.put("ranks", nranks);
+            tree.put("restart_time_sec", ts_sec);
+            tree.put("startdate", timestr);
+
+            pt::ptree files;
+
+            pt::ptree tmp_files;
+            for (size_t i = 0; i < nranks; ++i)
+            {
+                pt::ptree s;
+
+                s.put("", timestr +"/" + "chkp"+timestr + "_" + std::to_string(i) + ".nc");
+                tmp_files.push_back(std::make_pair("", s));
+            }
+            tree.add_child("files", tmp_files);
+
+
+            if(rank == 0)
+            {
+                pt::write_json(
+                    (_checkpoint_opts.ckpt_path / ("checkpoint_" + timestr + ".np" + std::to_string(nranks) + ".json")).string(),
+                    tree);
+            }
+
+            SPDLOG_DEBUG("Done checkpoint [ {} s]", c.toc<s>());
+
+            // if we checkpointed because we are out of time, we need to stop the simulation
+            if(_checkpoint_opts.checkpoint_request_terminate)
+            {
+                done = true;
+
+                // we bailed early because of wall clock, so this is not a clean exit
+                clean_exit = false;
+            }
+        }
+
+        for (auto &itr : _outputs)
+        {
+            if (itr.type == output_info::output_type::mesh)
+            {
+                // check if we should output or not
+                bool do_output = itr.should_output(max_ts, current_ts, _global->_current_date);
+
+                if(do_output)
                 {
-                    // check if we should output or not
-                    bool should_output = false;
 
-                    if(itr.only_last_n != -1)
+                    #pragma omp parallel
                     {
-                        auto ts_left = max_ts - current_ts;
-                        if( ts_left <= itr.only_last_n) // if we are within the last n timesteps, output
-                            should_output = true;
-                    }
-                    else
-                    {
-                        if(current_ts % itr.frequency == 0)
-                            should_output = true;
-                    }
-
-
-
-                    if(should_output)
-                    {
-
-                        #pragma omp parallel
+                        #pragma omp single
                         {
-                            #pragma omp single
+                            for (auto jtr : itr.mesh_output_formats)
                             {
-                                for (auto jtr : itr.mesh_output_formats)
+                                #pragma omp task
                                 {
-                                    #pragma omp task
+                                    std::string base_name = itr.fname + std::to_string(_global->posix_time_int());
+                                    boost::filesystem::path p(base_name);
+
+                                    if (jtr == output_info::mesh_outputs::vtu  )
                                     {
-                                        std::string base_name = itr.fname + std::to_string(_global->posix_time_int());
-                                        boost::filesystem::path p(base_name);
 
-                                        if (jtr == output_info::mesh_outputs::vtu  )
+                                        // this really only works if we let rank0 handle the io.
+                                        // If we let each process do it, they walk all over each other's output
+#ifdef USE_MPI
+                                        if(_comm_world.rank() == 0)
                                         {
-
-                                            // this really only works if we let rank0 handle the io.
-                                            // If we let each process do it, they walk all over each other's output
-#ifdef USE_MPI
-                                            if(_comm_world.rank() == 0)
+                                            for(int rank = 0; rank < _comm_world.size(); rank++)
                                             {
-                                                for(int rank = 0; rank < _comm_world.size(); rank++)
-                                                {
 #else
-                                                    int rank = 0;
+                                                int rank = 0;
 #endif
-                                                    pt::ptree &dataset = pvd.add("VTKFile.Collection.DataSet", "");
-                                                    dataset.add("<xmlattr>.timestep", _global->posix_time_int());
-                                                    dataset.add("<xmlattr>.group", "");
-                                                    dataset.add("<xmlattr>.part", rank);
-                                                    dataset.add("<xmlattr>.file", p.filename().string()+"_"+std::to_string(rank) + ".vtu");
+                                                pt::ptree &dataset = pvd.add("VTKFile.Collection.DataSet", "");
+                                                dataset.add("<xmlattr>.timestep", _global->posix_time_int());
+                                                dataset.add("<xmlattr>.group", "");
+                                                dataset.add("<xmlattr>.part", rank);
+                                                dataset.add("<xmlattr>.file", p.filename().string()+"_"+std::to_string(rank) + ".vtu");
 #ifdef USE_MPI
-                                                }
                                             }
+                                        }
 #endif
 
-                                            //because a full path can be provided for the base_name, we need to strip this off
-                                            //to make it a relative path in the xml file.
+                                        //because a full path can be provided for the base_name, we need to strip this off
+                                        //to make it a relative path in the xml file.
 
 #ifdef USE_MPI
-                                            _mesh->write_vtu(base_name + "_"+std::to_string(_comm_world.rank() )+ ".vtu");
+                                        _mesh->write_vtu(base_name + "_"+std::to_string(_comm_world.rank() )+ ".vtu");
 #else
-                                            _mesh->write_vtu(base_name + "_"+std::to_string(rank)+ ".vtu");
+                                        _mesh->write_vtu(base_name + "_"+std::to_string(rank)+ ".vtu");
 #endif
 
-                                        }
                                     }
                                 }
                             }
@@ -2389,6 +2389,7 @@ void core::run()
                     }
                 }
             }
+        }
 
             //If we are output a timeseries at specific triangles, we do that here
             //Each output knows what face it corresponds to

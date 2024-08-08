@@ -333,7 +333,7 @@ protected:
     {
     public:
         output_info():
-                      frequency{1}, fname{""},
+                      fname{""},
                       latitude{0}, longitude{0},
                       name{""},
                       x{0}, y{0},
@@ -341,6 +341,7 @@ protected:
         {
             face = nullptr;
         }
+
         enum output_type
         {
             time_series,
@@ -352,6 +353,59 @@ protected:
             vtu,
             ascii
         };
+
+        // Should we output?
+        bool should_output(const size_t& max_ts,
+                           const size_t& current_ts,
+                           const boost::posix_time::ptime& _current_date
+                           )
+        {
+            bool should_output = false;
+
+            if(only_last_n)
+            {
+                auto ts_left = max_ts - current_ts;
+                if( ts_left <= *only_last_n) // if we are within the last n timesteps, output
+                    should_output = true;
+            }
+
+            if(frequency)
+            {
+                if(current_ts % *frequency == 0)
+                    should_output = true;
+            }
+
+            if(specific_time)
+            {
+                if( (_current_date.time_of_day().hours() == specific_time->time_of_day().hours()) &&
+                    (_current_date.time_of_day().minutes() == specific_time->time_of_day().minutes()) )
+                    should_output = true;
+            }
+
+            if(specific_datetime)
+            {
+                if(_current_date == *specific_datetime)
+                    should_output = true;
+            }
+
+            return should_output;
+
+        }
+
+        // print to stdout DEBUG all the valid outputs selected
+        void list_outputs()
+        {
+                SPDLOG_DEBUG("Output frequency options for {}", name);
+
+                if(only_last_n)
+                    SPDLOG_DEBUG("\tonly_last_n = {}", *only_last_n);
+                if(frequency)
+                    SPDLOG_DEBUG("\tfrequency = {}", *frequency);
+                if(specific_time)
+                    SPDLOG_DEBUG("\tspecific_time = {}", std::to_string(specific_time->time_of_day().hours()) + ":" + std::to_string(specific_time->time_of_day().minutes()));
+                if(specific_datetime)
+                    SPDLOG_DEBUG("\tspecific_datetime = {}", boost::posix_time::to_simple_string(*specific_datetime));
+        }
 
         output_type type; // the type of output
         std::string name;
@@ -366,14 +420,24 @@ protected:
         double x;
         double y;
 
-
         std::set<std::string> variables;
         mesh_elem face;
         timeseries ts;
-        size_t frequency;
+
+        // Output options
+
+        // every n timesteps
+        boost::optional<size_t> frequency;
+
+        // at a specific date-time
+        boost::optional<boost::posix_time::ptime> specific_datetime;
+
+        // at a specific time
+        boost::optional<boost::posix_time::ptime> specific_time;
+
 
         //Only output the last n timesteps. -1 = all
-        size_t only_last_n;
+        boost::optional<size_t> only_last_n;
 
     };
 

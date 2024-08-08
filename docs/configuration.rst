@@ -497,7 +497,11 @@ mesh
 The entire mesh may be written to Paraview’s vtu format for
 visualization in Paraview and for analysis. This is denoted by a ``"mesh":{ ... }`` key.
 
-For more details, please see the :ref:`output` section.
+For more details on the output files, please see the :ref:`output` section.
+
+.. note::
+   The default behaviour of ``mesh`` output is not to output any vtu files. The user must specify the output frequency
+   or timing.
 
 .. confval:: base_name
    
@@ -509,7 +513,7 @@ For more details, please see the :ref:`output` section.
 
    :type: ``[ "variable", ... ]``
 
-   The default behaviour to is write every variable at each timestep. This may produce an undesirable amount of output. This takes a list of variables to output.
+   The default behaviour to is to write every variable at each timestep. This may produce an undesirable amount of output. This takes a list of variables to output.
 
 .. code:: json
 
@@ -525,7 +529,10 @@ For more details, please see the :ref:`output` section.
    :type: int
    :default: 1
 
-   Frequency can be set to write ever *N* timesteps. 
+   Frequency can be set to write ever *N* timesteps. If the automatic checkpoint system is used, this might not
+   produce a consistent output frequency and time. For example, suppose daily midnight output was chosen
+   (``frequency:24``) as the model simulation starts at 00:00. However, the auto-checkpoint suspends at the 8am
+   timestep, the next output will be at 8am instead of midnight.
 
 .. confval write_parameters::
 
@@ -541,7 +548,25 @@ For more details, please see the :ref:`output` section.
 
    Write each MPI rank's ghost face data to vtu output
 
+.. confval specific_datetime::
+
+    :type: string
+    :default: ""
+
+    Output at a specific date-time, given in the iso format, e.g., ``"specific_datetime": "20191227T160000"``
+
+
+.. confval specific_time::
+
+    :type: string
+    :default: ""
+
+    Output at a specific time every day, given in a "HH:MM" 24hr-format, e.g., ``"specific_time": "14:00"``
+
+
 Example:
+
+All of the frequency options can mixed together, allowing more complex output frequency selections
 
 .. code:: json
 
@@ -556,6 +581,7 @@ Example:
                 "iswr"
             ],
             "frequency": "24",
+            "specific_datetime": "20191227T160000",
             "write_parameters": false,
             "write_ghost_neighbors": false
         }
