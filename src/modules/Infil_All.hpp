@@ -77,20 +77,25 @@ public:
     void run(mesh_elem &face);
     void init(mesh& domain);
 
+    double major;
+    double min_swe_to_freeze;
+    unsigned int infDays;
+    bool AllowPriorInf;
     // TODO add pther functions here
 
     class data : public face_info
     {
     public:
-        double storage;  //mm
-        double max_storage;
-        double porosity; // [-]
-        double soil_depth; //mm
-
-        double opportunity_time; //h
-        double last_ts_potential_inf; // last time steps potential infiltration
         double total_inf;
         double total_excess;
+        double total_snowinf;
+        double total_meltexcess;
+        double total_rain_on_snow;
 
+        bool frozen;
+        double index;
+        double max_major_per_day;
+        double init_SWE;
+        unsigned int major_melt_count;
     };
 };
