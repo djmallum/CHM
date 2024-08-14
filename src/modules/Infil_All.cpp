@@ -61,31 +61,24 @@ void Infil_All::init(mesh& domain)
         auto face = domain->face(i);
         auto& d = face->make_module_data<Infil_All::data>(ID);
 
-        d.soil_depth = 400; // TODO uniform soil depth is probably not ideal but ok for now
-        d.porosity = .4; // TODO likewise with  uniform porosity. 
-                         // Future version: user supplies data to CHM depending on soil type to get porosity
-                         // soil depth data could also be supplied similarly
-        d.max_storage =  d.soil_depth * d.porosity;
-        //        d.storage =  d.max_storage  - (1 - d.max_storage * face->parameter("sm"_s)/100.);
-        d.storage =  d.max_storage * face->parameter("sm"_s)/100.; // TODO what is sm? Soil moisture? why is this a parameter? Also _s vs without
-
+        // Triangle Totals
         d.total_inf = 0.;
         d.total_snowinf = 0.; // NEW
         d.total_excess = 0.;
         d.total_meltexcess = 0.; // NEW
         d.total_rain_on_snow = 0.; // NEW
 
+        // Triangle variables
         d.frozen = false; // NEW, Maybe initial condition, not always necessary because of SWE check to freeze the ground
-        d.major_melt_count = 0; // NEW, For Gray frozen soil routine, counts number of major melts
-        d.major = 5; // NEW, default is 5 mm/day in crhm 
+	    d.major_melt_count = 0; // NEW, For Gray frozen soil routine, counts number of major melts
         d.index = 0;
         d.max_major_per_day = 0.;
         d.init_SWE = 0.;
-        d.infDays = 6;
         
-        
-
-
+        // Model Parameters
+        infDays = cfg.get("max_inf_days",6);
+        min_swe_to_freeze = cfg.get("min_swe_to_freeze",25);
+        major = cfg.get("major",5); 
 
     }
 }
@@ -116,12 +109,12 @@ void Infil_All::run(mesh_elem &face)
     double soil_storage_at_freeze = (*face)["soil_storage_at_freeze"_s];
     double avail_storage = (d.max_storage - d.storage);
 
-    if (swe > 25.0 && !d.frozen)
+    if (swe > d.min_swe_to_freeze && !d.frozen)
     {
         d.frozen = true; // Initiate frozen soil at 25 mm depth (as in CRHM)
         d.frozen_phase = 0;
 
-        d.Index = 0.;
+        d.index = 0.;
         d.max_major_per_day = 0.;
         d.init_SWE = 0.;
     }
@@ -149,50 +142,22 @@ void Infil_All::run(mesh_elem &face)
             }
             else if (soil_storage_at_freeze > 0 && soil_storage_at_freeze < 100) // Limited
             {
-                if (snowmelt >= d.major || d.major_melt_count >= 1)//TODO make sure that snowmelt units are the same as major units.
-                {
-                    if (swe > d.init_SWE && snowmelt >= d.major)
-                    {
-                        // TODO Add Gray equation here
-                    }
-                    if (snowmelt >= d.major)
-                    {
-                        if (d.major_melt_count <= 0)
-                        {
-                            d.major_melt_count = 1;
-                        }
-                        else
-                        {  
-                            d.major_melt_count += 1;
-                        }    
-
-                        snowinf += snowmelt * d.index;
-
-                        if (snowinf > d.max_major_per_day)
-                        {
-                            snowinf = d.max_major_per_day;
-                        }
-                    }
-                    else
-                    {
-                        snowinf += snowmelt * d.index;
-                    }
-
-                    if (d.major_melt_count > d.infDays)
-                    {
-                        snowinf = 0;
-                    }
+		        if ((d.major_melt_count == 0 & snowmelt >= major) || swe >= d.init_SWE) {
+                    // TODO Add Gray eqn call here
+                    //
+                    // calculate snowinf here, make it a function
+                    d.major_melt_count += 1;
                 }
-                else
-                {
-                    if (d.Prior_Inf)
-                    {
-                        snowinf = snowmelt;
-                    }
+                else if (d.major_melt_count > 0 && major_melt_count < infDays) {
+                    // TODO calculate snowinf here, make it a function
+                    d.major_melt_count += 1;
                 }
+                else if (d.major_melt_count == 0 and AllowPriorInf) {
+                    snowinf = snowmelt;
+                }
+
             }
-
-
+            // Stopped here aug 14
             else if (soil_storage_at_freeze == 100) // Restricted
             {
                 snowinf = 0.;
@@ -320,6 +285,19 @@ void Infil_All::run(mesh_elem &face)
     (*face)["available_storage"_s]=avail_storage;
 
 }
+
+// Crack Functions
+bool Infil_All::Do_Initial_INF_Calculation(const double& melt, const double& swe, auto& d) {
+    return (melt >= d.major & d.major_melt_count = 0) || swe >= d.init_SWE 
+}
+
+double Infil_All::Compute_inf_for_single_melt(const double& melt, const double& swe, auto& d ) {
+    double inf = 0;
+
+    if ( Do_Initial_INF_Calculation(melt, swe, d) ) {
+        // calc inf and swe
+
+        inf = 
 
 // Green-Ampt Functions
 void Infil_All::infiltrate(void){
