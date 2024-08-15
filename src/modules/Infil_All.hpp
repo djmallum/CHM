@@ -77,12 +77,6 @@ public:
     void run(mesh_elem &face);
     void init(mesh& domain);
 
-    double major;
-    double min_swe_to_freeze;
-    unsigned int infDays;
-    bool AllowPriorInf;
-    // TODO add pther functions here
-
     class data : public face_info
     {
     public:
@@ -94,8 +88,25 @@ public:
 
         bool frozen;
         double index;
-        double max_major_per_day;
+
+        double max_major_per_melt;
         double init_SWE;
         unsigned int major_melt_count;
     };
+
+private:
+
+    double major;
+    double min_swe_to_freeze;
+    unsigned int infDays;
+    bool AllowPriorInf;   
+
+    // General Functions
+    void Increment_Totals(Infil_All::data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
+
+    // Crack Functions
+    void Calc_Index(Infil_All::data &d, const double &swe);
+    double Calc_Actual_Inf(Infil_All::data &d, const double &melt);
+    void Check_for_ice_lens(Infil_All::data &d,double &soil_storage_at_freeze, double &t); 
+
 };

@@ -32,6 +32,7 @@ Infil_All::Infil_All(config_file cfg)
     depends("snowmelt_int");
     depends("rainfall_int"); // NEW
     depends("soil_storage_at_freeze"); // NEW, depends on Volumetric model, equivalent to fallstat in crhm
+    depends("t")
 
     provides("inf");
     provides("total_inf");
@@ -79,7 +80,7 @@ void Infil_All::init(mesh& domain)
         infDays = cfg.get("max_inf_days",6);
         min_swe_to_freeze = cfg.get("min_swe_to_freeze",25);
         major = cfg.get("major",5); 
-
+        AllowPriorInf = cfg.get("AllowPriorInf",true);
     }
 }
 void Infil_All::run(mesh_elem &face)
@@ -97,9 +98,9 @@ void Infil_All::run(mesh_elem &face)
 
     // CRHM does total infil for snow and total infil separately, wonder if I should do this
     double runoff = 0.;
+    double melt_runoff = 0.;
     double inf = 0.;
     double snowinf = 0.;
-    double melt_runoff = 0.;
     double rain_on_snow = 0.;
 
 
@@ -107,9 +108,9 @@ void Infil_All::run(mesh_elem &face)
     double rainfall = (*face)["rainfall_int"_s]; // NEW
     double swe = (*face)["swe"_s]; 
     double soil_storage_at_freeze = (*face)["soil_storage_at_freeze"_s];
-    double avail_storage = (d.max_storage - d.storage);
+    double airtemp = (*face)["t"_s];
 
-    if (swe > d.min_swe_to_freeze && !d.frozen)
+    if (swe > min_swe_to_freeze && !d.frozen)
     {
         d.frozen = true; // Initiate frozen soil at 25 mm depth (as in CRHM)
         d.frozen_phase = 0;
@@ -121,13 +122,6 @@ void Infil_All::run(mesh_elem &face)
 
     if (d.frozen) // Gray's infiltration, 1985
     {
-        // TODO this version is not optimal for CHM because it is hourly and this model is daily only.
-        // Idea for new version:
-        // At the end of every day, check if it is Major and increment the count
-        // problem: How to deal with the issue where if the melt is not major, it all infiltrates?
-        // Suggestion, every hour we examine the rate and if its on pace for major: it obeys mI/S 
-        // and if it is below pace for major, all infiltrates
-        // new problem: in the old system
         if (rainfall > 0.0)
         {
             rain_on_snow = rainfall;
@@ -135,6 +129,7 @@ void Infil_All::run(mesh_elem &face)
 
         if (snowmelt > 0.0)
         {
+            
             if (soil_storage_at_freeze == 0) // Unlimited
             {
                 inf += snowmelt;
@@ -142,14 +137,19 @@ void Infil_All::run(mesh_elem &face)
             }
             else if (soil_storage_at_freeze > 0 && soil_storage_at_freeze < 100) // Limited
             {
-		        if ((d.major_melt_count == 0 & snowmelt >= major) || swe >= d.init_SWE) {
-                    // TODO Add Gray eqn call here
-                    //
-                    // calculate snowinf here, make it a function
+		        
+                Check_for_ice_lens(d,soil_storage_at_freeze,airtemp);
+                
+                if ((d.major_melt_count == 0 & snowmelt >= major) || swe >= d.init_SWE) {
+                    Calc_Index(d,swe);
+                    
+                    snowinf = Calc_Actual_Inf(d,snowmelt);
+                    
                     d.major_melt_count += 1;
                 }
                 else if (d.major_melt_count > 0 && major_melt_count < infDays) {
-                    // TODO calculate snowinf here, make it a function
+                    snowinf = Calc_Actual_Inf(d,snowmelt);
+
                     d.major_melt_count += 1;
                 }
                 else if (d.major_melt_count == 0 and AllowPriorInf) {
@@ -157,7 +157,6 @@ void Infil_All::run(mesh_elem &face)
                 }
 
             }
-            // Stopped here aug 14
             else if (soil_storage_at_freeze == 100) // Restricted
             {
                 snowinf = 0.;
@@ -166,18 +165,25 @@ void Infil_All::run(mesh_elem &face)
 
             melt_runoff = snowmelt - snowinf;
 
+            // melt_runoff and snowinf only track melt related quantities
+            // total runoff and infiltrated amounts from ANY source are stored in
+            // inf and runoff
+            
+            // This is a weird function, if there is any snowinf, then the rain on the snow also infiltrates
+            // this is ported directly from CRHM module crack
             if (snowinf > 0.0)
             {
-                snowinf += d.rain_on_snow;
+                inf += rain_on_snow;
             }
             else
             {
-                melt_runoff = d.rain_on_snow;
+                runoff += rain_on_snow;
             }
+            runoff += melt_runoff;
+            inf += snowinf;
 
-            // TODO total values incremented here
-            // snowinfil, melt_runoff, rainonsnow
-            // Zero somethings
+            Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
+          
 
         }
     }
@@ -275,30 +281,54 @@ void Infil_All::run(mesh_elem &face)
     (*face)["total_meltexcess"_s]=d.total_meltexcess;
     (*face)["total_inf"_s]=d.total_inf;
     (*face)["total_snownf"_s]=d.total_snowinf;
+    (*face)["total_rain_on_snow"_s]=d.total_rain_on_snow;
 
     (*face)["runoff"_s]=runoff;
     (*face)["inf"_s]=inf;
     (*face)["rain_on_snow"_s]=rain_on_snow;
-    (*face)["potential_inf"_s]=potential_inf;
-    (*face)["soil_storage"_s]= d.storage;
-    (*face)["opportunity_time"_s]=d.opportunity_time;
-    (*face)["available_storage"_s]=avail_storage;
-
+    (*face)["snowinf"_s]=snowinf;
+    (*face)["melt_runoff"_s]=melt_runoff;
 }
+
+//General Functions
+void Infil_All::Increment_Totals(Infil_All::data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow) {
+    d.total_inf += inf;
+    d.total_excess += runoff;
+    d.total_snowinf += snowinf;
+    d.total_meltexcess += melt_runoff;
+    d.total_rain_on_snow += rain_on_snow;
+}      
+
 
 // Crack Functions
-bool Infil_All::Do_Initial_INF_Calculation(const double& melt, const double& swe, auto& d) {
-    return (melt >= d.major & d.major_melt_count = 0) || swe >= d.init_SWE 
+void Infil_All::Calc_Index(Infil_All::data &d, const double &swe) {
+    d.index = 5 * (1 - theta) * swe ** (0.584);
+    // d.major_major_per_melt is obtained by dividing d.index by the 
+    // total number of time steps to get to d.index
+    // This only works if 86400 / dt is a fraction which turns infDays into an integer
+    // Example: if dt is 345600 (4 days in seconds) and infDays is 6 days. 
+    // the denominator is 1.5, which then requires 2 major melts for it to stop, not 1.5
+    // this is actually OK behaviour, but difficult to understand.
+     
+    d.max_major_per_melt = d.index / (infDays * 86400 / global_param->dt() );
+    d.index = d.index / swe;
+    d.init_SWE = swe;
 }
 
-double Infil_All::Compute_inf_for_single_melt(const double& melt, const double& swe, auto& d ) {
-    double inf = 0;
+double Calc_Actual_Inf(Infil_All::data &d, const double &melt) {
+    double inf = melt * d.index;
+    if (inf > d.max_major_per_melt) {
+        inf = d.max_major_per_melt;
+    }
+    return inf;
+}
 
-    if ( Do_Initial_INF_Calculation(melt, swe, d) ) {
-        // calc inf and swe
 
-        inf = 
-
+void Infil_All::Check_for_ice_lens(Infil_All::data &d,double &soil_storage_at_freeze, double &t) {
+    if (d.major_melt_count > 0 && t < lenstemp) {
+        d.major_melt_count = infDays + 1;
+    }
+}
 // Green-Ampt Functions
 void Infil_All::infiltrate(void){
 
