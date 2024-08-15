@@ -1774,11 +1774,32 @@ void triangulation::determine_process_ghost_faces_nearest_neighbors()
 // - tags will be unique for up to 9999 MPI processes
 // - message between m and p must be completed before a new one started
 // - this is ensured with mpi::wait_all, as in ghost_neighbors_communicate_variable
-int generate_unique_send_tag(int my_rank, int partner_rank){
-  return 10000*my_rank + partner_rank;
+
+int deterministic_random(int rank, int partner_rank)
+{
+    // Create a seed based on the rank and partner_rank
+    unsigned int seed = rank * partner_rank;
+
+    // Initialize a random number generator with the seed
+    std::mt19937 generator(seed);
+
+    // Define a distribution range from 0 to MPI max tag
+    std::uniform_int_distribution<int> distribution(0, boost::mpi::environment::max_tag() - 1);
+
+    // Generate and return the random number
+    return distribution(generator);
 }
-int generate_unique_recv_tag(int my_rank, int partner_rank){
-  return my_rank + 10000*partner_rank;
+
+int generate_unique_send_tag(int my_rank, int partner_rank)
+{
+//  return 10000*my_rank + partner_rank;
+    return deterministic_random(my_rank, partner_rank);
+}
+
+int generate_unique_recv_tag(int my_rank, int partner_rank)
+{
+//  return my_rank + 10000*partner_rank;
+    return deterministic_random(my_rank, partner_rank);
 }
 
 void triangulation::determine_ghost_owners()
