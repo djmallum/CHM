@@ -67,6 +67,7 @@ inline int omp_get_max_threads() { return 1;}
 #include <stack>
 #include <fstream>
 #include <utility>
+#include <random> // for send/recv tag generation
 
 
 #include <armadillo>
