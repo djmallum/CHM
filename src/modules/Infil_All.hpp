@@ -85,22 +85,43 @@ public:
         double total_snowinf;
         double total_meltexcess;
         double total_rain_on_snow;
-
+        
+        // Crack
         bool frozen;
         double index;
-
         double max_major_per_melt;
         double init_SWE;
         unsigned int major_melt_count;
+        
+        // GreenAmpt
+        double soil_storage;
     };
 
 private:
 
+    // Crack
     double major;
     double min_swe_to_freeze;
     unsigned int infDays;
     bool AllowPriorInf;   
+    
+    // General, thawed soil
+    enum ThawOptions { AYERS, GREENAMPT};
+    unsigned int ThawType;
 
+    // Ayers
+    unsigned int texture;
+    unsigned int groundcover;
+    
+    // GreenAmpt
+    unsigned int soil_type;
+    double max_soil_storage;
+    double soil_depth;
+    double porosity;
+    enum GATable {PSI, KSAT, WILT, FCAP, PORG, PORE, AIENT, PORESZ, AVAIL}; // Used for mapping the soil table, PSI and KSAT are used, the others are unused but may but used in the future or other modules.    
+    double ksaturated;
+    enum GAVars {TOTINF, RATEINF, SUCTION, THETA};
+    
     // General Functions
     void Increment_Totals(Infil_All::data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
 

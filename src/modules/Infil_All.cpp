@@ -75,13 +75,22 @@ void Infil_All::init(mesh& domain)
         d.index = 0;
         d.max_major_per_day = 0.;
         d.init_SWE = 0.;
-        
+        d.soil_storage = 0.;
+            
         // Model Parameters
         infDays = cfg.get("max_inf_days",6);
         min_swe_to_freeze = cfg.get("min_swe_to_freeze",25);
         major = cfg.get("major",5); 
         AllowPriorInf = cfg.get("AllowPriorInf",true);
-    }
+        ThawType = cfg.get("ThawType",0); // Default is Ayers
+        texture = cfg.get("soil_texture",0);
+        groundcover = cfg.get("soil_groundcover",0);
+        soil_type = cfg.get("soil_type",0); // default is sand
+        porosity = cfg.get("soil_porosity",0.5);
+        soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
+        max_soil_storage = porosity * soil_depth;
+        ksaturated = soilproperties[soil_type][KSAT];
+   }
 }
 void Infil_All::run(mesh_elem &face)
 {
@@ -187,10 +196,10 @@ void Infil_All::run(mesh_elem &face)
 
         }
     }
-    else if (d.ThawType == 0) // if not frozen, do Ayers
+    else if (ThawType == AYERS) // if not frozen, do Ayers
     {
         if (rainfall > 0.0)
-            double maxinfil = d.texture[texture][groundcover]; // TODO, completey pseduocode, might need units altered
+            double maxinfil = textureproperties[texture][groundcover]; // Currently texture properties is assumed uniform, later make this triangle specific.
         if (maxinfil > rainfall)
         {
             inf = rainfall;
@@ -202,42 +211,36 @@ void Infil_All::run(mesh_elem &face)
         }
 
         // Increment totals
+        Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
     }
-    else if (d.ThawType == 1) // if not frozen, do GreenAmpt
+    else if (ThawType == GREENAMPT) // if not frozen, do GreenAmpt
     {
+        double Vars[4] = {}; // {TOTINF, RATEINF, SUCTION, THETA};
 
-        inf = 0.0;
-        runoff = 0.0;
-        snowinf = 0.0;
-        melt_runoff = 0.0;
-        F1 = 0.0;
+        if(rainfall > 0.0) {
+            double intensity = Convert_To_Rate_Hourly(rainfall);
 
-        double All = rainfall + snowmelt;
-
-        // TODO remove [hh], define variables like pond, look for lines labeled NEW.
-
-        if(All > 0.0) {
-
-            // TODO Old line, CRHM converted All to mm/h for consistency, not necessarily needed except to ensure units are correct, FIX for CHM
-            intensity = All*Global::Freq/24.0; // TODO convert to mm/h, FIX for CHM
-            bool is_space_in_dry_soil = soil_moist <= 0.0 && soil_moist_max <= All;
             if(soil_type == 12){ // handle pavement separately
-                runoff = All;
+                runoff = rainfall;
             }
-            else if(soil_type[hh] == 0 || is_space_in_dry_soil){ // handle water separately, CRHM version of this simply to check if location is water OR if the soil is dry. I know the soil model handles whether infiltrated actually gets into the soil, but here I changed it to add an upper limit imposed by the space in the soil.
-                infil[hh] =  All;
+            else if(soil_type == 0 || is_space_in_dry_soil(soil_storage,max_soil_storage,rainfall)){ // handle water separately, CRHM version of this simply to check if location is water OR if the soil is dry. I know the soil model handles whether infiltrated actually gets into the soil, but here I changed it to add an upper limit imposed by the space in the soil.
+                inf =  rainfall;
             }
             else {
-                F1[hh] = soil_moist; // TODO, need to add soil model which tracks this, total moisture in soil, also not declared
-                dthbot    = (1.0 - soil_moist/soil_moist_max); // TODO Not yet declared
-                psidthbot = soilproperties[soil_type[hh]][PSI]*dthbot[hh]; // Not yet declared, also Soil_type not catalogued anywhere
-                f1[hh] = calcf1(F1[hh], psidthbot[hh])*Global::Interval*24.0; // infiltrate first interval rainfall, TODO, not declared
+                
+                //double F0 = soil_storage;
+                double soil_storage_deficit = (1.0 - soil_storage/max_soil_storage); 
+                double capillary_suction = soilproperties[soil_type][PSI]*theta; 
+                double initial_rate = calc_GA_infiltration_rate(soil_storage, soil_storage_deficit, capillary_suction)*Global::Interval*24.0; // TODO FActor to the right is leftover from CRHM 
+                
+                if (intensity > initial_rate) {
+                    Find_ponding( // Stopped here, August 19, I'm copying the infiltrate() function here. My thinking is that too much is going on in the infiltrate function, which makes it hard to know how things work, so put "everything" here instead and make a few small functions that are more descriptive.
+
 
                 infiltrate(); // TODO add function
 
-                infil = F1 - F0; // TODO F0 not yet declared
-                                 //          cuminfil[hh] += infil[hh];
-
+                inf = F1 - soil_storage; 
+                soil_storage = F1;
                 if(pond > 0.0){
 
                     runoff = pond; //TODO pond not yet declared
@@ -310,7 +313,7 @@ void Infil_All::Calc_Index(Infil_All::data &d, const double &swe) {
     // the denominator is 1.5, which then requires 2 major melts for it to stop, not 1.5
     // this is actually OK behaviour, but difficult to understand.
      
-    d.max_major_per_melt = d.index / (infDays * 86400 / global_param->dt() );
+    d.max_major_per_melt = d.index / (infDays * 86400.0 / global_param->dt() );
     d.index = d.index / swe;
     d.init_SWE = swe;
 }
@@ -329,7 +332,50 @@ void Infil_All::Check_for_ice_lens(Infil_All::data &d,double &soil_storage_at_fr
         d.major_melt_count = infDays + 1;
     }
 }
+
+// Ayers
+static double textureproperties[][6] = { // mm/hour
+  {7.6, 12.7, 15.2, 17.8, 25.4, 76.2},  // coarse over coarse
+  {2.5,  5.1,  7.6, 10.2, 12.7,  15.2}, // medium over medium
+  {1.3,  1.8,  2.5,  3.8,  5.1,  6.4},  // medium/fine over fine
+  {0.5,  0.5,  0.5,  0.5,  0.5,  0.5}   // soil over shallow bedrock
+};
+
+
 // Green-Ampt Functions
+
+static double soilproperties[][9] = {
+  { 0.0,  999.9, 0.000, 0.00, 1.100,  1.000,	0.000,	0.0,  4},  //      0  water
+  { 49.5, 117.8, 0.020, 0.10, 0.437,  0.395,	0.121,	4.05, 1},  //      1  sand
+  { 61.3,  29.9, 0.036, 0.16, 0.437,  0.41 ,	0.09,	4.38, 4},  //      2  loamsand
+  {110.1,  10.9, 0.041, 0.23, 0.453,  0.435,	0.218,	4.9,  2},  //      3  sandloam
+  { 88.9,   3.4, 0.029, 0.26, 0.463,  0.451,	0.478,	5.39, 2},  //      4  loam
+  {166.8,   6.5, 0.045, 0.38, 0.501,  0.485,	0.786,	5.3,  2},  //      5  siltloam
+  {218.5,   1.5, 0.068, 0.38, 0.398,  0.420,	0.299,	7.12, 3},  //      6  saclloam
+  {208.8,   1.0, 0.155, 0.39, 0.464,  0.476,	0.63,	8.52, 2},  //      7  clayloam
+  {273.3,   1.0, 0.039, 0.40, 0.471,  0.477,	0.356,	7.75, 2},  //      8  siclloam
+  {239.0,   0.6, 0.110, 0.41, 0.430,  0.426,	0.153,	10.4, 3},  //      9  sandclay
+  {292.2,   0.5, 0.056, 0.43, 0.479,  0.492,	0.49,	10.4, 3},  //      10 siltclay
+  {316.3,   0.3, 0.090, 0.46, 0.475,  0.482,	0.405,	11.4, 3},  //      11 clay
+  {  0.0,   0.0, 0.000, 0.00, 0.000,  0.000,	0.0,	 0.0, 4}   //      12 pavement. Values not used
+};
+
+
+double Infil_All::Convert_To_Rate_Hourly(double &rainfall) {
+    return rainfall / (global_param->dt() / 3600.0);
+}
+
+bool is_space_in_dry_soil(double &moist, double &max, double &rainfall) {
+    return moist == 0.0 && max >= rainfall;
+}
+
+void Initialize_GA_Variables(double &F1, double &f1, double &theta, double &suction) {
+    F1 = soil_storage; 
+    theta = (1.0 - soil_storage/max_soil_storage); 
+    suction = soilproperties[soil_type][PSI]*Vars[THETA]; 
+    f1 = calcf1(F1, soil_storage_deficit, capillary_suction)*Global::Interval*24.0;
+}
+
 void Infil_All::infiltrate(void){
 
     F0[hh] = F1[hh];
