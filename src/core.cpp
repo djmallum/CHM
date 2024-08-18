@@ -2238,7 +2238,8 @@ void core::run()
         // save the current state
         if(_checkpoint_opts.should_checkpoint(current_ts,
                                                (max_ts-1) == current_ts,
-                                               _hpc_scheduler_info
+                                               _hpc_scheduler_info,
+                                               _comm_world
                                                )) // -1 because current_ts is 0 indexed
         {
             SPDLOG_DEBUG("Checkpointing...");

@@ -508,6 +508,7 @@ protected:
         }
     } _hpc_scheduler_info;
 
+
     // Checkpointing options
     class chkptOp
     {
@@ -541,7 +542,7 @@ protected:
          * @param is_last_ts
          * @return
          */
-        bool should_checkpoint(size_t current_ts, bool is_last_ts, hpc_scheduler_info& scheduler_info)
+        bool should_checkpoint(size_t current_ts, bool is_last_ts, hpc_scheduler_info& scheduler_info, boost::mpi::communicator& comm_world)
         {
             if(!do_checkpoint)
                 return false;
@@ -555,14 +556,24 @@ protected:
 
             // check if we are running out of time
             if(on_outta_time && *on_outta_time &&
-                scheduler_info.has_wallclock_limit &&
-                scheduler_info.wallclock_remaining() <= abort_when_wallclock_left
+                scheduler_info.has_wallclock_limit 
                 )
             {
-                SPDLOG_DEBUG("Detected wallclock of {} remaining. Triggering checkpoint.",
-                             boost::posix_time::to_simple_string(scheduler_info.wallclock_remaining()));
-                checkpoint_request_terminate = true;
-                return true;
+                
+                int outoftime =  scheduler_info.wallclock_remaining() <= abort_when_wallclock_left;
+                int global_outoftime = -1;
+
+                // find is anyone thinks we should bail
+                boost::mpi::all_reduce(comm_world, outoftime, global_outoftime, boost::mpi::maximum<int>());
+
+                if(global_outoftime)
+                {
+                    SPDLOG_DEBUG("Detected wallclock of {} remaining. Triggering checkpoint.",
+                                boost::posix_time::to_simple_string(scheduler_info.wallclock_remaining()));
+                    checkpoint_request_terminate = true;
+                    return true;
+                }
+
             }
 
             return false;
