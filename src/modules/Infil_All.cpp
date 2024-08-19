@@ -215,10 +215,10 @@ void Infil_All::run(mesh_elem &face)
     }
     else if (ThawType == GREENAMPT) // if not frozen, do GreenAmpt
     {
-        double Vars[4] = {}; // {TOTINF, RATEINF, SUCTION, THETA};
+        d.GA_temp = std::make_unique<tempvars>();
 
         if(rainfall > 0.0) {
-            double intensity = Convert_To_Rate_Hourly(rainfall);
+            d.GA_temp->intensity = Convert_To_Rate_Hourly(rainfall);
 
             if(soil_type == 12){ // handle pavement separately
                 runoff = rainfall;
@@ -229,51 +229,34 @@ void Infil_All::run(mesh_elem &face)
             else {
                 
                 //double F0 = soil_storage;
-                double soil_storage_deficit = (1.0 - soil_storage/max_soil_storage); 
-                double capillary_suction = soilproperties[soil_type][PSI]*theta; 
-                double initial_rate = calc_GA_infiltration_rate(soil_storage, soil_storage_deficit, capillary_suction)*Global::Interval*24.0; // TODO FActor to the right is leftover from CRHM 
-                
-                if (intensity > initial_rate) {
-                    Find_ponding( // Stopped here, August 19, I'm copying the infiltrate() function here. My thinking is that too much is going on in the infiltrate function, which makes it hard to know how things work, so put "everything" here instead and make a few small functions that are more descriptive.
+                Initialize_GA_Variables(d);
+
+                if (d.GA_temp->intensity > d.GA_temp->initial_rate) {
+                    continue_ponding(d);
+                }
+                else {
+
+                    d.GA_temp->final_storage = d.GA_temp->initial_storage + rainfall;
+                    d.GA_temp->final_rate = calcf1(d,d.GA_temp->final_storage);
+
+                    if (intensity > d.GA_temp->final_rate) {
+                        start_ponding();
+                    }
+
+                }
 
 
-                infiltrate(); // TODO add function
-
-                inf = F1 - soil_storage; 
-                soil_storage = F1;
+                inf = d.GA_temp->final_storage - soil_storage; 
                 if(pond > 0.0){
-
-                    runoff = pond; //TODO pond not yet declared
+                    runoff = d.GA_temp->pond; 
                 }
             }
 
 
-            if(snowmelt >= infil[hh]){
-                snowinf[hh] = snowmelt;
-                infil[hh] = 0.0;
-            }
-            else if(snowmelt > 0.0){
-                snowinf[hh] = snowmelt;
-                infil[hh] -= snowinf[hh];
-            }
-            else
-                snowinf[hh] = 0.0;
-
-            if(snowmelt - snowinf[hh] >= pond){
-                melt_runoff[hh] = snowmelt - snowinf[hh];
-                runoff[hh] = 0.0;
-            }
-            else if(snowmelt - snowinf[hh] > 0.0){
-                melt_runoff[hh] = snowmelt - snowinf[hh];
-                runoff[hh] = pond - melt_runoff[hh];
-            }
-            else{
-                melt_runoff[hh] = 0.0;
-                runoff[hh] = pond;
-            }
-
             // Increment totals
-
+            Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
+            
+            d.GA_temp.reset();
         } // if(net_rain[hh] + net_snow[hh] > 0.0) greenampt routine
     }  
 
@@ -369,11 +352,13 @@ bool is_space_in_dry_soil(double &moist, double &max, double &rainfall) {
     return moist == 0.0 && max >= rainfall;
 }
 
-void Initialize_GA_Variables(double &F1, double &f1, double &theta, double &suction) {
-    F1 = soil_storage; 
-    theta = (1.0 - soil_storage/max_soil_storage); 
-    suction = soilproperties[soil_type][PSI]*Vars[THETA]; 
-    f1 = calcf1(F1, soil_storage_deficit, capillary_suction)*Global::Interval*24.0;
+void Initialize_GA_Variables(Infil_All::data &d) {
+    d.GA_temp->soil_storage_deficit = (1.0 - soil_storage/max_soil_storage); 
+    d.GA_temp->capillary_suction = soilproperties[soil_type][PSI]*theta; 
+    d.GA_temp->initial_storage = soil_storage;
+    d.GA_temp->initial_rate = calc_GA_infiltration_rate(d,soil_torage)*Global::Interval*24.0;
+    d.GA_temp->final_storage = d.GA_temp->initial_storage;
+    d.GA_temp->final_rate = d.GA_temp->initial_rate;
 }
 
 void Infil_All::infiltrate(void){
@@ -436,9 +421,9 @@ void Infil_All::howmuch(double F0, double dt) {
     } while(fabs(LastF1 - F1[hh]) > 0.001);
 }
 
-double Infil_All::calcf1(double F, double psidth){
+double Infil_All::calc_GA_infiltration_rate(Infil_All::data &d, double &F){
 
-    return k[hh]*(psidth/F + 1.0);
+    return ksaturated*(d.GA_temp->capillary_suction/F + 1.0)*(Global_param->dt() / 3600);
 
 }
 

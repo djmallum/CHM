@@ -80,6 +80,17 @@ public:
     class data : public face_info
     {
     public:
+        struct tempvars
+        {
+            double intensity;
+            double soil_storage_deficit;
+            double capillary_suction;
+            double initial_rate;
+            double initial_storage;
+            double final_rate;
+            double final_storage;
+            double pond;
+        }
         double total_inf;
         double total_excess;
         double total_snowinf;
@@ -95,6 +106,8 @@ public:
         
         // GreenAmpt
         double soil_storage;
+        std::unique_ptr<tempvars> GA_temp(nullptr);
+        
     };
 
 private:
