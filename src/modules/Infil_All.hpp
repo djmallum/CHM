@@ -90,6 +90,8 @@ public:
             double final_rate;
             double final_storage;
             double pond;
+            double storage_at_ponding;
+            double time_to_ponding;
         }
         double total_inf;
         double total_excess;
@@ -139,8 +141,17 @@ private:
     void Increment_Totals(Infil_All::data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
 
     // Crack Functions
-    void Calc_Index(Infil_All::data &d, const double &swe);
-    double Calc_Actual_Inf(Infil_All::data &d, const double &melt);
-    void Check_for_ice_lens(Infil_All::data &d,double &soil_storage_at_freeze, double &t); 
+    void Calc_Index(data &d, const double &swe);
+    double Calc_Actual_Inf(data &d, const double &melt);
+    void Check_for_ice_lens(data &d,double &soil_storage_at_freeze, double &t); 
 
+    // Green-Ampt Functions
+    double convert_to_rate_hourly(double &rainfall); 
+    bool is_space_in_dry_soil(double &moist, double &max, double &rainfall); 
+    void Initialize_GA_Variables(std::unique_ptr<data::tempvars> &GA); 
+    void initialize_ponding_vars(std::unique_ptr<data::tempvars> &GA); 
+    void find_final_storage(std::unique_ptr<data::tempvars> &GA, \
+        double &initial_storage, double &dt); 
+    double calc_GA_infiltration_rate(std::unique_ptr<data::tempvars &GA, double &F){
+    
 };
