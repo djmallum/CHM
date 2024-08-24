@@ -47,6 +47,8 @@ Infil_All::Infil_All(config_file cfg)
 
 }
 
+Infil_All::Infil_All(
+
 Infil_All::~Infil_All()
 {
 
@@ -85,7 +87,7 @@ void Infil_All::init(mesh& domain)
         ThawType = cfg.get("ThawType",0); // Default is Ayers
         texture = cfg.get("soil_texture",0);
         groundcover = cfg.get("soil_groundcover",0);
-        soil_type = cfg.get("soil_type",0); // default is sand
+        soil_type = cfg.get("soil_type",1); // default is sand
         porosity = cfg.get("soil_porosity",0.5);
         soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
         max_soil_storage = porosity * soil_depth;
