@@ -80,7 +80,6 @@ public:
     class data : public face_info
     {
     public:
-<<<<<<< HEAD
         struct tempvars
         {
             double intensity;
