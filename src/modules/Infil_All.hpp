@@ -80,15 +80,78 @@ public:
     class data : public face_info
     {
     public:
-        double storage;  //mm
-        double max_storage;
-        double porosity; // [-]
-        double soil_depth; //mm
-
-        double opportunity_time; //h
-        double last_ts_potential_inf; // last time steps potential infiltration
+        struct tempvars
+        {
+            double intensity;
+            double soil_storage_deficit;
+            double capillary_suction;
+            double initial_rate;
+            double initial_storage;
+            double final_rate;
+            double final_storage;
+            double pond;
+            double storage_at_ponding;
+            double time_to_ponding;
+        }
         double total_inf;
         double total_excess;
-
+        double total_snowinf;
+        double total_meltexcess;
+        double total_rain_on_snow;
+        
+        // Crack
+        bool frozen;
+        double index;
+        double max_major_per_melt;
+        double init_SWE;
+        unsigned int major_melt_count;
+        
+        // GreenAmpt
+        double soil_storage;
+        std::unique_ptr<tempvars> GA_temp(nullptr);
+        
     };
+
+private:
+
+    // Crack
+    double major;
+    double min_swe_to_freeze;
+    unsigned int infDays;
+    bool AllowPriorInf;   
+    
+    // General, thawed soil
+    enum ThawOptions { AYERS, GREENAMPT};
+    unsigned int ThawType;
+
+    // Ayers
+    unsigned int texture;
+    unsigned int groundcover;
+    
+    // GreenAmpt
+    unsigned int soil_type;
+    double max_soil_storage;
+    double soil_depth;
+    double porosity;
+    enum GATable {PSI, KSAT, WILT, FCAP, PORG, PORE, AIENT, PORESZ, AVAIL}; // Used for mapping the soil table, PSI and KSAT are used, the others are unused but may but used in the future or other modules.    
+    double ksaturated;
+    enum GAVars {TOTINF, RATEINF, SUCTION, THETA};
+    
+    // General Functions
+    void Increment_Totals(Infil_All::data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
+
+    // Crack Functions
+    void Calc_Index(data &d, const double &swe);
+    double Calc_Actual_Inf(data &d, const double &melt);
+    void Check_for_ice_lens(data &d,double &soil_storage_at_freeze, double &t); 
+
+    // Green-Ampt Functions
+    double convert_to_rate_hourly(double &rainfall); 
+    bool is_space_in_dry_soil(double &moist, double &max, double &rainfall); 
+    void Initialize_GA_Variables(std::unique_ptr<data::tempvars> &GA); 
+    void initialize_ponding_vars(std::unique_ptr<data::tempvars> &GA); 
+    void find_final_storage(std::unique_ptr<data::tempvars> &GA, \
+        double &initial_storage, double &dt); 
+    double calc_GA_infiltration_rate(std::unique_ptr<data::tempvars &GA, double &F);
+    
 };
