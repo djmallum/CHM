@@ -25,5 +25,3 @@ CRHMr.log
 /docs/_build/*
 /docs/doxygen/*
 /docs/_ext/__pycache__
-
-**/*~
