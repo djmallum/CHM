@@ -112,7 +112,6 @@ void Infil_All::run(mesh_elem &face)
     double snowinf = 0.;
     double rain_on_snow = 0.;
 
-
     double snowmelt = (*face)["snowmelt_int"_s];
     double rainfall = (*face)["rainfall_int"_s]; // NEW
     double swe = (*face)["swe"_s]; 

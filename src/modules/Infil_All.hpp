@@ -80,6 +80,7 @@ public:
     class data : public face_info
     {
     public:
+<<<<<<< HEAD
         struct tempvars
         {
             double intensity;
@@ -152,6 +153,6 @@ private:
     void initialize_ponding_vars(std::unique_ptr<data::tempvars> &GA); 
     void find_final_storage(std::unique_ptr<data::tempvars> &GA, \
         double &initial_storage, double &dt); 
-    double calc_GA_infiltration_rate(std::unique_ptr<data::tempvars &GA, double &F){
+    double calc_GA_infiltration_rate(std::unique_ptr<data::tempvars &GA, double &F);
     
 };
