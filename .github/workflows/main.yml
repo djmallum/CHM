@@ -13,22 +13,22 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-    #env:
-    #CONAN_USERNAME: CHM
-    #CONAN_CHANNEL: stable
-    #CONAN_UPLOAD: "http://conan.snowcast.ca:8081/artifactory/api/conan/chm"
-    #CONAN_LOGIN_USERNAME: "github"
-    #CONAN_PASSWORD: ${{ secrets.CONAN_PASSWORD }}
-    #CONAN_STABLE_BRANCH_PATTERN: "stable/*"
-    #CONAN_UPLOAD_ONLY_WHEN_STABLE: "1"
-    #CONAN_REQUEST_TIMEOUT: 600
-    #CONAN_RETRY: 30
-    #CONAN_RETRY_WAIT: 60
-    #CONAN_BASE_PROFILE: "chm_no_mpi"
-    #CONAN_BUILD_POLICY: "missing"
-    #CONAN_UPLOAD_DEPENDENCIES: "all"
-    #MAKEFLAGS: "-j2"
-    #USE_MPI: False
+env:
+  CONAN_USERNAME: CHM
+  CONAN_CHANNEL: stable
+  CONAN_UPLOAD: "http://conan.snowcast.ca:8081/artifactory/api/conan/chm"
+  CONAN_LOGIN_USERNAME: "github"
+  CONAN_PASSWORD: ${{ secrets.CONAN_PASSWORD }}
+  CONAN_STABLE_BRANCH_PATTERN: "stable/*"
+  CONAN_UPLOAD_ONLY_WHEN_STABLE: "1"
+  CONAN_REQUEST_TIMEOUT: 600
+  CONAN_RETRY: 30
+  CONAN_RETRY_WAIT: 60
+  CONAN_BASE_PROFILE: "chm_no_mpi"
+  CONAN_BUILD_POLICY: "missing"
+  CONAN_UPLOAD_DEPENDENCIES: "all"
+  MAKEFLAGS: "-j2"
+  USE_MPI: False
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
