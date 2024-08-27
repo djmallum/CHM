@@ -156,7 +156,7 @@ jobs:
       - name: Rebase onto upstream
         run: |
          git checkout develop
-         if ! git rebase upstream/develop; then
+         if ! git rebase updstream/develop; then
           echo "Rebase conflict detected. Aborting rebase."
           git rebase --abort
           exit 1
