@@ -52,7 +52,8 @@ set(MODULE_SRCS
 		modules/Richard_albedo.cpp
 		modules/snowpack.cpp
 		modules/Gray_inf.cpp
-		modules/Simple_Canopy.cpp
+        modules/Infil_All.cpp
+        modules/Simple_Canopy.cpp
 		modules/scale_wind_vert.cpp
 		modules/sub_grid.cpp
     	modules/snow_slide.cpp
