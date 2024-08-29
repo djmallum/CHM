@@ -60,6 +60,17 @@ REGISTER_MODULE_HPP(PenmanMonteith_evaporation);
 public:
     PenmanMonteith_evaporation(config_file cfg);
     ~PenmanMonteith_evaporation();
-    virtual void run(mesh_elem& face);
+    void init(mesh& domain)
+    void run(mesh_elem& face);
+
+    class data : public face_info
+    {
+        public:
+
+    }
+
+private:
+
+
 
 };
