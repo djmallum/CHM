@@ -123,6 +123,7 @@ void point_mode::run(mesh_elem &face)
     // at this point, if the user has provided more than 1 station, they've been stripped out.
     // we can safetly take the 1st (and only) station.
 
+    // Variables
     if(t)
     {
         double st =(*face->nearest_station())["t"_s];
@@ -189,6 +190,12 @@ void point_mode::run(mesh_elem &face)
         (*face)["T_g"_s]= T_g;
     }
 
+    // modules
+    if (Infil_All)
+    {
+        get_Infil_All_inputs();
+    }
+
     face->parameter("svf") = cfg.get("override.svf", face->parameter("svf"_s));
 
 }
@@ -211,4 +218,20 @@ void point_mode::provide_Infil_All(void)
     // t is obtained in the main body
 
 }
+
+void point_mode::get_Infil_All_inputs(mesh_elem *face)
+{
+    double swe = (*face->nearest_state())["swe"_s];
+    (*face)["swe"_s] = swe;
+
+    double snowmelt = (*face->nearest_state())["snowmelt_int"_s];
+    (*face)["snowmelt_int"_s] = snowmelt;
+
+    double rainfall = (*face->nearest_state())["rainfall_int"_s];
+    (*face)["rainfall_int"_s] = rainfall;
+
+    double ssaf = (*face->nearest_state())["soil_storage_at_freeze"_s];
+    (*face)["soil_soil_at_freeze"_s] = ssaf;
+}
+
 
