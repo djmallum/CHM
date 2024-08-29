@@ -42,7 +42,7 @@ point_mode::point_mode(config_file cfg)
 
      Infil_All = cfg.get("provide.Infil_all",false);
 
-     
+    // Variables to read 
     if(t)
     {
         depends_from_met("t");
@@ -104,6 +104,11 @@ point_mode::point_mode(config_file cfg)
     {
         depends_from_met("T_g");
         provides("T_g");
+    }
+
+    // Modules to include
+    if (Infil_All) {
+        provide_Infil_All();
     }
 
 }
@@ -187,3 +192,5 @@ void point_mode::run(mesh_elem &face)
     face->parameter("svf") = cfg.get("override.svf", face->parameter("svf"_s));
 
 }
+
+
