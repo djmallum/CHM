@@ -6,7 +6,7 @@
     // For point model to work, there must be an input and output station of the appropriate names. All other points will be ignored.
     "point_mode":
     {
-      "output":"UpperClearing",
+      "output":"Infil_All_data",
       "forcing":"UpperClearing"
     },
 
@@ -47,14 +47,24 @@
         "Infil_All":true
       }  
     },
-    "Richard_albedo":
+    "Infil_All":
     {
-      "min_swe_refresh":10,
-      "init_albedo_snow":0.8
+      "max_inf_days":6,
+      "min_swe_to_freeze":25,
+      "major":5,
+      "AllowPriorInf":true,
+      "ThawType":0, //Ayers: 0, GA: 1
+      "soil_texture":0,
+      "soil_groundcover":0,
+      "temperature_ice_lens":-10.0,
+      "soil_type":1,
+      "porosity":0.5,
+      "soil_depth":1
     }
   },
   "meshes":
   {
+      //doesn't matter for point_mode unit test, as long as slope doesnt matter
     "mesh":"meshes/granger1m.mesh"
 //
     //map internal variables/parameters to the .mesh file's parameter section.
@@ -146,18 +156,13 @@
   },
   "output":
   {
-    "valley":
+    "unit_test":
     {
       "latitude": 60.5480,
       "longitude": -135.1888,
-      "file": "buckbrush.txt",
+      "file": "Infil_All_unit_test.txt",
       "type": "timeseries"
     }
-    // "bb":
-    // {
-    //   "latitude": 60.551,
-    //   "longitude": -135.193,
-    //   "file": "buckbrush.txt",
     //   "type": "timeseries"
     // }
 //      "mesh":
@@ -169,19 +174,14 @@
   },
   "forcing":
   {
-       "UTC_offset": 8,
-      "buckbrush": {
-      "file": "bb_m_2000-2008",
-      "latitude": 60.52163,
-      "longitude": -135.197151,
-      "elevation": 1305,
-      "filter": {
-        "scale_wind_speed": {
-          "Z_F": 4.6,
-          "variable": "u"
-        }
+      "Infil_All_data":{
+          "file": "Infil_All_test_data",
+          "latitude": 60.52163,
+          "longitude": -135.197151,
+          "elevation": 1305
       }
-    }    
-  }  
+  }
+        
+    
 
 }
