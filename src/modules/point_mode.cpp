@@ -194,3 +194,21 @@ void point_mode::run(mesh_elem &face)
 }
 
 
+void point_mode::provide_Infil_All(void)
+{
+    depends_from_met("swe");
+    provides("swe");
+
+    depends_from_met("snowmelt_int");
+    provides("snowmelt_int");
+
+    depends_from_met("rainfall_int");
+    provides("rainfall_int");
+
+    depends_from_met("soil_storage_at_freeze");
+    provides("soil_storage_at_freeze");
+
+    // t is obtained in the main body
+
+}
+
