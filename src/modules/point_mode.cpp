@@ -40,6 +40,9 @@ point_mode::point_mode(config_file cfg)
      iswr_direct    = cfg.get("provide.iswr_direct",false);
      T_g    = cfg.get("provide.T_g",false);
 
+     Infil_All = cfg.get("provide.Infil_all",false);
+
+     
     if(t)
     {
         depends_from_met("t");
