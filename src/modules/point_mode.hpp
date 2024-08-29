@@ -125,7 +125,9 @@ public:
     bool iswr_diffuse ;
     bool iswr_direct ;
     bool U_2m_above_srf ;
-    bool T_g;
+    bool T_g ;
+    bool Infil_All ;
+
 
 
 };
