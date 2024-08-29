@@ -112,7 +112,7 @@ public:
 
     ~point_mode();
 
-    virtual void run(mesh_elem &face);
+    void run(mesh_elem &face);
 
 
     bool t ;
