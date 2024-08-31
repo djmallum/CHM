@@ -38,7 +38,7 @@
 // The compiler bug is fixed in gcc 12.4/13.3/14.0
 // see https://github.com/boostorg/math/issues/1133 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109359
 #if BOOST_COMP_GNUC && BOOST_COMP_GNUC < BOOST_VERSION_NUMBER(13,3,0)
-static func::UniformExactInterpTable<3,double> TPSBasis_LUT({TPSBasis<double>}, {0, 32,  0.107807);
+static func::UniformExactInterpTable<3,double> TPSBasis_LUT({TPSBasis<double>}, {0, 32,  0.107807});
 #else
 static func::NonUniformExactInterpTable<3,double> TPSBasis_LUT({FUNC_SET_F(TPSBasis,double)}, {0, 32, 0.149626});
 #endif
