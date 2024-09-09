@@ -595,12 +595,12 @@ void Simple_Canopy::init(mesh& domain)
                     d.LAI              = face->veg_attribute("LAI");
 
                     // this parameterization just doesn't work well for LAI below 1.5, especially with tall trees
-                    if(d.CanopyHeight > 0 && d.LAI < 1.5)
+                    if(d.CanopyHeight > 0 && d.LAI < 1)
                     {
-                        SPDLOG_ERROR("CanopyHeight was defined for triangle global_id={} but LAI < 1.5; Setting CanopyHeight to zero", face->cell_global_id);
+                        SPDLOG_ERROR("CanopyHeight was defined for triangle global_id={} but LAI < 1; Setting CanopyHeight to 0.25 (grass)", face->cell_global_id);
 
-                        d.CanopyHeight = 0;
-//                        CHM_THROW_EXCEPTION(missing_value_error, "CanopyHeight was defined but LAI is zero.");
+                        d.CanopyHeight = 0.25;
+//                        
                     }
 
 		   // Get Canopy type (CRHM canop classifcation: Canopy, Clearing, or Gap)
