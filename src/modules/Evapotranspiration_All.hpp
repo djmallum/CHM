@@ -37,7 +37,7 @@
 /**
  * \ingroup modules exp evap
  * @{
- * \class PenmanMonteith_evaporation
+ * \class Evapotranspiration_All
 
  * Calculates evapo-transpiration via Penman-Monteith.
  *
@@ -54,12 +54,12 @@
  *
  * @}
  */
-class PenmanMonteith_evaporation : public module_base
+class Evapotranspiration_All : public module_base
 {
-REGISTER_MODULE_HPP(PenmanMonteith_evaporation);
+REGISTER_MODULE_HPP(Evapotranspiration_All);
 public:
-    PenmanMonteith_evaporation(config_file cfg);
-    ~PenmanMonteith_evaporation();
+    Evapotranspiration_All(config_file cfg);
+    ~Evapotranspiration_All();
     void init(mesh& domain)
     void run(mesh_elem& face);
 

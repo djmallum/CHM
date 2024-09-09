@@ -22,11 +22,11 @@
 //
 
 
-#include "PenmanMonteith_evaporation.hpp"
-REGISTER_MODULE_CPP(PenmanMonteith_evaporation);
+#include "Evapotranspiration_All.hpp"
+REGISTER_MODULE_CPP(Evapotranspiration_All);
 
-PenmanMonteith_evaporation::PenmanMonteith_evaporation(config_file cfg)
-        :module_base("PenmanMonteith_evaporation", parallel::data, cfg)
+Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
+        :module_base("Evapotranspiration_All", parallel::data, cfg)
 {
 
     depends("iswr");
@@ -41,7 +41,7 @@ PenmanMonteith_evaporation::PenmanMonteith_evaporation(config_file cfg)
     SPDLOG_DEBUG("Successfully instantiated module {}",this->ID);
 }
 
- void PenmanMonteith_evaporation::run(mesh_elem& face)
+ void Evapotranspiration_All::run(mesh_elem& face)
 {
 
     double albedo = 0.23; //grass and crops
@@ -96,7 +96,7 @@ PenmanMonteith_evaporation::PenmanMonteith_evaporation(config_file cfg)
 
 }
 
-PenmanMonteith_evaporation::~PenmanMonteith_evaporation()
+Evapotranspiration_All::~Evapotranspiration_All()
 {
 
 }
