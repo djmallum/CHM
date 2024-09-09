@@ -34,17 +34,23 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
     depends("rh");
     depends("t");
     depends("U_2m_above_srf");
+    depends("snow_albedo") // named inaccurate to this module, 
+                           // but is how albedo is used in CHM as of Sept, 2024
 
     provides("ET");
 
 
-    SPDLOG_DEBUG("Successfully instantiated module {}",this->ID);
 }
 
- void Evapotranspiration_All::run(mesh_elem& face)
+void Evapotranspiration_All::init(mesh& domain)
+{
+    // Initialize
+}
+
+void Evapotranspiration_All::run(mesh_elem& face)
 {
 
-    double albedo = 0.23; //grass and crops
+    double albedo = (*face)["snow_albedo"_s]; 
     double qsi = (*face)["iswr"_s];
     double Lin = (*face)["ilwr"_s];
 
@@ -54,7 +60,6 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
     double ea = rh * es / 1000.; // kpa
 
 
-    double T = (*face)["t"_s];
     double u = (*face)["U_2m_above_srf"_s];
 
 
@@ -73,7 +78,7 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
 
     double psy_const = 0.066; //kpa / K
 
-    double latent_heat = 2501.0-2.361*T; //kJ/kg
+    double latent_heat = 2501.0-2.361*t; //kJ/kg
 
     double cp = 1.005; //kJ/kg
 
