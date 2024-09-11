@@ -1,11 +1,10 @@
 #include "evapbase.hpp"
-#include "../module_base.hpp"
 
 class PenmanMoneith : public evapbase
 {
 public:
 
-    PenmanMoneith(config_file cfg); // TODO Add inputs here to constructor
+    PenmanMoneith(); // TODO Add inputs here to constructor
                      
     ~PenmanMoneith(); // Deconstructor
                      
