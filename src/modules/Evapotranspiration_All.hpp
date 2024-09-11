@@ -71,6 +71,6 @@ public:
 
 private:
 
-
+    enum NonSaturatedOptions { PENMANMONTEITH, PRIESTLEYTAYLOR };
 
 };

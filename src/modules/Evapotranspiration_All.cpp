@@ -68,7 +68,7 @@ void Evapotranspiration_All::run(mesh_elem& face)
 
     double Qn = (1-albedo)*qsi;
     double sigma = 5.67*pow(10.0,-8.0); //boltzman
-    double Lout = sigma * grass_emissivity * pow(T+273,4.0); //assume ground temp = air temp (lol)
+    double Lout = sigma * grass_emissivity * pow(t+273,4.0); //assume ground temp = air temp (lol)
 
     double Rn = Qn + (Lin-Lout);
 
