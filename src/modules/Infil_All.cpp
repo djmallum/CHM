@@ -275,7 +275,7 @@ void Infil_All::run(mesh_elem &face)
 
             // Increment totals
             Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
-            
+            d.soil_storage += d.GA_temp->final_storage;  
             d.GA_temp.reset();
         } // if(net_rain[hh] + net_snow[hh] > 0.0) greenampt routine
     }  
@@ -356,6 +356,7 @@ void Infil_All::Initialize_GA_Variables(Infil_All::data &d) {
     
     GA->soil_storage_deficit = (1.0 - d.soil_storage/max_soil_storage); 
     GA->initial_rate = calc_GA_infiltration_rate(GA,d.soil_storage);
+    GA->initial_storage = d.soil_storage;
     GA->final_storage = GA->initial_storage;
     GA->final_rate = GA->initial_rate;
 }
