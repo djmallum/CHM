@@ -23,6 +23,18 @@ private:
     double t;
     double vapour_pressure;
     double soil_storage;
+    double soil_depth;
+    double Rnet;
+    double Frac_to_ground;
+    double aero_resistance;
+    double saturation_vapour_pressure;
+    double stomatal_resistance;
+
+    void CalcHeights();
+    void CalcAeroResistance();
+    void CalcSaturationVapourPressure();
+    void CalcStomatalResistance();
+
 }
 
 
