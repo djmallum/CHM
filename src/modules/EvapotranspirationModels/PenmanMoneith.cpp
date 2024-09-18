@@ -77,21 +77,25 @@ void PenmanMonteith::CalcStomatalResistance(PM_param& param, PM_var& var)
 
 }
 
-double PenmanMonteith::CalcEvapT(PM_param& baseparam, PM_var& basevar) const
+void PenmanMonteith::CalcEvapT(param_base& baseparam, var_base& basevar, model_output& output) const
 {
     const PM_param & param = static_cast<const PM_param&>(baseparam);
     const PM_var & var = static_cast<const PM_var&>(basevar);
-
     double Q =  var.Rnet * (1 - param.Frac_to_ground);
 
     CalcAeroResistance(param,var);
     CalcStomatalResistance(param,var);
 
-    return ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * param.Cp / (lambda(var.t)*1e3) * ( CalcSaturationVapourPressure(var.t) - var.vapour_pressure )/ var.aero_resistance )
+    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * param.Cp / (lambda(var.t)*1e3) * ( CalcSaturationVapourPressure(var.t) - var.vapour_pressure )/ var.aero_resistance )
        / ( delta(var.t) + gamma(var.P_atm, var.t) * (1 + stomatal_resistance / aero_resistance ) ); 
-
+    return;
 }
 
 // TODO make delta, gamma, density fucntions
 
+double PenmanMonteith::AirDensity(double& t, double& ea, double& Pa) // atmospheric density (kg/m^3)
+{
+  const double R0 = 2870;
+   return (1E4*Pa /(R0*( 273.15 + t))*(1.0 - 0.379*(ea/Pa))); //
+}
 
