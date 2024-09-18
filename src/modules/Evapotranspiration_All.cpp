@@ -32,7 +32,7 @@ REGISTER_MODULE_CPP(Evapotranspiration_All);
 Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
         :module_base("Evapotranspiration_All", parallel::data, cfg)
 {
-
+    // TODO Constructor is not properly editted with all new inputs (see set vars function at the end)
     depends("iswr");
     depends("ilwr");
     depends("rh");
