@@ -15,26 +15,14 @@ class PenmanMoneith : public evapT_base
 {
 public:
 
-    PenmanMoneith(PM_param& param); // TODO Add inputs here to constructor, just param)
+    PenmanMoneith(); // TODO Add inputs here to constructor, just param)
                      
     ~PenmanMoneith(void) override; // Deconstructor
                      
 
-    void CalcEvapT(param_base& param, var_base& var, model_output& output) const override;
-
-private:
-
-    // dont delete
-    void CalcHeights(param_base& param, var_base& var);
-    void CalcAeroResistance(param_base& param, var_base& var);
-    void CalcSaturationVapourPressure(param_base& param, var_base& var);
-    void CalcStomatalResistance(param_base& param, var_base& var);
-    double AirDensity(double& t, double& ea, double& Pa);
-}
-
-
-struct PM_param : public param_base 
-{
+    void CalcEvapT(PM_vars& vars, model_output& output) const override;
+    
+    // TODO some of these are global, might need to pass them as arguments and store more efficiently. 
     double Veg_height;
     double Veg_height_max;
     double wind_measurement_height; // This one might be uniform...
@@ -42,10 +30,24 @@ struct PM_param : public param_base
     double stomatal_resistance_min; // Also might be domain wide
     double soil_depth;
     double Frac_to_ground;
+    double Cp;
+    double LAImin;
+    double seasonal_growth;
+    double LAImax;
+    
+private:
+
+    // dont delete
+    void CalcHeights(void);
+    void CalcAeroResistance(var_base& var);
+    void CalcSaturationVapourPressure(var_base& var);
+    void CalcStomatalResistance(var_base& var);
+    double AirDensity(double& t, double& ea, double& Pa);
+
     double Z0;
     double d;
-    double Cp;
-} // TODO need a separate container for parameters which never change and are global.
+    bool IsFirstRun = true;
+}
 
 
 struct PM_var : public var_base

@@ -1,10 +1,9 @@
 #include "PenmanMonteith.hpp"
 
 
-PenmanMonteith::PenmanMonteith(PM_param& param)
+PenmanMonteith::PenmanMonteith()
 {
     
-    CalcHeights(param);
 }
 
 PenmanMonteith::~PenmanMonteith()
@@ -12,18 +11,16 @@ PenmanMonteith::~PenmanMonteith()
     //Do nothing
 }
 
-void PenmanMonteith::CalcHeights(PM_param& param)
+void PenmanMonteith::CalcHeights()
 {
-
-
-    param.Z0 = param.Veg_height/7.6;
-    param.d = param.Veg_height*0.67;
+    Z0 = Veg_height/7.6;
+    d = Veg_height*0.67;
 }
 
-void PenmanMonteith::CalcAeroResistance(PM_param& param, PM_var& var)
+double PenmanMonteith::CalcAeroResistance(PM_var& var)
 {
-    var.aero_resistance = pow( log((param.wind_measurement_height - param.d)/param.Z0),2) / 
-        (pow(param.kappa,2) * var.wind_speed);
+     return pow( log((wind_measurement_height - d)/Z0),2) / 
+        (pow(kappa,2) * var.wind_speed);
 }
 
 // TODO no such function CalcSaturationVapourPressure, put it here for now
@@ -41,13 +38,13 @@ double PenmanMonteith::CalcSaturationVapourPressure(PM_var& var)
 	}
 }
 
-void PenmanMonteith::CalcStomatalResistance(PM_param& param, PM_var& var)
+void PenmanMonteith::CalcStomatalResistance(PM_var& var)
 {
-    double rcstar = param.rc_min;
+    double rcstar = stomatal_resistance_min;
 
-    double leaf_area_index = param.Veg_height/param.Veg_height_max * 
-        (param.LAImin + param.seasonal_growth * (param.LAImax - param.LAImin));
-    rcstar = param.rc_min * param.LAImax / leaf_area_index;
+    double leaf_area_index = Veg_height/Veg_height_max * 
+        (LAImin + seasonal_growth * (LAImax - LAImin));
+    rcstar = stomatal_resistance_min * LAImax / leaf_area_index;
 
     double f1 = 1.0;
     if (var.ShortWave_in > 0.0)
@@ -55,7 +52,7 @@ void PenmanMonteith::CalcStomatalResistance(PM_param& param, PM_var& var)
     
     double f2 = max <double> (1.0, 2.0 * ( CalcSaturationVapourPressure(t) - var.vapour_pressure) );
 
-    double volumetric_soil_storage = (var.soil_storage/param.soil_depth + 
+    double volumetric_soil_storage = (var.soil_storage/soil_depth + 
            SetSoilProperties[1]) / SetSoilProperties[3]; // TODO SetSoilProperties is currently disconnected. Chris says to add it to a single file and share it to relevant modules.
                                                        
   
@@ -77,18 +74,22 @@ void PenmanMonteith::CalcStomatalResistance(PM_param& param, PM_var& var)
 
 }
 
-void PenmanMonteith::CalcEvapT(param_base& baseparam, var_base& basevar, model_output& output) const
+void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
 {
-    const PM_param & param = static_cast<const PM_param&>(baseparam);
     const PM_var & var = static_cast<const PM_var&>(basevar);
-    double Q =  var.Rnet * (1 - param.Frac_to_ground);
+    
+    double Q =  var.Rnet * (1 - Frac_to_ground);
 
-    CalcAeroResistance(param,var);
-    CalcStomatalResistance(param,var);
+    if (IsFirstRun)
+    {
+        CalcHeights();
+    }
 
-    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * param.Cp / (lambda(var.t)*1e3) * ( CalcSaturationVapourPressure(var.t) - var.vapour_pressure )/ var.aero_resistance )
+    double aero_resistance = CalcAeroResistance(var);
+    double stomatal_resistance = CalcStomatalResistance(var);
+
+    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * Cp / (lambda(var.t)*1e3) * ( CalcSaturationVapourPressure(var.t) - var.vapour_pressure )/ var.aero_resistance )
        / ( delta(var.t) + gamma(var.P_atm, var.t) * (1 + stomatal_resistance / aero_resistance ) ); 
-    return;
 }
 
 // TODO make delta, gamma, density fucntions
