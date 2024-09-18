@@ -66,11 +66,15 @@ public:
     class data : public face_info
     {
         public:
+            std::unique_ptr<PenmanMonteith> MyPenmanMonteith;
+            // PriestleyTaylor here
 
     }
 
 private:
 
-    enum NonSaturatedOptions { PENMANMONTEITH, PRIESTLEYTAYLOR };
+    void init_PenmanMonteith(Evapotranspiration_All::data& d);
+    PM_vars set_PenmanMonteith_vars(mesh_elem& face);
+
 
 };

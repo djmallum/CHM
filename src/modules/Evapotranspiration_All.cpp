@@ -23,6 +23,10 @@
 
 
 #include "Evapotranspiration_All.hpp"
+#include "EvapotranspirationModels/evapbase.hpp"
+#include "EvapotranspirationModels/PenmanMoneith.hpp"
+// PT here #include "EvapotranspirationModels/PriestelyTaylor.hpp"
+
 REGISTER_MODULE_CPP(Evapotranspiration_All);
 
 Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
@@ -44,64 +48,79 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
 
 void Evapotranspiration_All::init(mesh& domain)
 {
-    // Initialize
+    for (size_t i = 0; i < domain->size_faces(); i++)
+    {
+        auto face = domain->face(i);
+        auto& d = face->make_module_data<Infil_All::data>(ID);
+        
+        // Consider if an if statement is necessary.
+
+        init_PenmanMonteith(d);
+
+        // put PristelyTaylor parameters here.
+    }
+
 }
 
 void Evapotranspiration_All::run(mesh_elem& face)
 {
 
-    double albedo = (*face)["snow_albedo"_s]; 
-    double qsi = (*face)["iswr"_s];
-    double Lin = (*face)["ilwr"_s];
+    auto& d = face->get_module_data<Evapotranspiration_All::data>(ID);
 
-    double rh = (*face)["rh"_s] / 100.;
-    double t = (*face)["t"_s];
-    double es = Atmosphere::saturatedVapourPressure(t);
-    double ea = rh * es / 1000.; // kpa
-
-
-    double u = (*face)["U_2m_above_srf"_s];
-
-
-    double grass_emissivity = 0.9;
-
-
-    double Qn = (1-albedo)*qsi;
-    double sigma = 5.67*pow(10.0,-8.0); //boltzman
-    double Lout = sigma * grass_emissivity * pow(t+273,4.0); //assume ground temp = air temp (lol)
-
-    double Rn = Qn + (Lin-Lout);
-
-    double G = 0.1*Rn;
-
-    double delta = ( 4098.0*(0.6108*exp( (17.27*T) / (T+237.3))))/pow(T+237.3,2.0);
-
-    double psy_const = 0.066; //kpa / K
-
-    double latent_heat = 2501.0-2.361*t; //kJ/kg
-
-    double cp = 1.005; //kJ/kg
-
-    double rho = 1.2; //density dry air, take it as const for now.
-
-    double h = 0.01; //veg height
-
-    double z0 = h/7.6; //maybe fix this?
-
-    double kappa = 0.41;
-
-    double ra = pow(log( (10.0-0.67*h)/z0),2.0)/(pow(kappa,2.0)*u); //10cm veg
-
-    double rc = 62.0; //s/m  unstressed
-
-    double E = (delta*(Qn-G)/latent_heat + (rho*cp*(es-ea)/ra))/(delta + psy_const * (1+rc/ra));
-
-    (*face)["ET"_s]= E;
-
-
+    if (is_water(face))
+    {
+        // Do PriestlyTaylor
+    }
+    // else if (If wetlands)
+    // {
+    //     Also Do PriestlyTaylor
+    // }
+    else
+    {
+        PM_vars my_PM_vars = set_PenmanMoneith_vars(face);
+    
+        model_output output;
+    
+        d.MyPenmanMonteith->CalcEvap(my_PM_vars,output);
+    }
+    
+    
+    (*face)["ET"_s] = output.ET;
+    
 }
 
 Evapotranspiration_All::~Evapotranspiration_All()
 {
 
+}
+
+void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d)
+{
+    d.MyPenmanMonteith = std::make_unique<evapT_base>();
+    d.MyPenmanMonteith->Veg_height = cfg.get("Veg_height",1);
+    d.MyPenmanMonteith->Veg_height_max = cfg.get("Veg_height_max",1);
+    d.MyPenmanMonteith->wind_measurement_height = cfg.get("wind_measurement_height",1);
+    d.MyPenmanMonteith->kappa = cfg.get("kappa",1);
+    d.MyPenmanMonteith->stomatal_resistance_min = cfg.get("stomatal_resistance_min",1);
+    d.MyPenmanMonteith->soil_depth = cfg.get("soil_depth",1);
+    d.MyPenmanMonteith->Frac_to_ground = cfg.get("Frac_to_ground",1);
+    d.MyPenmanMonteith->Cp = cfg.get("Heat_Capacity",1);
+    d.MyPenmanMonteith->LAImin = cfg.get("Leaf_area_index_min",1);
+    d.MyPenmanMonteith->LAImax = cfg.get("Lead_area_index_max",1);
+    d.MyPenmanMonteith->seasonal_growth = cfg.get("seasonal_growth",1);
+}
+
+PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face)
+{
+    PM_vars vars;
+
+    
+    vars.wind_speed = (*face)["wind_speed"_s];
+    vars.ShortWave_in = (*face)["iswr"_s];
+    vars.Rnet = (*face)["ilwr"_s];
+    vars.Rnet += vars.ShortWave_in;
+    vars.t = (*face)["t"_s];
+    vars.soil_storage = (*face)["soil_storage"_s];
+
+    return vars;
 }
