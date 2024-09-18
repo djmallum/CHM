@@ -20,7 +20,7 @@ public:
     ~PenmanMoneith(void) override; // Deconstructor
                      
 
-    double CalcEvapT(param_base& param, var_base& var) const override;
+    void CalcEvapT(param_base& param, var_base& var, model_output& output) const override;
 
 private:
 
@@ -29,7 +29,7 @@ private:
     void CalcAeroResistance(param_base& param, var_base& var);
     void CalcSaturationVapourPressure(param_base& param, var_base& var);
     void CalcStomatalResistance(param_base& param, var_base& var);
-
+    double AirDensity(double& t, double& ea, double& Pa);
 }
 
 
