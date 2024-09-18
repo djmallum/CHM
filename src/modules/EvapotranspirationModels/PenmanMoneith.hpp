@@ -57,8 +57,6 @@ struct PM_var : public var_base
     double Rnet;
     double t;
     double soil_storage;
-    double aero_resistance;
-    double stomatal_resistance;
 }
 
 
