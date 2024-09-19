@@ -39,8 +39,8 @@ private:
 
     // dont delete
     void CalcHeights(void);
-    void CalcAeroResistance(var_base& var);
-    void CalcStomatalResistance(var_base& var);
+    double CalcAeroResistance(var_base& var);
+    double CalcStomatalResistance(var_base& var);
     double AirDensity(double& t, double& ea, double& Pa);
 
     double Z0;
