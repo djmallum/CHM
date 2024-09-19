@@ -68,6 +68,7 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
     if (IsFirstRun)
     {
         CalcHeights();
+        IsFirstRun = false;
     }
 
     double aero_resistance = CalcAeroResistance(var);
