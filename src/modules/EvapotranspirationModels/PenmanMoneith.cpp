@@ -23,21 +23,6 @@ double PenmanMonteith::CalcAeroResistance(PM_var& var)
         (pow(kappa,2) * var.wind_speed);
 }
 
-// TODO no such function CalcSaturationVapourPressure, put it here for now
-//
-
-double PenmanMonteith::CalcSaturationVapourPressure(PM_var& var)
-{
-    if (var.t > 0.0)
-	{
-		return 0.611 * exp(17.27 * var.t / (var.t + 237.3));
-	}
-	else
-	{
-		return 0.611 * exp(21.88 * var.t / (var.t + 265.5));
-	}
-}
-
 void PenmanMonteith::CalcStomatalResistance(PM_var& var)
 {
     double rcstar = stomatal_resistance_min;
@@ -50,7 +35,7 @@ void PenmanMonteith::CalcStomatalResistance(PM_var& var)
     if (var.ShortWave_in > 0.0)
        f1 = max <double> (1.0, 500.0/(var.ShortWave_in - 1.5));  
     
-    double f2 = max <double> (1.0, 2.0 * ( CalcSaturationVapourPressure(t) - var.vapour_pressure) );
+    double f2 = max <double> (1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
 
     double volumetric_soil_storage = (var.soil_storage/soil_depth + 
            SetSoilProperties[1]) / SetSoilProperties[3]; // TODO SetSoilProperties is currently disconnected. Chris says to add it to a single file and share it to relevant modules.
@@ -88,7 +73,7 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
     double aero_resistance = CalcAeroResistance(var);
     double stomatal_resistance = CalcStomatalResistance(var);
 
-    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * Cp / (lambda(var.t)*1e3) * ( CalcSaturationVapourPressure(var.t) - var.vapour_pressure )/ var.aero_resistance )
+    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * Cp / (lambda(var.t)*1e3) * ( var.saturation_vapour_pressure - var.vapour_pressure )/ var.aero_resistance )
        / ( delta(var.t) + gamma(var.P_atm, var.t) * (1 + stomatal_resistance / aero_resistance ) ); 
 }
 

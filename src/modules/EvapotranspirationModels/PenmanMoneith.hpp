@@ -40,7 +40,6 @@ private:
     // dont delete
     void CalcHeights(void);
     void CalcAeroResistance(var_base& var);
-    void CalcSaturationVapourPressure(var_base& var);
     void CalcStomatalResistance(var_base& var);
     double AirDensity(double& t, double& ea, double& Pa);
 
@@ -57,6 +56,8 @@ struct PM_var : public var_base
     double Rnet;
     double t;
     double soil_storage;
+    double vapour_pressure;
+    double saturated_vapour_pressure; 
 }
 
 
