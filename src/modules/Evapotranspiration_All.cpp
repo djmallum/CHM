@@ -121,6 +121,6 @@ PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face)
     vars.Rnet += vars.ShortWave_in;
     vars.t = (*face)["t"_s];
     vars.soil_storage = (*face)["soil_storage"_s];
-
+    vars.saturatedvapourpressure = Atmosphere::saturatedVapourPressure(vars.t)/1e3; // convert from Pa to kPa
     return vars;
 }
