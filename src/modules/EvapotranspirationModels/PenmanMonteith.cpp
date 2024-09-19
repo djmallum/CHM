@@ -23,7 +23,7 @@ double PenmanMonteith::CalcAeroResistance(PM_var& var)
         (pow(kappa,2) * var.wind_speed);
 }
 
-void PenmanMonteith::CalcStomatalResistance(PM_var& var)
+double PenmanMonteith::CalcStomatalResistance(PM_var& var)
 {
     double rcstar = stomatal_resistance_min;
 
@@ -50,11 +50,10 @@ void PenmanMonteith::CalcStomatalResistance(PM_var& var)
         f4 = 5000/50;
 
     if (var.ShortWave_in <= 0)
-        var.stomatal_resistance = 5000;
+        return 5000;
     else
     {
-        var.stomatal_resistance = min <double> (rcstar * f1 * f2 * f3 * f4, 
-                5000.0);
+        return min <double> (rcstar * f1 * f2 * f3 * f4, 5000.0);
     }
 
 }
@@ -74,7 +73,7 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
     double aero_resistance = CalcAeroResistance(var);
     double stomatal_resistance = CalcStomatalResistance(var);
 
-    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * Cp / (lambda(var.t)*1e3) * ( var.saturation_vapour_pressure - var.vapour_pressure )/ var.aero_resistance )
+    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * Cp / (lambda(var.t)*1e3) * ( var.saturation_vapour_pressure - var.vapour_pressure )/ aero_resistance )
        / ( delta(var.t) + gamma(var.P_atm, var.t) * (1 + stomatal_resistance / aero_resistance ) ); 
 }
 
