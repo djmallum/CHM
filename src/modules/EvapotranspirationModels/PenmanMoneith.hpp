@@ -11,13 +11,13 @@
 // set param and var members. param never changes, var changes every timestep and should be released.
 
 
-class PenmanMoneith : public evapT_base
+class PenmanMonteith : public evapT_base
 {
 public:
 
-    PenmanMoneith(); // TODO Add inputs here to constructor, just param)
+    PenmanMonteith(); // TODO Add inputs here to constructor, just param)
                      
-    ~PenmanMoneith(void) override; // Deconstructor
+    ~PenmanMonteith(void) override; // Deconstructor
                      
 
     void CalcEvapT(PM_vars& vars, model_output& output) const override;
