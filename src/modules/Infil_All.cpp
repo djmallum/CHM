@@ -90,7 +90,7 @@ void Infil_All::init(mesh& domain)
         porosity = cfg.get("soil_porosity",0.5);
         soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
         max_soil_storage = porosity * soil_depth;
-        ksaturated = SoilDataObj.get_soilproperties(soil_type,KSAT);
+        ksaturated = SoilDataObj.get_soilproperties(soil_type,Soil::KSAT);
 
 
    }
@@ -359,6 +359,7 @@ void Infil_All::Initialize_GA_Variables(Infil_All::data &d) {
     GA->initial_storage = d.soil_storage;
     GA->final_storage = GA->initial_storage;
     GA->final_rate = GA->initial_rate;
+    GA->capillary_suction = SoilDataObj.get_soilproperties(soil_type,Soil::PSI);
 }
 
 void Infil_All::initialize_ponding_vars(std::unique_ptr<Infil_All::data::tempvars> &GA) {
