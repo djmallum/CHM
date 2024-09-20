@@ -37,8 +37,8 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
     depends("ilwr");
     depends("rh");
     depends("t");
-    depends("U_2m_above_srf");
-    depends("snow_albedo") // named inaccurate to this module, 
+    depends("U_2m_above_srf"); // 
+    depends("snow_albedo"); // named inaccurate to this module, 
                            // but is how albedo is used in CHM as of Sept, 2024
 
     provides("ET");
@@ -81,7 +81,7 @@ void Evapotranspiration_All::run(mesh_elem& face)
     
         model_output output;
     
-        d.MyPenmanMonteith->CalcEvap(my_PM_vars,output);
+        d.MyPenmanMonteith->CalcEvapT(my_PM_vars,output);
     }
     
     
@@ -96,7 +96,7 @@ Evapotranspiration_All::~Evapotranspiration_All()
 
 void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d)
 {
-    d.MyPenmanMonteith = std::make_unique<evapT_base>();
+    d.MyPenmanMonteith = std::make_unique<PenmanMonteith>();
     d.MyPenmanMonteith->Veg_height = cfg.get("Veg_height",1);
     d.MyPenmanMonteith->Veg_height_max = cfg.get("Veg_height_max",1);
     d.MyPenmanMonteith->wind_measurement_height = cfg.get("wind_measurement_height",1);

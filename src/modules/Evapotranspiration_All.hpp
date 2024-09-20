@@ -34,6 +34,8 @@
 #include <armadillo>
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include "EvapotranspirationModels/evapbase.hpp"
+#include "EvapotranspirationModels/PenmanMonteith.hpp"
 
 /**
  * \ingroup modules exp evap
@@ -67,7 +69,7 @@ public:
     class data : public face_info
     {
         public:
-            std::unique_ptr<PenmanMonteith> MyPenmanMonteith;
+            std::unique_ptr<evapT_base> MyPenmanMonteith; //TODO should be a pointer to the base class
             // PriestleyTaylor here
 
     }
