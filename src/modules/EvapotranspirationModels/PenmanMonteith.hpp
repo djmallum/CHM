@@ -34,7 +34,8 @@ public:
     double LAImin;
     double seasonal_growth;
     double LAImax;
-    
+    double air_entry_tension;
+    double pore_size; 
 private:
 
     // dont delete
