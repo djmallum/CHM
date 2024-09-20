@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include <iostream>
+
 namespace Soil {
     /********* Soil ************/
 
