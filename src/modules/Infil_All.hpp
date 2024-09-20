@@ -28,7 +28,7 @@
 #include "module_base.hpp"
 #include "TPSpline.hpp"
 #include <cmath>
-#include "physics/Soil.h"
+#include "Soil.h"
 
 /**
  * \ingroup modules infil soils exp
