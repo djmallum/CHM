@@ -41,7 +41,7 @@ double PenmanMonteith::CalcStomatalResistance(PM_var& var)
            SetSoilProperties[1]) / SetSoilProperties[3]; // TODO SetSoilProperties is currently disconnected. Chris says to add it to a single file and share it to relevant modules.
                                                        
   
-    double p = soilproperties[AIRENT] * pow(1.0 / volumetric_soil_storage, soilproperties[PORESZ]);  // TODO soilproperties is disconnected, will add it as a member function to triangulation, and likely handle it in the main evap class
+    double p = air_entry_tension * pow(1.0 / volumetric_soil_storage, pore_size);  // TODO soilproperties is disconnected, will add it as a member function to triangulation, and likely handle it in the main evap class
     
     double f3 = max <double> (1.0, p/40.0);
 
