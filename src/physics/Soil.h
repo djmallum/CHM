@@ -66,6 +66,6 @@ namespace Soil {
             {0.5,  0.5,  0.5,  0.5,  0.5,  0.5}   // soil over shallow bedrock
             };
 
-    }
+    };
 }
 
