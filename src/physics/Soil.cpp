@@ -2,9 +2,20 @@
 
 namespace Soil
 {
-    double SoilData::get_soilproperties(const std::size_t property_type, const std::size_t soil_type)
+
+    SoilData::SoilData()
     {
-        return soilproperties[property_type][soil_type];
+
+    }
+
+    SoilData::~SoilData()
+    {
+
+    }
+
+    double SoilData::get_soilproperties(const std::size_t soil_type, const std::size_t property_type)
+    {
+        return soilproperties[soil_type][property_type];
     }
 
 

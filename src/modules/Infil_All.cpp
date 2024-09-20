@@ -90,7 +90,7 @@ void Infil_All::init(mesh& domain)
         porosity = cfg.get("soil_porosity",0.5);
         soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
         max_soil_storage = porosity * soil_depth;
-        ksaturated = soilproperties[soil_type][KSAT];
+        ksaturated = SoilDataObj.get_soilproperties(soil_type,KSAT);
 
 
    }
@@ -201,7 +201,7 @@ void Infil_All::run(mesh_elem &face)
     {
         if (rainfall > 0.0)
         {
-            double maxinfil = textureproperties[texture][groundcover]; // Currently texture properties is assumed uniform, later make this triangle specific.
+            double maxinfil = SoilDataObj.get_textureproperties(texture,groundcover); // TODO Currently texture properties is assumed uniform, later make this triangle specific.
             if (maxinfil > rainfall)
             {
                 inf = rainfall;
