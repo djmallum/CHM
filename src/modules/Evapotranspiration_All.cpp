@@ -108,6 +108,11 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d
     d.MyPenmanMonteith->LAImin = cfg.get("Leaf_area_index_min",1);
     d.MyPenmanMonteith->LAImax = cfg.get("Lead_area_index_max",1);
     d.MyPenmanMonteith->seasonal_growth = cfg.get("seasonal_growth",1);
+
+    const std::size_t soil_type = cfg.get("soil_type",0);
+
+    d.MyPenmanMonteith->air_entry_tension = SoilDataObj.get_soilproperties(soil_type,Soil::AIRENT);
+    d.MyPenmanMonteith->pore_size = SoilDataObj.get_soilproperties(soil_type,Soil::PORESZ);
 }
 
 PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face)
