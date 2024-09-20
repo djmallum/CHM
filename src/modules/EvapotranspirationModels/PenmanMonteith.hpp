@@ -20,7 +20,7 @@ public:
     ~PenmanMonteith(void) override; // Deconstructor
                      
 
-    void CalcEvapT(PM_vars& vars, model_output& output) const override;
+    void CalcEvapT(PM_vars& vars, model_output& output) override;
     
     // TODO some of these are global, might need to pass them as arguments and store more efficiently. 
     double Veg_height;
