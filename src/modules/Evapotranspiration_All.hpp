@@ -26,7 +26,8 @@
 #include "logger.hpp"
 #include "triangulation.hpp"
 #include "module_base.hpp"
-#include "physics/Atmosphere.h"
+#include "Atmosphere.h"
+#include "Soil.h"
 #include <cstdlib>
 #include <string>
 #include <cmath>
@@ -75,6 +76,6 @@ private:
 
     void init_PenmanMonteith(Evapotranspiration_All::data& d);
     PM_vars set_PenmanMonteith_vars(mesh_elem& face);
-
+    Soil::SoilData SoilDataObj;
 
 };
