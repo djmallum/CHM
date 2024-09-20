@@ -87,6 +87,7 @@ set(CHM_SRCS
 		metdata.cpp
 
 		physics/Atmosphere.cpp
+        physics/Soil.cpp
 
 		mesh/triangulation.cpp
 
