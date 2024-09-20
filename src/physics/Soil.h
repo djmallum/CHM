@@ -28,10 +28,18 @@
 
 namespace Soil {
     /********* Soil ************/
+
+    enum GATable {PSI, KSAT, WILT, FCAP, PORG, PORE, AIENT, PORESZ, AVAIL}; // Used for mapping the soil table, PSI and KSAT are used, the others are unused but may but used in the future or other modules.    
+    // see GreenAmpt module in CRHM wiki for details.
+
     class SoilData
     {
     public:
-        double get_soilproperties(const std::size_t property_type, const std::size_t soil_type);
+
+        SoilData();
+        ~SoilData();
+
+        double get_soilproperties(const std::size_t soil_type, const std::size_t property_type);
         double get_textureproperties(const std::size_t texture_type, const std::size_t groundcover_type);
     private:
             
