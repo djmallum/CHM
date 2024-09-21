@@ -96,23 +96,24 @@ Evapotranspiration_All::~Evapotranspiration_All()
 
 void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d)
 {
-    d.MyPenmanMonteith = std::make_unique<PenmanMonteith>();
+    
+    const std::size_t soil_type = cfg.get("soil_type",0);
+    
+    d.MyPenmanMonteith = std::make_unique<PenmanMonteith>(Atmosphere::Cp, Atmosphere::kappa,
+            SoilDataObj.get_soilproperties(soil_type,Soil::AIRENT),
+            SoilDataObj.get_soilproperties(soil_type,Soil::PORESZ));
+
+
     d.MyPenmanMonteith->Veg_height = cfg.get("Veg_height",1);
     d.MyPenmanMonteith->Veg_height_max = cfg.get("Veg_height_max",1);
     d.MyPenmanMonteith->wind_measurement_height = cfg.get("wind_measurement_height",1);
-    d.MyPenmanMonteith->kappa = cfg.get("kappa",1);
     d.MyPenmanMonteith->stomatal_resistance_min = cfg.get("stomatal_resistance_min",1);
     d.MyPenmanMonteith->soil_depth = cfg.get("soil_depth",1);
     d.MyPenmanMonteith->Frac_to_ground = cfg.get("Frac_to_ground",1);
-    d.MyPenmanMonteith->Cp = cfg.get("Heat_Capacity",1);
     d.MyPenmanMonteith->LAImin = cfg.get("Leaf_area_index_min",1);
     d.MyPenmanMonteith->LAImax = cfg.get("Lead_area_index_max",1);
     d.MyPenmanMonteith->seasonal_growth = cfg.get("seasonal_growth",1);
 
-    const std::size_t soil_type = cfg.get("soil_type",0);
-
-    d.MyPenmanMonteith->air_entry_tension = SoilDataObj.get_soilproperties(soil_type,Soil::AIRENT);
-    d.MyPenmanMonteith->pore_size = SoilDataObj.get_soilproperties(soil_type,Soil::PORESZ);
 }
 
 PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face)
@@ -129,3 +130,4 @@ PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face)
     vars.saturated_vapour_pressure = Atmosphere::saturatedVapourPressure(vars.t)/1e3; // convert from Pa to kPa
     return vars;
 }
+

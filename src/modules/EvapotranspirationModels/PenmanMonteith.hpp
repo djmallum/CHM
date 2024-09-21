@@ -15,7 +15,7 @@ class PenmanMonteith : public evapT_base
 {
 public:
 
-    PenmanMonteith(); // TODO Add inputs here to constructor, just param)
+    PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz); 
                      
     ~PenmanMonteith(void) override; // Deconstructor
                      
@@ -26,16 +26,16 @@ public:
     double Veg_height;
     double Veg_height_max;
     double wind_measurement_height; // This one might be uniform...
-    double kappa; // also might be domain wide
     double stomatal_resistance_min; // Also might be domain wide
     double soil_depth;
     double Frac_to_ground;
-    double Cp;
     double LAImin;
     double seasonal_growth;
     double LAImax;
-    double air_entry_tension;
-    double pore_size; 
+    const double& heat_capcity_air;
+    const double& kappa; // also might be domain wide
+    const double& air_entry_tension;
+    const double& pore_size;  
 private:
 
     // dont delete

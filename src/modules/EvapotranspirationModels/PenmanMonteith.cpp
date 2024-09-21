@@ -1,7 +1,8 @@
 #include "PenmanMonteith.hpp"
 
 
-PenmanMonteith::PenmanMonteith()
+PenmanMonteith::PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz) 
+    : heat_capacity(Cp), kappa(K), air_entry_tension(tension), pore_size(pore_sz)
 {
     
 }
@@ -73,7 +74,7 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
     double aero_resistance = CalcAeroResistance(var);
     double stomatal_resistance = CalcStomatalResistance(var);
 
-    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * Cp / (lambda(var.t)*1e3) * ( var.saturation_vapour_pressure - var.vapour_pressure )/ aero_resistance )
+    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * heat_capacity / (lambda(var.t)*1e3) * ( var.saturation_vapour_pressure - var.vapour_pressure )/ aero_resistance )
        / ( delta(var.t) + gamma(var.P_atm, var.t) * (1 + stomatal_resistance / aero_resistance ) ); 
 }
 
