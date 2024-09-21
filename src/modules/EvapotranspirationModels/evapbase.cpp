@@ -1,3 +1,5 @@
+#include "EvapotranspirationModels/evapbase.hpp"
+
 double evapT_base::delta(double& t) // Slope of sat vap p vs t, kPa/DEGREE_CELSIUS
 {
   if (t > 0.0)
