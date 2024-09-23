@@ -20,7 +20,7 @@ public:
     ~PenmanMonteith(void) override; // Deconstructor
                      
 
-    void CalcEvapT(PM_vars& vars, model_output& output) override;
+    void CalcEvapT(var_base& vars, model_output& output) override;
     
     // TODO some of these are global, might need to pass them as arguments and store more efficiently. 
     double Veg_height;
@@ -40,8 +40,8 @@ private:
 
     // dont delete
     void CalcHeights(void);
-    double CalcAeroResistance(var_base& var);
-    double CalcStomatalResistance(var_base& var);
+    double CalcAeroResistance(PM_vars& var);
+    double CalcStomatalResistance(PM_vars& var);
     double AirDensity(double& t, double& ea, double& Pa);
 
     double Z0;

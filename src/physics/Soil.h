@@ -34,6 +34,53 @@ namespace Soil {
     enum GATable {PSI, KSAT, WILT, FCAP, PORG, PORE, AIRENT, PORESZ, AVAIL}; // Used for mapping the soil table, PSI and KSAT are used, the others are unused but may but used in the future or other modules.    
     // see GreenAmpt module in CRHM wiki for details.
 
+    class _soils_base
+    {
+    public:
+        virtual double porosity(std::string) const = 0;
+        virtual double pore_size_dist(std::string) const = 0;
+        virtual double pore_space(std::string) const = 0;
+        virtual double wilt_point(std::string) const = 0;
+        virtual double air_entry_tension(std::string) const = 0;
+        virtual double saturated_conductivity(std::string) const = 0;
+
+        virtual ~soils_base() = default;
+    private:
+        virtual void _make_hash() = 0;
+    };
+
+    class soils_na : public _soils_base
+    {
+    public:
+        soils_na();
+        ~soils_na();
+
+        double porosity(std::string soil_type) const override;
+        double pore_size_dist(std::string soil_type) const override;
+        double pore_space(std::string soil_type) const override;
+        double wilt_point(std::string soil_type) const override;
+        double air_entry_tension(std::string soil_type) const override;
+        double saturated_conductivity(std::string soil_type) const override;
+
+    private:
+
+        google::dense_hash_map< std::string, double> _porosity;
+        google::dense_hash_map< std::string, double> _pore_size_dist;
+        google::dense_hash_map< std::string, double> _pore_space;
+        google::dense_hash_map< std::string, double> _wilt_point;
+        google::dense_hash_map< std::string, double> _air_entry_tension;
+        google::dense_hash_map< std::string, double> _saturated_conductivity;
+
+        void _make_hash() override;
+
+    };
+
+};
+
+
+
+
+
     class SoilData
     {
     public:
