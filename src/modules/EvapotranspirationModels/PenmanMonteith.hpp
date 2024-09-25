@@ -15,14 +15,14 @@ class PenmanMonteith : public evapT_base
 {
 public:
 
-    PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz); 
+    PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi); 
                      
     ~PenmanMonteith(void) override; // Deconstructor
                      
 
     void CalcEvapT(var_base& vars, model_output& output) override;
     
-    // TODO some of these are global, might need to pass them as arguments and store more efficiently. 
+    // TODO These should be references
     double Veg_height;
     double Veg_height_max;
     double wind_measurement_height; // This one might be uniform...
@@ -35,7 +35,9 @@ public:
     const double& heat_capcity_air;
     const double& kappa; // also might be domain wide
     const double& air_entry_tension;
-    const double& pore_size;  
+    const double& pore_size; 
+    const double& wilt_point;
+    const double& porosity; 
 private:
 
     // dont delete
@@ -59,6 +61,9 @@ struct PM_var : public var_base
     double soil_storage;
     double vapour_pressure;
     double saturated_vapour_pressure; 
+
+    // TODO Add a constructor, make these references.
+    // maybe not needed, remember it is normal to make a local copy of values on faces, which these are.
 }
 
 

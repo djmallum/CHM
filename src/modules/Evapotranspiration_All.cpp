@@ -97,11 +97,12 @@ Evapotranspiration_All::~Evapotranspiration_All()
 void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d)
 {
     
-    const std::size_t soil_type = cfg.get("soil_type",0);
-    
+    const std::string soil_type = cfg.get("soil_type","sand");
+   
+    SoilDataObj = std::make_unique<Soil::soils_na>(); 
     d.MyPenmanMonteith = std::make_unique<PenmanMonteith>(Atmosphere::Cp, Atmosphere::kappa,
-            SoilDataObj.get_soilproperties(soil_type,Soil::AIRENT),
-            SoilDataObj.get_soilproperties(soil_type,Soil::PORESZ));
+            SoilDataObj.air_entry_tension(soil_type),
+            SoilDataObj.pore_size_dist(soil_type),SoilDataObj.wilt_point(soil_type),SoilDataObj.porosity(soil_type));
 
 
     d.MyPenmanMonteith->Veg_height = cfg.get("Veg_height",1);
@@ -120,7 +121,7 @@ PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face)
 {
     PM_vars vars;
 
-    
+    // replace with constructor 
     vars.wind_speed = (*face)["wind_speed"_s];
     vars.ShortWave_in = (*face)["iswr"_s];
     vars.Rnet = (*face)["ilwr"_s];

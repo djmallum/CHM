@@ -1,8 +1,8 @@
 #include "PenmanMonteith.hpp"
 
 
-PenmanMonteith::PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz) 
-    : heat_capacity(Cp), kappa(K), air_entry_tension(tension), pore_size(pore_sz)
+PenmanMonteith::PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi) 
+    : heat_capacity(Cp), kappa(K), air_entry_tension(tension), pore_size(pore_sz), wilt_point(theta_pwp), porosity(phi)
 {
     
 }
@@ -39,10 +39,10 @@ double PenmanMonteith::CalcStomatalResistance(PM_var& var)
     double f2 = max <double> (1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
 
     double volumetric_soil_storage = (var.soil_storage/soil_depth + 
-           SetSoilProperties[1]) / SetSoilProperties[3]; // TODO SetSoilProperties is currently disconnected. Chris says to add it to a single file and share it to relevant modules.
+           wilt_point) / porosity; // TODO SetSoilProperties is currently disconnected. Chris says to add it to a single file and share it to relevant modules.
                                                        
   
-    double p = air_entry_tension * pow(1.0 / volumetric_soil_storage, pore_size);  // TODO soilproperties is disconnected, will add it as a member function to triangulation, and likely handle it in the main evap class
+    double p = air_entry_tension * pow(1.0 / volumetric_soil_storage, pore_size_dist);  // TODO soilproperties is disconnected, will add it as a member function to triangulation, and likely handle it in the main evap class
     
     double f3 = max <double> (1.0, p/40.0);
 
