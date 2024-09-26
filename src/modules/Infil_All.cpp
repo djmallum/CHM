@@ -75,14 +75,14 @@ void Infil_All::init(mesh& domain)
         d.index = 0;
         d.max_major_per_melt = 0.;
         d.init_SWE = 0.;
-        d.soil_storage = 0.;
+        d.soil_storage = 0.; // TODO import from soil module
             
         // Model Parameters
         infDays = cfg.get("max_inf_days",6);
         min_swe_to_freeze = cfg.get("min_swe_to_freeze",25);
         major = cfg.get("major",5); 
         AllowPriorInf = cfg.get("AllowPriorInf",true);
-        ThawType = cfg.get("ThawType",0); // Default is Ayers
+        thaw_type = cfg.get("thaw_type",0); // Default is Ayers
         texture = cfg.get("soil_texture",0);
         groundcover = cfg.get("soil_groundcover",0);
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
@@ -197,11 +197,11 @@ void Infil_All::run(mesh_elem &face)
 
         }
     }
-    else if (ThawType == AYERS) // if not frozen, do Ayers
+    else if (thaw_type == AYERS) // if not frozen, do Ayers
     {
         if (rainfall > 0.0)
         {
-            double maxinfil = SoilDataObj.get_textureproperties(texture,groundcover); // TODO Currently texture properties is assumed uniform, later make this triangle specific.
+            double maxinfil = SoilDataObj.get_textureproperties(texture,groundcover); // TODO should accoount for maximum storage?! 
             if (maxinfil > rainfall)
             {
                 inf = rainfall;
@@ -216,17 +216,20 @@ void Infil_All::run(mesh_elem &face)
         // Increment totals
         Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
     }
-    else if (ThawType == GREENAMPT) // if not frozen, do GreenAmpt
+    else if (thaw_type == GREENAMPT) // if not frozen, do GreenAmpt
     {
         d.GA_temp = std::make_unique<data::tempvars>();
 
         if(rainfall > 0.0) {
             d.GA_temp->intensity = convert_to_rate_hourly(rainfall);
 
-            if(soil_type == 12){ // handle pavement separately
+            if(soil_type == 12){ // TODO Update with new soils
+                                 // handle pavement separately
                 runoff = rainfall;
             }
             else if(is_space_in_dry_soil(d.soil_storage,max_soil_storage,rainfall)){
+                // TODO Don't like this one, if time step is daily, this is ok, but hourly
+                // this might have too high rates of input
                 inf =  rainfall;
             }
             else {
