@@ -17,8 +17,6 @@ void PenmanMonteith::CalcHeights()
     Z0 = Veg_height/7.6;
     d = Veg_height*0.67;
 }
-:A
-:q
 
 double PenmanMonteith::CalcAeroResistance(const PM_vars& var)
 {
