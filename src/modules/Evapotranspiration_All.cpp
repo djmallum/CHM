@@ -106,7 +106,7 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d
 
     d.MyPenmanMonteith->Veg_height = cfg.get("Veg_height",1);
     d.MyPenmanMonteith->Veg_height_max = cfg.get("Veg_height_max",1);
-    d.MyPenmanMonteith->wind_measurement_height = cfg.get("wind_measurement_height",1);
+    d.MyPenmanMonteith->wind_measurement_height = cfg.get("wind_measurement_height",2); // 2 is default and should be used if U_2m_above_srf is used
     d.MyPenmanMonteith->stomatal_resistance_min = cfg.get("stomatal_resistance_min",1);
     d.MyPenmanMonteith->soil_depth = cfg.get("soil_depth",1);
     d.MyPenmanMonteith->Frac_to_ground = cfg.get("Frac_to_ground",1);
@@ -121,7 +121,7 @@ PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face)
     PM_vars vars;
 
     
-    vars.wind_speed = (*face)["wind_speed"_s];
+    vars.wind_speed = (*face)["U_2m_above_srf"_s];
     vars.ShortWave_in = (*face)["iswr"_s];
     vars.Rnet = (*face)["ilwr"_s];
     vars.Rnet += vars.ShortWave_in;
