@@ -1,8 +1,8 @@
 #include "PenmanMonteith.hpp"
 
 
-PenmanMonteith::PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz) 
-    : heat_capacity_air(Cp), kappa(K), air_entry_tension(tension), pore_size(pore_sz)
+PenmanMonteith::PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi) 
+    : heat_capacity(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi)
 {
     
 }
@@ -41,9 +41,9 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
 //<double> (1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
 
     double volumetric_soil_storage = (var.soil_storage/soil_depth + 
-           SetSoilProperties[1]) / SetSoilProperties[3]; // TODO Name is wrong, see equation 6-12 in Dingman, I should derive this myself so I fully understand it. And then make list of things to include 
-  
-    double p = air_entry_tension * pow(1.0 / volumetric_soil_storage, pore_size);  // TODO soilproperties is disconnected, will add it as a member function to triangulation, and likely handle it in the main evap class
+           wilt_point) / porosity; 
+                                                       
+    double p = air_entry_tension * pow(1.0 / volumetric_soil_storage, pore_size_dist);  
     
     double f3 = std::max(1.0, p/40.0);
 

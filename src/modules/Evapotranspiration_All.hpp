@@ -78,6 +78,6 @@ private:
 
     void init_PenmanMonteith(Evapotranspiration_All::data& d);
     PM_vars set_PenmanMonteith_vars(mesh_elem& face);
-    Soil::SoilData SoilDataObj;
+    std::unique_ptr<Soils::_soils_base> SoilDataObj;
 
 };
