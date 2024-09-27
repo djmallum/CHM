@@ -54,15 +54,17 @@ private:
 
 struct PM_vars : public var_base
 {
-    double wind_speed;
-    double short_wave_in;
-    double all_wave_net;
-    double t;
-    double soil_storage;
-    double vapour_pressure;
-    double saturated_vapour_pressure; 
+    double& wind_speed;
+    double& short_wave_in;
+    double& all_wave_net;
+    double& t;
+    double& soil_storage;
+    double& vapour_pressure;
+    double& saturated_vapour_pressure; 
+    double& P_atm;
 
-    // TODO Add a constructor, make these references.
+    PM_vars(double& U, double& Qsw, double& Qnet, double& temp, double& soil, double& ea, double& ea_star, double& P) 
+        : wind_speed(U), short_wave_in(Qsw), all_wave_net(Qnet), t(temp), soil_storage(soil), vapour_pressure(ea), saturated_vapour_pressure(ea_star), P_atm(P) {};   // TODO Add a constructor, make these references.
     // maybe not needed, remember it is normal to make a local copy of values on faces, which these are.
 }
 

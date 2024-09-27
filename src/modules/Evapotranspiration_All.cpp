@@ -77,7 +77,13 @@ void Evapotranspiration_All::run(mesh_elem& face)
     // }
     else
     {
-        PM_vars my_PM_vars = set_PenmanMoneith_vars(face);
+        // All members of PM_vars are references and must be set at initialization
+        // Therefore we need a copy of SVP to reference
+        // t is made its own copy to avoid dereferencing face for "t" twice
+
+        double t = (*face)["t"_s];
+        double SVP = Atmosphere::saturatedVapourPressure(t);  
+        PM_vars my_PM_vars = set_PenmanMoneith_vars(face,t,AVP);
     
         model_output output;
     
@@ -117,17 +123,11 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d
 
 }
 
-PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face)
+PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& t, double& saturated_vapour_pressure)
 {
-    PM_vars vars;
+    PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],(*face)["netall"_s],t,(*face)["soil_storage"_s],saturated_vapour_pressure,(*face)["P_atm"]);
 
-    vars.wind_speed = (*face)["U_2m_above_srf"_s];
-    vars.short_wave_in = (*face)["iswr"_s];
-    vars.all_wave_net = (*face)["ilwr"_s];
-    vars.all_wave_net += vars.short_wave_in;
-    vars.t = (*face)["t"_s];
-    vars.soil_storage = (*face)["soil_storage"_s];
-    vars.saturated_vapour_pressure = Atmosphere::saturatedVapourPressure(vars.t)/1e3; // convert from Pa to kPa
+
     return vars;
 }
 
