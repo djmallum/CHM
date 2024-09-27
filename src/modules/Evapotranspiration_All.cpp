@@ -122,9 +122,9 @@ PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face)
 
     
     vars.wind_speed = (*face)["U_2m_above_srf"_s];
-    vars.ShortWave_in = (*face)["iswr"_s];
-    vars.Rnet = (*face)["ilwr"_s];
-    vars.Rnet += vars.ShortWave_in;
+    vars.short_wave_in = (*face)["iswr"_s];
+    vars.all_wave_net = (*face)["ilwr"_s];
+    vars.all_wave_net += vars.short_wave_in;
     vars.t = (*face)["t"_s];
     vars.soil_storage = (*face)["soil_storage"_s];
     vars.saturated_vapour_pressure = Atmosphere::saturatedVapourPressure(vars.t)/1e3; // convert from Pa to kPa

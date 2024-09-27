@@ -33,9 +33,9 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     rcstar = stomatal_resistance_min * LAImax / leaf_area_index;
 
     double f1 = 1.0;
-    if (var.ShortWave_in > 0.0)
-       f1 = std::max(1.0, 500.0/(var.ShortWave_in - 1.5));  
-//max <double> (1.0, 500.0/(var.ShortWave_in - 1.5));  
+    if (var.short_wave_in > 0.0)
+       f1 = std::max(1.0, 500.0/(var.short_wave_in - 1.5));  
+//max <double> (1.0, 500.0/(var.short_wave_in - 1.5));  
     
     double f2 = std::max(1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
 //<double> (1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
@@ -51,7 +51,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     if (var.t < 5.0 || var.t > 40.0)
         f4 = 5000/50;
 
-    if (var.ShortWave_in <= 0)
+    if (var.short_wave_in <= 0)
         return 5000;
     else
     {
@@ -64,7 +64,7 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
 {
     const PM_vars & var = static_cast<const PM_vars&>(basevar);
     
-    double Q =  var.Rnet * (1 - Frac_to_ground);
+    double Q =  var.all_wave_net * (1 - Frac_to_ground);
 
     if (IsFirstRun)
     {

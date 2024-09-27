@@ -53,8 +53,8 @@ private:
 struct PM_var : public var_base
 {
     double wind_speed;
-    double ShortWave_in;
-    double Rnet;
+    double short_wave_in;
+    double all_wave_net;
     double t;
     double soil_storage;
     double vapour_pressure;
