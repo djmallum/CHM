@@ -39,7 +39,7 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
     depends("t");
     depends("U_2m_above_srf"); // 
     depends("snow_albedo"); // named inaccurate to this module, 
-                           // but is how albedo is used in CHM as of Sept, 2024
+    depends("soil_storage");                      // but is how albedo is used in CHM as of Sept, 2024
 
     provides("ET");
 
