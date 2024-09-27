@@ -285,7 +285,7 @@ void Infil_All::run(mesh_elem &face)
 
 
 
-    // TODO increment totals, everywhere, maybe do once
+    // Set variables to face
     (*face)["total_excess"_s]=d.total_excess;
     (*face)["total_meltexcess"_s]=d.total_meltexcess;
     (*face)["total_inf"_s]=d.total_inf;
