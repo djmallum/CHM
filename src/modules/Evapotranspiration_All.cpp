@@ -69,6 +69,7 @@ void Evapotranspiration_All::run(mesh_elem& face)
 
     if (is_water(face))
     {
+
         // Do PriestlyTaylor
     }
     // else if (If wetlands)
@@ -83,7 +84,8 @@ void Evapotranspiration_All::run(mesh_elem& face)
 
         double t = (*face)["t"_s];
         double SVP = Atmosphere::saturatedVapourPressure(t);  
-        PM_vars my_PM_vars = set_PenmanMoneith_vars(face,t,AVP);
+        double VP = (*face)["rh"_s] * SVP;
+        PM_vars my_PM_vars = set_PenmanMoneith_vars(face,t,SVP,VP);
     
         model_output output;
     
@@ -100,32 +102,36 @@ Evapotranspiration_All::~Evapotranspiration_All()
 
 }
 
-void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d)
+void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d,mesh_elem& face)
 {
     
     const std::string soil_type = cfg.get("soil_type","sand");
+
    
     SoilDataObj = std::make_unique<Soil::soils_na>(); 
     d.MyPenmanMonteith = std::make_unique<PenmanMonteith>(Atmosphere::Cp, Atmosphere::kappa,
-            SoilDataObj.air_entry_tension(soil_type),
-            SoilDataObj.pore_size_dist(soil_type),SoilDataObj.wilt_point(soil_type),SoilDataObj.porosity(soil_type));
+            SoilDataObj.air_entry_tension(soil_type),SoilDataObj.pore_size_dist(soil_type),
+            SoilDataObj.wilt_point(soil_type),SoilDataObj.porosity(soil_type));
 
-
-    d.MyPenmanMonteith->Veg_height = cfg.get("Veg_height",1);
-    d.MyPenmanMonteith->Veg_height_max = cfg.get("Veg_height_max",1);
+    if (face->has_vegetation()) 
+    {
+        d.MyPenmanMonteith->Veg_height = face->veg_attribute("CanopyHeight");
+    }
+    //Only used if leaf_area_index is needed, for now it is commented out
+    //d.MyPenmanMonteith->Veg_height_max = cfg.get("Veg_height_max",1);
+    //d.MyPenmanMonteith->LAImin = cfg.get("Leaf_area_index_min",1);
+    //d.MyPenmanMonteith->LAImax = cfg.get("Lead_area_index_max",1);
+    //d.MyPenmanMonteith->seasonal_growth = cfg.get("seasonal_growth",1);
     d.MyPenmanMonteith->wind_measurement_height = cfg.get("wind_measurement_height",2); // 2 is default and should be used if U_2m_above_srf is used
-    d.MyPenmanMonteith->stomatal_resistance_min = cfg.get("stomatal_resistance_min",1);
+    d.MyPenmanMonteith->stomatal_resistance_min = cfg.get("stomatal_resistance_min",1); // TODO get realistic minimum
     d.MyPenmanMonteith->soil_depth = cfg.get("soil_depth",1);
-    d.MyPenmanMonteith->Frac_to_ground = cfg.get("Frac_to_ground",1);
-    d.MyPenmanMonteith->LAImin = cfg.get("Leaf_area_index_min",1);
-    d.MyPenmanMonteith->LAImax = cfg.get("Lead_area_index_max",1);
-    d.MyPenmanMonteith->seasonal_growth = cfg.get("seasonal_growth",1);
+    d.MyPenmanMonteith->Frac_to_ground = cfg.get("Frac_to_ground",1); // iswr_subcanopy exists.
 
 }
 
-PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& t, double& saturated_vapour_pressure)
+PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& t, double& saturated_vapour_pressure,double& vapour_pressure)
 {
-    PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],(*face)["netall"_s],t,(*face)["soil_storage"_s],saturated_vapour_pressure,(*face)["P_atm"]);
+    PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],(*face)["netall"_s],t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"]); 
 
 
     return vars;
