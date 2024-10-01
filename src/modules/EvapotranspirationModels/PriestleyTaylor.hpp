@@ -15,7 +15,7 @@ class PriestleyTaylor : public evapT_base
 {
 public:
 
-    PriestleyTaylor(); 
+    PriestleyTaylor(double& alpha_const); 
                      
     ~PriestleyTaylor(void) override; // Deconstructor
                      
@@ -23,7 +23,7 @@ public:
     void CalcEvapT(var_base& vars, model_output& output) override;
 
     double Frac_to_ground;
-    
+    const double& alpha; 
     
 private:
 

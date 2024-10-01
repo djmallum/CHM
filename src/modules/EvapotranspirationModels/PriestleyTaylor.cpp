@@ -1,6 +1,6 @@
 #include "PriestleyTaylor.hpp"
 
-PriestleyTaylor::PriestleyTaylor()
+PriestleyTaylor::PriestleyTaylor(const double& alpha_const) : alpha(alpha_const)
 {
 
 }
@@ -16,5 +16,5 @@ void PriestleyTaylor::CalcEvapT(var_base& basevar, model_output& output)
 
     double Q = var.all_wave_net * (1 - Frac_to_ground);
 
-    output.ET = 1.26 * delta(var.t) * Q / (delta(var.t) + gamma(var.P_atm,var.t) );
+    output.ET = alpha * delta(var.t) * Q / (delta(var.t) + gamma(var.P_atm,var.t) );
 }
