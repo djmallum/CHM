@@ -15,7 +15,8 @@ class PenmanMonteith : public evapT_base
 {
 public:
 
-    PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi); 
+    PenmanMonteith(double& LAI, double& LAImax, const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi); 
+   
                      
     ~PenmanMonteith(void) override; // Deconstructor
                      
@@ -23,15 +24,16 @@ public:
     void CalcEvapT(var_base& vars, model_output& output) override;
     
     // TODO These should be references
-    double Veg_height;
-    double Veg_height_max;
+    // double Veg_height;
+    // double Veg_height_max;
     double wind_measurement_height; // This one might be uniform...
     double stomatal_resistance_min; // Also might be domain wide
     double soil_depth;
     double Frac_to_ground;
-    double LAImin;
-    double seasonal_growth;
-    double LAImax;
+    double& leaf_area_index;
+    //double LAImin;
+    //double seasonal_growth;
+    double& leaf_area_index_max;
     const double& heat_capcity_air;
     const double& kappa; // also might be domain wide
     const double& air_entry_tension;
@@ -48,6 +50,7 @@ private:
 
     double Z0;
     double d;
+    bool has_vegetation;
     bool IsFirstRun = true;
 }
 

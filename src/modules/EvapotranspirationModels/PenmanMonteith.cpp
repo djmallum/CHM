@@ -1,10 +1,13 @@
 #include "PenmanMonteith.hpp"
 
 
-PenmanMonteith::PenmanMonteith(const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi) 
-    : heat_capacity(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi)
+PenmanMonteith::PenmanMonteith(double& LAI, double& LAImax, const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi) 
+    : leaf_area_index(LAI), leaf_area_index_max(LAImax), heat_capacity(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi)
 {
-    
+    if (leaf_area_index == 0)
+        has_vegetation = false;
+    else
+        has_vegetation = true;
 }
 
 PenmanMonteith::~PenmanMonteith()
@@ -36,10 +39,11 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     double rcstar = stomatal_resistance_min;
 
     // In CRHM, the below calculation is an option, for now just use the minimum option.
-//  double leaf_area_index = Veg_height/Veg_height_max * 
-//        (LAImin + seasonal_growth * (LAImax - LAImin));
-//    rcstar = stomatal_resistance_min * LAImax / leaf_area_index;
-
+    if (has_vegetation)
+    {
+        rcstar = stomatal_resistance_min * LAImax / leaf_area_index;
+    }
+    // TODO check units. for example, short_wave_in - 1.5 is suspect
     double f1 = 1.0;
     if (var.short_wave_in > 0.0)
        f1 = std::max(1.0, 500.0/(var.short_wave_in - 1.5));  
