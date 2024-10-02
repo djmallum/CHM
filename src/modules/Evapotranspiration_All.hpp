@@ -36,6 +36,8 @@
 #include <math.h>
 #include "EvapotranspirationModels/evapbase.hpp"
 #include "EvapotranspirationModels/PenmanMonteith.hpp"
+#include "EvapotranspirationModels/PriestelyTaylor.hpp"
+
 
 /**
  * \ingroup modules exp evap
@@ -69,15 +71,29 @@ public:
     class data : public face_info
     {
         public:
-            std::unique_ptr<evapT_base> MyPenmanMonteith; //TODO should be a pointer to the base class
-            // PriestleyTaylor here
+            std::unique_ptr<evapT_base> MyPenmanMonteith; 
+            std::unqiue_ptr<evapT_base> MyPriestelyTaylor;
 
     }
 
 private:
 
-    void init_PenmanMonteith(Evapotranspiration_All::data& d);
-    PM_vars set_PenmanMonteith_vars(mesh_elem& face);
     std::unique_ptr<Soils::_soils_base> SoilDataObj;
-
+    
+    // PriestelyTaylor
+    double alpha;
+    // TODO add PT methods here 
+    
+    // PenmanMonteith
+    double wind_height;
+    double stomatal_resistance_min;
+    double soil_depth;
+    double Frac_to_ground;
+     
+    void init_PenmanMonteith(Evapotranspiration_All::data& d, mesh_elem& face);
+    
+    PM_vars set_PenmanMonteith_vars(mesh_elem& face, double& t, 
+            double& saturated_vapour_pressure, double& vapour_pressure);
+    
+    double dummyvar = -100.0; // Used when reference to LAI is needed by PT model but there is no vegetation on a triangle.
 };
