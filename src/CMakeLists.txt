@@ -76,7 +76,7 @@ set(MODULE_SRCS
 set(MODEL_SRCS
         modules/EvapotranspirationModels/evapbase.cpp
         modules/EvapotranspirationModels/PenmanMonteith.cpp
-        modules/EvapotranspirationModels/PriestelyTaylor.cpp
+        modules/EvapotranspirationModels/PriestleyTaylor.cpp
 
         CACHE INTERNAL "" FORCE )
 
