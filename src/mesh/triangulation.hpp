@@ -179,6 +179,8 @@ template < class Gt, class Fb = CGAL::Constrained_triangulation_face_base_2<Gt> 
 class face : public Fb
 {
     friend class triangulation;
+private:
+    double dummyvar = 0.0;
 public:
 
     /**
@@ -1674,7 +1676,7 @@ bool  face<Gt, Fb>::has_vegetation()
 template < class Gt, class Fb >
 double face<Gt, Fb>::veg_attribute(const std::string &variable)
 {
-    double result = 0;
+    double& result = dummyvar;
 
     // first see if we have a distributed map of this parameter
     if(has_parameter(variable))
