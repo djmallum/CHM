@@ -112,7 +112,7 @@ public:
 
     ~point_mode();
 
-    void run(mesh_elem &face);
+    virtual void run(mesh_elem &face);
 
 
     bool t ;
@@ -125,9 +125,7 @@ public:
     bool iswr_diffuse ;
     bool iswr_direct ;
     bool U_2m_above_srf ;
-    bool T_g ;
-    bool Infil_All ;
-
+    bool T_g;
 
 
 };
