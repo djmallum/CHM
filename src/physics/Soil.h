@@ -1,4 +1,4 @@
-/Users/hin601/Documents/TestBuild/CHM/src/physics /* * Canadian Hydrological Model - The Canadian Hydrological Model (CHM) is a novel
+/* * Canadian Hydrological Model - The Canadian Hydrological Model (CHM) is a novel
  * modular unstructured mesh based approach for hydrological modelling
  * Copyright (C) 2018 Christopher Marsh
  *
@@ -27,12 +27,17 @@
 #pragma once
 
 #include <iostream>
+#include <sparsehash/dense_hash_map>
+#include "exception.hpp"
 
 namespace Soil {
     /********* Soil ************/
 
     enum GATable {PSI, KSAT, WILT, FCAP, PORG, PORE, AIRENT, PORESZ, AVAIL}; // Used for mapping the soil table, PSI and KSAT are used, the others are unused but may but used in the future or other modules.    
     // see GreenAmpt module in CRHM wiki for details.
+    //
+
+    using mymap = google::dense_hash_map<std::string, double>;
 
     class _soils_base
     {
@@ -45,13 +50,14 @@ namespace Soil {
         virtual double saturated_conductivity(std::string) const = 0;
 
         virtual double ayers_texture(std::string texture, std::string ground_cover) const = 0;
-        virtual ~soils_base() = default;
+        double lookup(const mymap& map, const std::string key) const;
+        virtual ~_soils_base() = default;
 
     private:
         virtual void _make_hash() = 0;
     };
 
-    class soils_na : public _soils_type_base
+    class soils_na : public _soils_base
     {
     public:
         soils_na();
@@ -68,63 +74,18 @@ namespace Soil {
 
     private:
 
-        google::dense_hash_map< std::string, double> _porosity;
-        google::dense_hash_map< std::string, double> _pore_size_dist;
-        google::dense_hash_map< std::string, double> _wilt_point;
-        google::dense_hash_map< std::string, double> _air_entry_tension;
-        google::dense_hash_map< std::string, double> _capillary_suction;
-        google::dense_hash_map< std::string, double> _saturated_conductivity;
+        mymap _porosity;
+        mymap _pore_size_dist;
+        mymap _wilt_point;
+        mymap _air_entry_tension;
+        mymap _capillary_suction;
+        mymap _saturated_conductivity;
 
-        google::dense_hash_map< std::string, 
-            google::desh_hash_map< std::string, double> _ayers_texture;
+        google::dense_hash_map< std::string, mymap> _ayers_texture;
         
         void _make_hash() override;
 
 
     };
 
-    
-
 };
-
-
-
-
-
-    class SoilData
-    {
-    public:
-
-        SoilData();
-        ~SoilData();
-
-        double get_soilproperties(const std::size_t soil_type, const std::size_t property_type);
-        double get_textureproperties(const std::size_t texture_type, const std::size_t groundcover_type);
-    private:
-            
-        static constexpr double soilproperties[13][9] = {
-            { 0.0,  999.9, 0.000, 0.00, 1.100,  1.000,	0.000,	0.0,  4},  //      0  water
-            { 49.5, 117.8, 0.020, 0.10, 0.437,  0.395,	0.121,	4.05, 1},  //      1  sand
-            { 61.3,  29.9, 0.036, 0.16, 0.437,  0.41 ,	0.09,	4.38, 4},  //      2  loamsand
-            {110.1,  10.9, 0.041, 0.23, 0.453,  0.435,	0.218,	4.9,  2},  //      3  sandloam
-            { 88.9,   3.4, 0.029, 0.26, 0.463,  0.451,	0.478,	5.39, 2},  //      4  loam
-            {166.8,   6.5, 0.045, 0.38, 0.501,  0.485,	0.786,	5.3,  2},  //      5  siltloam
-            {218.5,   1.5, 0.068, 0.38, 0.398,  0.420,	0.299,	7.12, 3},  //      6  saclloam
-            {208.8,   1.0, 0.155, 0.39, 0.464,  0.476,	0.63,	8.52, 2},  //      7  clayloam
-            {273.3,   1.0, 0.039, 0.40, 0.471,  0.477,	0.356,	7.75, 2},  //      8  siclloam
-            {239.0,   0.6, 0.110, 0.41, 0.430,  0.426,	0.153,	10.4, 3},  //      9  sandclay
-            {292.2,   0.5, 0.056, 0.43, 0.479,  0.492,	0.49,	10.4, 3},  //      10 siltclay
-            {316.3,   0.3, 0.090, 0.46, 0.475,  0.482,	0.405,	11.4, 3},  //      11 clay
-            {  0.0,   0.0, 0.000, 0.00, 0.000,  0.000,	0.0,	 0.0, 4}   //      12 pavement. Values not used
-            };
-
-        static constexpr double textureproperties[4][6] = { // mm/hour
-            {7.6, 12.7, 15.2, 17.8, 25.4, 76.2},  // coarse over coarse
-            {2.5,  5.1,  7.6, 10.2, 12.7,  15.2}, // medium over medium
-            {1.3,  1.8,  2.5,  3.8,  5.1,  6.4},  // medium/fine over fine
-            {0.5,  0.5,  0.5,  0.5,  0.5,  0.5}   // soil over shallow bedrock
-            };
-
-    };
-}
-

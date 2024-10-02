@@ -2,6 +2,19 @@
 
 namespace Soil
 {
+    
+    double _soils_base::lookup(const mymap& map, const std::string key) const
+    {
+        auto it = map.find(key);
+        if (it != map.end())
+        {
+           return it->second;
+        }
+        else
+        {
+           CHM_THROW_EXCEPTION(module_error, "Soil Type does not exist in map"); 
+        } 
+    }
 
     soils_na::soils_na()
     {
@@ -13,42 +26,47 @@ namespace Soil
 
     }
 
-    double soils_na::porosity(std::string soil_type)
+    double soils_na::porosity(std::string soil_type) const
     {
-        return _porosity[soil_type];
+        return lookup(_porosity,soil_type);
     }
 
-    double soils_na::pore_size_dist(std::string soil_type)
+    double soils_na::pore_size_dist(std::string soil_type) const
     {
-        return _pore_size_dist[soil_type];
+        return lookup(_pore_size_dist,soil_type);//_pore_size_dist[soil_type];
     }
 
-    double soils_na::wilt_point(std::string soil_type)
+    double soils_na::wilt_point(std::string soil_type) const
     {
-        return _wilt_point[soil_type];
+        return lookup(_wilt_point,soil_type); //_wilt_point[soil_type];
     }
 
-    double soils_na::air_entry_tension(std::string soil_type)
+    double soils_na::air_entry_tension(std::string soil_type) const
     {
-        return _air_entry_tension[soil_type];
+        return lookup(_air_entry_tension,soil_type); //_air_entry_tension[soil_type];
     }
 
-    double soils_na::capilltary_suction(std::string soil_type)
+    double soils_na::capillary_suction(std::string soil_type) const
     {
-        return _capillary_suction[soil_type];
+        return lookup(_capillary_suction,soil_type);//_capillary_suction[soil_type];
     }
 
-    double soils_na::saturated_conductivity(std::string soil_type)
+    double soils_na::saturated_conductivity(std::string soil_type) const
     {
-        return _saturated_conductivity[soil_type];
+        return lookup(_saturated_conductivity,soil_type);
     }
     
-    double ayers_texture(std::string texture, std::string ground_cover)
+    double soils_na::ayers_texture(std::string texture, std::string ground_cover) const
     {
-        return _ayers_texture[texture][ground_cover];
+        auto it = _ayers_texture.find(texture);
+        if (it != _ayers_texture.end())
+            return lookup(it->second, ground_cover);
+        else
+            CHM_THROW_EXCEPTION(module_error, "Soil Type does not exist in map"); 
+
     }
 
-    double soils_na::_make_hash()
+    void soils_na::_make_hash()
     {
         // illegal to not include this step for the dense_hash_map
         _porosity.set_empty_key("");
@@ -194,7 +212,7 @@ namespace Soil
         inner_map[c5] = 0.5;
         inner_map[c6] = 0.5;
 
-        _ayers_texture["soil_over_bedrock"] = innermap;
+        _ayers_texture["soil_over_bedrock"] = inner_map;
     }
 
 }
