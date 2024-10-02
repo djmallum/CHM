@@ -36,7 +36,7 @@
 #include <math.h>
 #include "EvapotranspirationModels/evapbase.hpp"
 #include "EvapotranspirationModels/PenmanMonteith.hpp"
-#include "EvapotranspirationModels/PriestelyTaylor.hpp"
+#include "EvapotranspirationModels/PriestleyTaylor.hpp"
 
 
 /**
@@ -65,22 +65,22 @@ REGISTER_MODULE_HPP(Evapotranspiration_All);
 public:
     Evapotranspiration_All(config_file cfg);
     ~Evapotranspiration_All();
-    void init(mesh& domain)
+    void init(mesh& domain);
     void run(mesh_elem& face);
 
     class data : public face_info
     {
         public:
             std::unique_ptr<evapT_base> MyPenmanMonteith; 
-            std::unqiue_ptr<evapT_base> MyPriestelyTaylor;
+            std::unique_ptr<evapT_base> MyPriestleyTaylor;
 
-    }
+    };
 
 private:
 
-    std::unique_ptr<Soils::_soils_base> SoilDataObj;
+    std::unique_ptr<Soil::_soils_base> SoilDataObj;
     
-    // PriestelyTaylor
+    // PriestleyTaylor
     double alpha;
     // TODO add PT methods here 
     

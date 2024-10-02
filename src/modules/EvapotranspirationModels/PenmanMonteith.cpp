@@ -1,8 +1,8 @@
 #include "PenmanMonteith.hpp"
 
 
-PenmanMonteith::PenmanMonteith(double& LAI, double& LAImax, const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi) 
-    : leaf_area_index(LAI), leaf_area_index_max(LAImax), heat_capacity(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi)
+PenmanMonteith::PenmanMonteith(double& LAI, double& LAImax, double& veg_Ht, const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi) 
+    : leaf_area_index(LAI), leaf_area_index_max(LAImax), Veg_height(veg_Ht), heat_capacity_air(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi)
 {
     if (leaf_area_index == 0)
         has_vegetation = false;
@@ -41,7 +41,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     // In CRHM, the below calculation is an option, for now just use the minimum option.
     if (has_vegetation)
     {
-        rcstar = stomatal_resistance_min * LAImax / leaf_area_index;
+        rcstar = stomatal_resistance_min * leaf_area_index_max / leaf_area_index;
     }
     // TODO check units. for example, short_wave_in - 1.5 is suspect
     double f1 = 1.0;
@@ -84,7 +84,7 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
     double aero_resistance = CalcAeroResistance(var);
     double stomatal_resistance = CalcStomatalResistance(var);
 
-    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * heat_capacity_air / (lambda(var.t)*1e3) * ( var.saturation_vapour_pressure - var.vapour_pressure )/ aero_resistance )
+    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * heat_capacity_air / (lambda(var.t)*1e3) * ( var.saturated_vapour_pressure - var.vapour_pressure )/ aero_resistance )
        / ( delta(var.t) + gamma(var.P_atm, var.t) * (1 + stomatal_resistance / aero_resistance ) ); 
 }
 

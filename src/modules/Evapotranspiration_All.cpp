@@ -45,8 +45,8 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
 
 void Evapotranspiration_All::init(mesh& domain)
 {
-    alpha = cfg.get("alpha_PriestelyTaylor",1.26);
-    wind_height = cfg.get("wind_measurement_height,2);
+    alpha = cfg.get("alpha_PriestleyTaylor",1.26);
+    wind_height = cfg.get("wind_measurement_height",2);
     stomatal_resistance_min = cfg.get("stomatal_resistance_min",62);
     soil_depth = cfg.get("soil_depth",1);
     Frac_to_ground = cfg.get("Frac_to_ground",1); // iswr_subcanopy exists.
@@ -63,7 +63,7 @@ void Evapotranspiration_All::init(mesh& domain)
 
         init_PenmanMonteith(d, face, wind_height, stomatal_resistance_min, soil_depth, Frac_to_ground);
         
-        init_PriestelyTaylor(d,alpha);
+        init_PriestleyTaylor(d,alpha);
 
         // put PristelyTaylor parameters here.
     }
@@ -77,11 +77,11 @@ void Evapotranspiration_All::run(mesh_elem& face)
 
     if (is_water(face))
     {
-        PT_vars my_PT_vars = set_PriestelyTaylor(face);
+        PT_vars my_PT_vars = set_PriestleyTaylor(face);
 
         model_output output;
 
-        d.MyPriestelyTaylor->CalcEvapT(my_PT_vars,output);
+        d.MyPriestleyTaylor->CalcEvapT(my_PT_vars,output);
         // Do PriestlyTaylor
     }
     // TODO wetlands or saturated soils, need input from soils module.
@@ -115,9 +115,9 @@ Evapotranspiration_All::~Evapotranspiration_All()
 
 }
 
-void Evapotranspiration_All::init_PriestelyTaylor(Evapotranspiration_All::data& d,double& alpha)
+void Evapotranspiration_All::init_PriestleyTaylor(Evapotranspiration_All::data& d,double& alpha)
 {
-    d.MyPriestelyTaylor = std::make_unique<PriestelyTaylor>(alpha);
+    d.MyPriestleyTaylor = std::make_unique<PriestleyTaylor>(alpha);
 }
 
 void Evapotranspiration_All::init_PenmanMonteith(Evapotransporation_All::data& d,mesh_elem& face, double& wind_height, double& stomatal_resistance_min, double& soil_depth, double& Frac_to_ground)
@@ -167,7 +167,7 @@ PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& 
     return vars;
 }
 
-PT_vars Evapotransporaqtion_All:set_PriestelyTaylor_vars(mesh_elem& face)
+PT_vars Evapotransporaqtion_All:set_PriestleyTaylor_vars(mesh_elem& face)
 {
     // TODO P_atm, is a state variable and should have a copy local to the run function 
     // because it is calculated from the Atmosphere namespace, not done yet

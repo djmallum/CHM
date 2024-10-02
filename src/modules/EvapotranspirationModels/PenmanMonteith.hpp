@@ -1,3 +1,5 @@
+#pragma once
+
 #include "evapbase.hpp"
 #include <algorithm>
 
@@ -10,12 +12,13 @@
 // var must be remade because values are gathered from other modules.
 // set param and var members. param never changes, var changes every timestep and should be released.
 
+struct PM_vars;
 
 class PenmanMonteith : public evapT_base
 {
 public:
 
-    PenmanMonteith(double& LAI, double& LAImax, const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi); 
+    PenmanMonteith(double& LAI, double& LAImax, double& veg_Ht, const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi); 
    
                      
     ~PenmanMonteith(void) override; // Deconstructor
@@ -34,10 +37,11 @@ public:
     //double LAImin;
     //double seasonal_growth;
     double& leaf_area_index_max;
-    const double& heat_capcity_air;
+    double& Veg_height;
+    const double& heat_capacity_air;
     const double& kappa; // also might be domain wide
     const double& air_entry_tension;
-    const double& pore_size; 
+    const double& pore_size_dist; 
     const double& wilt_point;
     const double& porosity; 
 private:
@@ -52,7 +56,7 @@ private:
     double d;
     bool has_vegetation;
     bool IsFirstRun = true;
-}
+};
 
 
 struct PM_vars : public var_base
@@ -69,7 +73,7 @@ struct PM_vars : public var_base
     PM_vars(double& U, double& Qsw, double& Qnet, double& temp, double& soil, double& ea, double& ea_star, double& P) 
         : wind_speed(U), short_wave_in(Qsw), all_wave_net(Qnet), t(temp), soil_storage(soil), vapour_pressure(ea), saturated_vapour_pressure(ea_star), P_atm(P) {};   // TODO Add a constructor, make these references.
     // maybe not needed, remember it is normal to make a local copy of values on faces, which these are.
-}
+};
 
 
     // Make this a variable passed to evap? double ShortWave_in;

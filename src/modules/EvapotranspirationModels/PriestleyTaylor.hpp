@@ -1,3 +1,5 @@
+#pragma once
+
 #include "evapbase.hpp"
 #include <algorithm>
 
@@ -15,7 +17,7 @@ class PriestleyTaylor : public evapT_base
 {
 public:
 
-    PriestleyTaylor(double& alpha_const); 
+    PriestleyTaylor(const double& alpha_const); 
                      
     ~PriestleyTaylor(void) override; // Deconstructor
                      
@@ -35,8 +37,9 @@ struct PT_vars : public var_base
 {
     double& all_wave_net;  
     double& P_atm;
+    double& air_temperature;
 
-    PT_vars(double& Q, double& P) : all_wave_net(Q), P_atm(P) {};
+    PT_vars(double& Q, double& P, double& t) : all_wave_net(Q), P_atm(P), air_temperature(t) {};
 };
 
     // Make this a variable passed to evap? double ShortWave_in;

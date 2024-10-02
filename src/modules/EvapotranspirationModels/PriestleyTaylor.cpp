@@ -16,5 +16,5 @@ void PriestleyTaylor::CalcEvapT(var_base& basevar, model_output& output)
 
     double Q = var.all_wave_net * (1 - Frac_to_ground);
 
-    output.ET = alpha * delta(var.t) * Q / (delta(var.t) + gamma(var.P_atm,var.t) );
+    output.ET = alpha * delta(var.air_temperature) * Q / (delta(var.air_temperature) + gamma(var.P_atm,var.air_temperature) );
 }
