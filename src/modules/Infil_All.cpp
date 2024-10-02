@@ -83,16 +83,19 @@ void Infil_All::init(mesh& domain)
         major = cfg.get("major",5); 
         AllowPriorInf = cfg.get("AllowPriorInf",true);
         ThawType = cfg.get("ThawType",0); // Default is Ayers
-        texture = cfg.get("soil_texture",0);
-        groundcover = cfg.get("soil_groundcover",0);
+        d.texture = cfg.get("soil_texture",0);
+        d.groundcover = cfg.get("soil_groundcover",0);
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
-        soil_type = cfg.get("soil_type","sand"); // default is sand
-        porosity = SoilDataObj.porosity(soil_type);
-        soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
-        max_soil_storage = porosity * soil_depth;
-        ksaturated = SoilDataObj.saturated_conductivity(soil_type);
+        d.soil_type = cfg.get("soil_type","sand"); // default is sand
+                                                    // TODO Connect with MESHER
 
         SoilDataObj = std::make_unqiue<Soil::soils_na>();
+
+        porosity = SoilDataObj->porosity(d.soil_type);
+        soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
+        max_soil_storage = porosity * soil_depth;
+        ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
+
 
 
    }
@@ -203,7 +206,7 @@ void Infil_All::run(mesh_elem &face)
     {
         if (rainfall > 0.0)
         {
-            double maxinfil = SoilDataObj.ayers_texture(texture,groundcover); // TODO Currently texture properties is assumed uniform, later make this triangle specific.
+            double maxinfil = SoilDataObj->ayers_texture(texture,groundcover); // TODO Currently texture properties is assumed uniform, later make this triangle specific.
             if (maxinfil > rainfall)
             {
                 inf = rainfall;
@@ -225,7 +228,8 @@ void Infil_All::run(mesh_elem &face)
         if(rainfall > 0.0) {
             d.GA_temp->intensity = convert_to_rate_hourly(rainfall);
 
-            if(soil_type == 12){ // handle pavement separately
+            if(d.soil_type == "pavement"){ // TODO Not a real option, handle this
+                                           // ,this is a string handle pavement separately
                 runoff = rainfall;
             }
             else if(is_space_in_dry_soil(d.soil_storage,max_soil_storage,rainfall)){
@@ -367,7 +371,7 @@ void Infil_All::Initialize_GA_Variables(Infil_All::data &d) {
     GA->initial_storage = d.soil_storage;
     GA->final_storage = GA->initial_storage;
     GA->final_rate = GA->initial_rate;
-    GA->capillary_suction = SoilDataObj.capillary_suction(soil_type)
+    GA->capillary_suction = SoilDataObj->capillary_suction(d.soil_type)
         * GA->soil_storage_deficit;
 }
 
