@@ -73,7 +73,11 @@ public:
         public:
             std::unique_ptr<evapT_base> MyPenmanMonteith; 
             std::unique_ptr<evapT_base> MyPriestleyTaylor;
-
+            
+            double LAI;
+            double LAImax;
+            double vegetation_height;
+            double soil_depth;
     };
 
 private:
@@ -83,17 +87,19 @@ private:
     // PriestleyTaylor
     double alpha;
     // TODO add PT methods here 
-    
+
+    void init_PriestleyTaylor(Evapotranspiration_All::data& d,double& alpha);
+    PT_vars set_PriestleyTaylor_vars(mesh_elem& face);
+   
     // PenmanMonteith
     double wind_height;
     double stomatal_resistance_min;
-    double soil_depth;
     double Frac_to_ground;
      
-    void init_PenmanMonteith(Evapotranspiration_All::data& d, mesh_elem& face);
+    void init_PenmanMonteith(Evapotranspiration_All::data& d, mesh_elem& face, double& wind_height, 
+            double& stomatal_resistance_min, double& Frac_to_ground);
     
     PM_vars set_PenmanMonteith_vars(mesh_elem& face, double& t, 
             double& saturated_vapour_pressure, double& vapour_pressure);
     
-    double dummyvar = -100.0; // Used when reference to LAI is needed by PT model but there is no vegetation on a triangle.
 };
