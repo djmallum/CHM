@@ -98,6 +98,8 @@ public:
         double total_snowinf;
         double total_meltexcess;
         double total_rain_on_snow;
+
+        std::string soil_type;
         
         // Crack
         bool frozen;
@@ -105,6 +107,10 @@ public:
         double max_major_per_melt;
         double init_SWE;
         unsigned int major_melt_count;
+       
+        // Ayers
+        std::string texture;
+        std::string ground_cover;
         
         // GreenAmpt
         double soil_storage;
@@ -115,7 +121,7 @@ public:
 private:
     
     // Soil Data
-    Soil::SoilData SoilDataObj;
+    std::unique_ptr<Soil::_soils_base> SoilDataObj;
 
     // Crack
     double major;
@@ -126,15 +132,10 @@ private:
 
     // General, thawed soil
     enum ThawOptions { AYERS, GREENAMPT};
-    unsigned int ThawType;
+    unsigned int thaw_type;
 
-    // Ayers
-    unsigned int texture;
-    unsigned int groundcover;
-    
 
     // GreenAmpt
-    unsigned int soil_type;
     double max_soil_storage;
     double soil_depth;
     double porosity;

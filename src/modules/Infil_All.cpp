@@ -75,22 +75,27 @@ void Infil_All::init(mesh& domain)
         d.index = 0;
         d.max_major_per_melt = 0.;
         d.init_SWE = 0.;
-        d.soil_storage = 0.; // TODO import from soil module
-            
+        d.soil_storage = 0.;
+
         // Model Parameters
         infDays = cfg.get("max_inf_days",6);
         min_swe_to_freeze = cfg.get("min_swe_to_freeze",25);
         major = cfg.get("major",5); 
         AllowPriorInf = cfg.get("AllowPriorInf",true);
         thaw_type = cfg.get("thaw_type",0); // Default is Ayers
-        texture = cfg.get("soil_texture",0);
-        groundcover = cfg.get("soil_groundcover",0);
+        d.texture = cfg.get("soil_texture",0);
+        d.ground_cover = cfg.get("soil_groundcover",0);
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
-        soil_type = cfg.get("soil_type",0); // default is sand
-        porosity = cfg.get("soil_porosity",0.5);
+        d.soil_type = cfg.get("soil_type","sand"); // default is sand
+                                                    // TODO Connect with MESHER
+
+        SoilDataObj = std::make_unique<Soil::soils_na>();
+
+        porosity = SoilDataObj->porosity(d.soil_type);
         soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
         max_soil_storage = porosity * soil_depth;
-        ksaturated = SoilDataObj.get_soilproperties(soil_type,Soil::KSAT);
+        ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
+
 
 
    }
@@ -201,7 +206,7 @@ void Infil_All::run(mesh_elem &face)
     {
         if (rainfall > 0.0)
         {
-            double maxinfil = SoilDataObj.get_textureproperties(texture,groundcover); // TODO should accoount for maximum storage?! 
+            double maxinfil = SoilDataObj->ayers_texture(d.texture,d.ground_cover); // TODO Currently texture properties is assumed uniform, later make this triangle specific.
             if (maxinfil > rainfall)
             {
                 inf = rainfall;
@@ -223,13 +228,11 @@ void Infil_All::run(mesh_elem &face)
         if(rainfall > 0.0) {
             d.GA_temp->intensity = convert_to_rate_hourly(rainfall);
 
-            if(soil_type == 12){ // TODO Update with new soils
-                                 // handle pavement separately
+            if(d.soil_type == "pavement"){ // TODO Not a real option, handle this
+                                           // ,this is a string handle pavement separately
                 runoff = rainfall;
             }
             else if(is_space_in_dry_soil(d.soil_storage,max_soil_storage,rainfall)){
-                // TODO Don't like this one, if time step is daily, this is ok, but hourly
-                // this might have too high rates of input
                 inf =  rainfall;
             }
             else {
@@ -285,7 +288,7 @@ void Infil_All::run(mesh_elem &face)
 
 
 
-    // Set variables to face
+    // set variables to face
     (*face)["total_excess"_s]=d.total_excess;
     (*face)["total_meltexcess"_s]=d.total_meltexcess;
     (*face)["total_inf"_s]=d.total_inf;
@@ -355,14 +358,21 @@ void Infil_All::Initialize_GA_Variables(Infil_All::data &d) {
     // This function requires d.soil_storage so the full object d must be passed.
     // For simple reading, defined GA pointer to be consistent with other functions that use GA 
     // rather than GA_temp
+    //
+    // TODO Make this a constructor for the tempvars struct
     std::unique_ptr<Infil_All::data::tempvars> &GA = d.GA_temp;
     
-    GA->soil_storage_deficit = (1.0 - d.soil_storage/max_soil_storage); 
+    GA->soil_storage_deficit = (1.0 - d.soil_storage/max_soil_storage); // TODO GA in Dingman is porosity - pore space filed
+                                                                        // Here: 1.0 means we've filled all the pores
+                                                                        // 0.4 - 0.2 = 0.2 (porosity)
+                                                                        // 1.0 - 0.5/1.0 = 0.5 (current)
+                                                                        // Is this a problem?
     GA->initial_rate = calc_GA_infiltration_rate(GA,d.soil_storage);
     GA->initial_storage = d.soil_storage;
     GA->final_storage = GA->initial_storage;
     GA->final_rate = GA->initial_rate;
-    GA->capillary_suction = SoilDataObj.get_soilproperties(soil_type,Soil::PSI);
+    GA->capillary_suction = SoilDataObj->capillary_suction(d.soil_type)
+        * GA->soil_storage_deficit;
 }
 
 void Infil_All::initialize_ponding_vars(std::unique_ptr<Infil_All::data::tempvars> &GA) {
