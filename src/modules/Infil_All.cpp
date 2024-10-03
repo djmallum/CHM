@@ -84,12 +84,12 @@ void Infil_All::init(mesh& domain)
         AllowPriorInf = cfg.get("AllowPriorInf",true);
         ThawType = cfg.get("ThawType",0); // Default is Ayers
         d.texture = cfg.get("soil_texture",0);
-        d.groundcover = cfg.get("soil_groundcover",0);
+        d.ground_cover = cfg.get("soil_groundcover",0);
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
         d.soil_type = cfg.get("soil_type","sand"); // default is sand
                                                     // TODO Connect with MESHER
 
-        SoilDataObj = std::make_unqiue<Soil::soils_na>();
+        SoilDataObj = std::make_unique<Soil::soils_na>();
 
         porosity = SoilDataObj->porosity(d.soil_type);
         soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
@@ -206,7 +206,7 @@ void Infil_All::run(mesh_elem &face)
     {
         if (rainfall > 0.0)
         {
-            double maxinfil = SoilDataObj->ayers_texture(texture,groundcover); // TODO Currently texture properties is assumed uniform, later make this triangle specific.
+            double maxinfil = SoilDataObj->ayers_texture(d.texture,d.ground_cover); // TODO Currently texture properties is assumed uniform, later make this triangle specific.
             if (maxinfil > rainfall)
             {
                 inf = rainfall;
