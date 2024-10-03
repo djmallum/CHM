@@ -1,13 +1,15 @@
 #include "PenmanMonteith.hpp"
 
 
-PenmanMonteith::PenmanMonteith(double& LAI, double& LAImax, double& veg_Ht, const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi) 
-    : leaf_area_index(LAI), leaf_area_index_max(LAImax), Veg_height(veg_Ht), heat_capacity_air(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi)
+PenmanMonteith::PenmanMonteith(double& LAI, double& LAImax, double& veg_Ht, double& wind_height, double& stomatal_res_min, double& soil_d, double& F_to_g, const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi) 
+    : leaf_area_index(LAI), leaf_area_index_max(LAImax), Veg_height(veg_Ht), wind_measurement_height(wind_height), stomatal_resistance_min(stomatal_res_min), soil_depth(soil_d), Frac_to_ground(F_to_g), heat_capacity_air(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi)
 {
     if (leaf_area_index == 0)
         has_vegetation = false;
     else
         has_vegetation = true;
+
+    // TODO other checks on values might be good
 }
 
 PenmanMonteith::~PenmanMonteith()
