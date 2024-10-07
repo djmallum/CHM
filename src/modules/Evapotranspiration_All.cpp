@@ -59,6 +59,7 @@ void Evapotranspiration_All::init(mesh& domain)
         
         // Consider if an if statement is necessary.
 
+        
         d.soil_depth = 1.0; // Nothing for now
         if (face->has_vegetation())
         {
@@ -73,12 +74,19 @@ void Evapotranspiration_All::init(mesh& domain)
             d.vegetation_height = 0.0;
         }
 
-        init_PenmanMonteith(d, face, wind_height, stomatal_resistance_min, Frac_to_ground);
+        // TODO Consider if we can have a single model object per triangle.
+        // Polymorpish would let this work well
+        // It wouldn't work if PT model is used for normal soils when they are saturated.
+        if (is_water(face))
+        {
+            init_PriestleyTaylor(d,alpha);
+        }
+        // TODO add wetlands
+        else 
+        {
+            init_PenmanMonteith(d, face, wind_height, stomatal_resistance_min, Frac_to_ground);
+        }
         
-        
-        init_PriestleyTaylor(d,alpha);
-
-        // put PristelyTaylor parameters here.
     }
 
 }
