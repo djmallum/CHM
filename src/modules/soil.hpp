@@ -33,7 +33,7 @@
 /**
  * \ingroup modules infil soils exp
  * @{
- * \class soil_two_layers
+ * \class soil
  *
  * TODO some of this is correct, but likely will be outdated eventually.
  * Estimates areal snowmelt infiltration into frozen soils for:
@@ -67,11 +67,11 @@
  * @}
  */
 
-class soil_two_layers : public module_base
+class soil : public module_base
 {
-REGISTER_MODULE_HPP(soil_two_layers)
+REGISTER_MODULE_HPP(soil)
 public:
-    soil_two_layers(config_file cfg);
+    soil(config_file cfg);
 
     ~Infil_All();
 
