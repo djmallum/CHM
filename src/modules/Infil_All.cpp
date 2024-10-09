@@ -133,6 +133,7 @@ void Infil_All::run(mesh_elem &face)
         d.index = 0.;
         d.max_major_per_melt = 0.;
         d.init_SWE = 0.;
+        d.major_melt_count;
     }
 
     if (d.frozen) // Gray's infiltration, 1985
