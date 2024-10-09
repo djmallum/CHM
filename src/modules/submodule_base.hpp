@@ -2,22 +2,22 @@
 
 #include <cmath>
 
-struct input_base
+struct _input_base
 {
 
 };
 
-struct output_base
+struct _output_base
 {
     
 };
 
-class submodule_base
+class _submodule_base
 {
 public:
-    virtual ~submodule_base = default;
+    virtual ~_submodule_base = default;
 
-    virtual void run(input_base& input, output_base& output) = 0;
+    virtual void run(_input_base& input, _output_base& output) = 0;
     
 };
 
