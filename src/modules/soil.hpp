@@ -31,11 +31,11 @@
 #include "Soil.h"
 
 /**
- * \ingroup modules infil soils exp
+ * \ingroup modules infil soil_module exp
  * @{
- * \class soil
+ * \class soil_module *
  *
- * TODO some of this is correct, but likely will be outdated eventually.
+ * TODO All wrong
  * Estimates areal snowmelt infiltration into frozen soils for:
  *    a) Restricted -  Water entry impeded by surface conditions
  *    b) Limited - Capiliary flow dominates and water flow influenced by soil physical properties
@@ -67,13 +67,13 @@
  * @}
  */
 
-class soil : public module_base
+class soil_module : public module_base
 {
-REGISTER_MODULE_HPP(soil)
+REGISTER_MODULE_HPP(soil_module)
 public:
-    soil(config_file cfg);
+    soil_module(config_file cfg);
 
-    ~Infil_All();
+    ~soil_module();
 
     void run(mesh_elem& face);
     void init(mesh& domain);
