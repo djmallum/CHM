@@ -1,8 +1,9 @@
+#pragma once
+
 #include <submodule_base.hpp>
 
 struct input_soil_base : input_base
 {
-
 };
 
 struct output_soil : output_base
