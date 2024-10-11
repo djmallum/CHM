@@ -7,10 +7,10 @@
 // TODO add include after writing this
 class k_estimate;
 
-struct input_soil_layers : input_base
+struct input_soil_two_layer : input_base
 {
-    double& Zdt;
-    double& Zdf;
+    double& thaw_front_depth;
+    double& freeze_front_depth;
     double& potential_ET;
     double& ET;    
     double& swe;
@@ -18,24 +18,23 @@ struct input_soil_layers : input_base
     double& runoff;
 };
 
-struct output_soil_layers : output_base
+struct output_soil_two_layer : output_base
 {
-    double condensation;
-    double actual_ET;
-    double soil_excess_to_runoff;
-    double soil_excess_to_gw;
-    double gw_flow;
-    double soil_to_ssr;
-    double ET;
+    double condensation = 0.0;
+    double actual_ET 0.0;
+    double soil_excess_to_runoff = 0.0;
+    double soil_excess_to_gw = 0.0;
+    double gw_flow = 0.0;
+    double soil_to_ssr = 0.0;
 }
 
-class soil_layers : public soil_base
+class soil_two_layer : public soil_base
 {
 public: // methods
-    soil_layers(int& _num_layers, soil_module::data& _d);
-    ~soil_layers();
+    soil_two_layer(int& _num_layers, soil_module::data& _d);
+    ~soil_two_layer();
 
-    void run (input_base& input, output_base& output) override;
+    void run(input_base& input, output_base& output) override;
 
 private: //methods
     
@@ -48,9 +47,8 @@ public: //members
     // change if modified by other classes
     double detention_storage;
     double depression_storage;
-    double soil_lower;
     double soil_storage;
-    double soil_rechr;
+    double soil_rechr_storage;
     double ground_water_storage;
     const double routing_residual = 0.0;
 
