@@ -2,6 +2,7 @@
 
 #include "soil_base.hpp"
 #include "soil.hpp"
+#include <algorithm>
 
 
 class two_layer_DTO

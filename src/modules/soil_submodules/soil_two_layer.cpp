@@ -60,8 +60,20 @@ void soil_two_layer::organize_soil_layers(input_soil_two_layer& _input,output_so
 
         if (soil_storage > soil_storage_max)
             _push_excess_down(soil_storage,soil_storage_max,soil_excess_to_gw);
+        
+        if (_input.swe == 0.0) // if there is no snowcover
+        {
+            rechr_to_ssr = soil_rechr_storage / soil_rechr_max * K_rechr_to_ssr * layer_thaw_fraction[0];
 
-        // TODO add code for rechr_ssr, see line 555 of soilX, in the crhmcomments branch. I asked logan why this is there. 
+            if (rechr_to_ssr > soil_rechr_storage * layer_thaw_fraction[0])
+                rechr_to_ssr = soil_rechr_storage * layer_thaw_fraction[0];
+
+            soil_rechr_storage = std::max(0.0, soil_rechr_storage - rechr_to_ssr);
+
+            soil_storage -= rechr_to_ssr;
+            soil_to_ssr = rechr_to_ssr;
+
+        }
 
         if (soil_excess_to_gw > K_soil_to_gw * layer_thaw_fraction[1])
         {
@@ -77,7 +89,7 @@ void soil_two_layer::organize_soil_layers(input_soil_two_layer& _input,output_so
         }
 
         
-    }
+        
     else
         excess = _input.infil + _output.condensation;
 
