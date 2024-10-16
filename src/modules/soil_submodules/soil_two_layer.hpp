@@ -3,6 +3,60 @@
 #include "soil_base.hpp"
 #include "soil.hpp"
 
+
+class two_layer_DTO
+{
+public:
+    // note does not include actual ET except for main variables
+    // new each time step
+    // TODO this is memory inefficient, could store in/out variables as unique_ptr that is started when ready.
+    // TODO split soil modules into submodules (one for gw, one for settting up ssr, one for layers, etc.)
+    // TODO after splitting, make a separate DTO which is then combined into a single DTO (this one).
+    double thaw_front_depth; //in - XG
+    double freeze_front_depth; //in - XG
+    double potential_ET; //in - evapT
+    double swe; //in - snobal TODO should this include input from PBSM3D?
+    double infil; //in - infil_all
+    double runoff; //in - infil_all 
+    double routing_residual; //in - NetRoute
+
+    double condensation; //out (and used)
+    double actual_ET; //out
+    double soil_excess_to_runoff; //out (and used)
+    double soil_excess_to_gw; //out (and used)
+    double ground_water_outflow; //out (and used)
+    double soil_to_ssr; //out (and used)
+			// All K_ stuff are in
+    double K_soil_to_gw; // All these K's could be swapped to held from previous and could be global/system wide
+    double K_rechr_to_ssr;
+    double K_lower_to_ssr;
+    double K_detention_snow_to_runoff;
+    double K_detention_soil_to_runoff;
+    double K_depression_to_ssr;
+
+    // held from previous 
+    double soil_storage_max;
+    double soil_storage;
+    double soil_rechr_storage;
+    std::vector<double> layer_thaw_fraction; //2
+    double soil_rechr_max;
+    double soil_rechr_storage;
+    bool excess_to_ssr; 
+    double detention_max;
+    double detention_snow_max;
+    double detention_organic_max;
+    double detention_snow_init;
+    double detention_organic_init;
+    double depression_max;
+    double depression_storage;
+    double ground_water_storage;
+    double ground_water_max;
+    double ground_cover_type;
+    int soil_type;
+
+    // global constants
+    double num_layers;
+};
 // Temporary forward declaration
 // TODO add include after writing this
 class k_estimate;
