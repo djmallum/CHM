@@ -121,6 +121,7 @@ private: //members
     double& detention_soil_init; //same as above
     double& ground_water_max;
     double& ground_cover_type;
+    double& snow_covered_threshold;
     int soil_type;
     double K_depression_to_ssr;
     double K_detention_snow_to_runoff;

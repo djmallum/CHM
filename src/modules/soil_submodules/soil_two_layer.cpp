@@ -96,6 +96,146 @@ void soil_two_layer::organize_soil_layers(input_soil_two_layer& _input,output_so
     
 };
 
+void soil_two_layer::manage_detention(input_soil_two_layers& _input, output_soil_two_layer& _output,double& excess)
+{
+    _output.soil_excess_to_runoff += _input.runoff + excess + routing_residual / face_area; // routing_residual comes from the crhm varaible redirected_residual which has units of mm*km^2/int (not sure why), so face_area is there for now for consistency.
+    // TODO is the above in _output?                                   
+        
+    routing_residual = 0.0;
+
+    if (_output.soil_excess_to_runoff > 0.0)
+    {
+        if (_input.swe <= snow_covered_threshold)
+            detention_max = detention_snow_max;
+        else
+            detention_max = detention_organic_max;
+
+        double detention_space = detention_max - detention_storage;
+
+        if (detention_space > 0.0)
+        {
+            if (_output.soil_excess_to_runoff > detention_space)
+            {
+                _output.soil_excess_to_runoff = std::max(0.0,_output.soil_excess_to_runoff - detention_space); 
+                detention_storage += detention_space;
+            }
+            else
+            {
+                detention_storage += _output.soil_excess_to_runoff;
+                soil_excess_to_runoff = 0.0;
+            }
+        }
+    }
+
+    if (_input.swe <= snow_covered_threshold) // default will be zero
+        K_detention_to_runoff = K_detention_organic_to_runoff;
+    else
+        K_detention_to_runoff = K_detention_snow_to_runoff;
+
+    if (detention_storage > 0.0 && K_detention_to_runoff > 0.0)
+    {
+        double transfer = std::min(detention_storage,K_detention_storage);
+        _output.soil_excess_to_runoff += transfer;
+        detention_storage -= transfer;
+    }
+
+    if (detention_storage < 0.0001) // from CRHM, for safety and to drop any Floating-point errors
+        detention_storage = 0.0;
+
+};
+
+void soil_two_layer::manage_depression(input_soil_two_layers& _input, output_soil_two_layers& _output)
+{
+    if (_output.soil_excess_to_runoff > 0.0 && depression_storage > 0.0)
+    {
+        double exponent = -1.0 * std::min(12.0,_output.soil_excess_to_runoff / depression_max);
+
+        double depression_space = (depression_max - depression_storage) * (1 - exp(exponent));        
+
+        if (soil_storage_max == 0.0)
+            depression_space = depression_max - depression_storage;
+
+        if (depression_space > 0.0)
+        {
+            if (_output.soil_excess_to_runoff > depression_space)
+            {
+                _output.soil_excess_to_runoff = std::max(0.0,_output_soil_excess_to_runoff - depression_space);
+                depression_storage += depression_space;
+                // TODO add total tracker
+            }
+            else
+            {
+                depression_storage += _output.soil_excess_to_runoff;
+                // TODO add total tracker
+                _output.soil_excess_to_runoff = 0.0;
+            }
+
+        }
+    }
+
+    if (depression_storage > 0.0 && K_depression_to_gw > 0.0)
+    {
+        double value = transfer_min(depression_storage,K_depression_to_gw);
+        soil_depresssion_to_gw += value;
+        depression_storage -= value;
+        if (depression_storage < 0.0) // floatig point error safety?
+            depression_storage = 0.0;
+    }
+
+
+};
+
+double soil_two_layer::transfer_min(double& val1, double& val2)
+{
+    return std::min(val1,val2);
+};
+
+void soil_two_layer::manage_groundwater()
+{
+    ground_water_storage += soil_depression_to_gw;
+    ground_water_flow = 0.0;
+
+    if (ground_water_storage > ground_water_max)
+    {
+        _push_excess_down(ground_water_storage,ground_water_max,ground_water_flow);
+    }
+
+    if (ground_water_max > 0.0) // divide by zero safety
+    {
+        double spilled = ground_water_storage / ground_water_max * K_ground_water_out;
+        ground_water_storage -= spill;
+        ground_water_flow += spill;
+    }
+
+    // TODO daily and simulation totals, like in CRHM?
+
+};
+
+void soil_two_layer::manage_subsurface_runoff(input_soil_two_layers& _input, output_soil_two_layers& _output)
+{
+    if (depression_storage > 0.0 && K_depression_to_ssr > 0.0)
+    {
+        double value = transfer_min(depression_storage,K_depression_to_ssr);
+        soil_to_ssr += value;
+        depression_storage -= value;
+        if (depression_storage < 0.0)
+            depression_storage = 0.0;
+    }
+
+    if (K_lower_to_ssr > 0.0)
+    {
+        double available = soil_storage - soil_rechr;
+        double value = transfer_min(K_lower_to_ssr * layer_thaw_fraction[1],available);
+        soil_storage -= value;
+        soil_to_ssr += value;
+    }
+
+};
+
+
+                
+
+
 void soil_two_layer::_push_excess_down(double& layer_storage, double& layer_max, double& layer_down)
 {
     double excess = layer_storage - layer_max;
