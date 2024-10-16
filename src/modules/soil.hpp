@@ -29,23 +29,32 @@
 #include "TPSpline.hpp"
 #include <cmath>
 #include "Soil.h"
+#include "soil_DTO.hpp"
+#include "soil_two_layer.hpp"
 
 /**
  * \ingroup modules infil soil_module exp
  * @{
  * \class soil_module *
+ * 
+ * Organizes soil process models (separate classes)
+ *      - estimating freeze/thaw fronts using the XG algorithm: XG-freeze_thaw
+ *      - layer per-time-step outflow: k_estimate
+ *      - two layer soil model: soil_two_layer
+ *      - soil Evapotranspiration: soil_ET
  *
- * TODO All wrong
- * Estimates areal snowmelt infiltration into frozen soils for:
- *    a) Restricted -  Water entry impeded by surface conditions
- *    b) Limited - Capiliary flow dominates and water flow influenced by soil physical properties
- *    c) Unlimited - Gravity flow dominates
+ *      Each are found in soil_submodules/
  *
  * **Depends:**
  * - Snow water equivalent "swe" [mm]
- * - Snow melt for interval "snowmelt_int" [\f$mm \cdot dt^{-1}\f$]
+ * - thaw front in soil "thaw_front_depth" [mm]
+ * - freeze front in soil "freeze_front_depth" [mm]
+ * - potential evapotranspiration "potential_ET" [mm]
+ * - infiltrated moisture "inf" [mm]
+ * - runoff/excess from infiltration scheme "runoff" [mm]
+ * - leftover from routing between triangles "routing_residual" [mm]             
  *
- * **Provides:**
+ * **Provides:** TODO match provides with actual .cpp file
  * - Infiltration "inf" [\f$mm \cdot dt^{-1}\f$]
  * - Total infiltration "total_inf" [mm]
  * - Total infiltration excess "total_excess" [mm]
@@ -56,12 +65,12 @@
  * - Available storage for water of the soil "available_storage"
  *
  * \rst
- * .. note::
+ * .. note:: TODO add any notes
  *    Has hardcoded soil parameters that need to be read from the mesh parameters.
  *
  * \endrst
  *
- * **References:**
+ * **References:** TODO add any references
  * - Gray, D., Toth, B., Zhao, L., Pomeroy, J., Granger, R. (2001). Estimating areal snowmelt infiltration into frozen soils
  * Hydrological Processes  15(16), 3095-3111. https://dx.doi.org/10.1002/hyp.320
  * @}
@@ -78,12 +87,18 @@ public:
     void run(mesh_elem& face);
     void init(mesh& domain);
 
-    class data : public face_info
+    class data : public face_info, public two_layer_DTO
     {
     public:
+        std::unique_ptr<soil_base> soil_layers;
 
     };
 
 private:
+
+    void get_soil_inputs(mesh_elem& face);
+    void set_soil_outputs(mesh_elem& face);
+    void soil_soil_params(soil_module::data& d);
+    void initial_soil_conditions(soil_module::data& d);
 
 };
