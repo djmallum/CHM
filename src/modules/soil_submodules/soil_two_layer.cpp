@@ -33,28 +33,6 @@ void soil_two_layer::run(input_base& input, output_base& output)
 
     set_soil_ET(_input,_output);
 
-
-
-     
-
-
-    // daily step
-    //
-    // condensation
-    //
-    // infiltrate soil and organize
-    //
-    // detention
-    //
-    // depression
-    //
-    // groundwater
-    //
-    // subsurface runoff
-    //
-    // ET
-    //
-
 };
 
 void soil_two_layer::organize_soil_layers(input_soil_two_layer& _input,output_soil_two_layer& _output);
