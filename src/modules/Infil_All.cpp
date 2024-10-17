@@ -102,6 +102,7 @@ void Infil_All::init(mesh& domain)
 }
 void Infil_All::run(mesh_elem &face)
 {
+    // TODO if its water it should probably take all rain as "infil", there will be no snowmelt... sorta, snow melting and leaking into the water under the ice in spring??
     if(is_water(face))
     {
         set_all_nan_on_skip(face);
