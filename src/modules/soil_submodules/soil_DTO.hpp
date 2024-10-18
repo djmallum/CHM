@@ -1,9 +1,34 @@
-struct two_layer_DTO
+#pragma once
+
+struct shared_DTO
+{
+    // shared between more than one submodule
+    double soil_storage_max = 0.0;
+    double swe = 0.0; //in - snobal TODO should this include input from PBSM3D?
+    double soil_storage = 0.0;
+    double soil_rechr_storage = 0.0;
+    double soil_rechr_max = 0.0;
+    double soil_rechr_storage = 0.0;
+    double depression_storage = 0.0; 
+    double potential_ET = 0.0; 
+};
+
+struct soil_ET_DTO : virtual shared_DTO
+{
+
+    double actual_ET = 0.0; //out
+    int ground_cover_type = 0;
+    int soil_type_rechr = 0;
+    int soil_type_lower = 0;
+
+    virtual bool is_lake(soil_ET_DTO& DTO);
+    
+};
+
+struct two_layer_DTO : virtual shared_DTO
 {
     double thaw_front_depth = 0.0; //in - XG
     double freeze_front_depth = 0.0; //in - XG
-    double potential_ET = 0.0; //in - evapT
-    double swe = 0.0; //in - snobal TODO should this include input from PBSM3D?
     double infil = 0.0; //in - infil_all
     double runoff = 0.0; //in - infil_all 
     double routing_residual = 0.0; //in - NetRoute
@@ -25,13 +50,8 @@ struct two_layer_DTO
     double K_depression_to_ssr = 0.0;
 
     // held from previous 
-    double soil_storage_max = 0.0;
-    double soil_storage = 0.0;
-    double soil_rechr_storage = 0.0;
     double thaw_fraction_rechr = 0.0;
     double thaw_fraction_lower = 0.0;
-    double soil_rechr_max = 0.0;
-    double soil_rechr_storage = 0.0;
     bool excess_to_ssr = true; 
     double detention_max = 0.0;
     double detention_snow_max = 0.0;
@@ -39,11 +59,11 @@ struct two_layer_DTO
     double detention_snow_init = 0.0;
     double detention_organic_init = 0.0;
     double depression_max = 0.0;
-    double depression_storage = 0.0;
     double ground_water_storage = 0.0;
     double ground_water_max = 0.0;
-    double ground_cover_type = 0.0;
-    int soil_type = 0;
     
 };
 
+struct main_DTO : two_layer_DTO, soil_ET_DTO
+{
+};
