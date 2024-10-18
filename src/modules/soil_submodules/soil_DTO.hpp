@@ -48,6 +48,8 @@ struct two_layer_DTO : virtual shared_DTO
     double K_detention_snow_to_runoff = 0.0;
     double K_detention_organic_to_runoff = 0.0;
     double K_depression_to_ssr = 0.0;
+    double K_depression_to_gw = 0.0;
+    double K_ground_water_out = 0.0;
 
     // held from previous 
     double thaw_fraction_rechr = 0.0;
