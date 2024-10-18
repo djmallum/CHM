@@ -30,7 +30,6 @@
 #include <cmath>
 #include "Soil.h"
 #include "soil_DTO.hpp"
-#include "soil_two_layer.hpp"
 
 /**
  * \ingroup modules infil soil_module exp
@@ -87,11 +86,15 @@ public:
     void run(mesh_elem& face);
     void init(mesh& domain);
 
-    class data : public face_info, public two_layer_DTO
+    class data : public face_info, public two_layer_DTO, public soil_ET_DTO
     {
     public:
         std::unique_ptr<soil_base> soil_layers;
+        std::unique_ptr<soil_base> ET;
+        std::unique_ptr<mesh_elem> my_face;
 
+        // overridden
+        bool is_lake(void) override;
     };
 
 private:

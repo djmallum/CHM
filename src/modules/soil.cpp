@@ -30,13 +30,22 @@ void soil_module::init(mesh& domain)
 {
     for (size_t = 0; i < domain->size_faces(); i++)
     {
-        auto face = domain->face(i);
-        auto& d = face->make_module_data<soil_module::data>(ID);
-
-        d.soil = make_unique<soil_layers>(d);
+        my_face = &(domain->face(i));
+        auto& d = my_face->make_module_data<soil_module::data>(ID);
+        
+        // it might be wise to actually have soil have an instance of ET inside of it, rather than separate here.
+        //
+        // while the processes are not tightly coupled, they operate on the same construct 
+        d.soil = make_unique<soil_two_layer>(d);
+        d.ET = make_unique<soil_ET>(d);  
+        if (d.soil)
+            set_soil_params(d);
+        if (d.ET)
+            set_ET_params(d);
     
-        set_soil_params(d);
         initial_soil_conditions(d);
+
+
     }
 };
 
@@ -44,7 +53,12 @@ void soil_module::run(mesh_elem& face)
 {
     get_soil_inputs(face);
 
-    d.soil.run();
+    // order of operations here is hard coded, but it wouldn't be physically wrong to impose ET before soil
+    // This is fine because this soil module is run in this order.
+
+    d.soil_layers.run();
+    
+    d.ET.run();
 
     set_soil_outputs(face);
 };
@@ -92,6 +106,15 @@ void soil_module::set_soil_params(soil_module::data& d)
 
 };
 
+
+void soil_module::set_ET_params(soil_module::data& d)
+{
+    d.ground_cover_type = 1; //TODO access ground cover type from face and then figure out how to get it right
+    d.soil_type_rechr = 1; //TODO same as above. 
+    d.soil_type_lower = 1;
+};
+
+
 void soil_module::initial_soil_conditions(soil_module::data& d)
 {
     // TODO actually connect to stuff
@@ -106,3 +129,18 @@ void soil_module::initial_soil_conditions(soil_module::data& d)
     d.depression_storage = 0.0;
     d.ground_water_storage = 0.0;
 };
+
+bool soil_module::data::is_lake(soil_ET_DTO& DTO)
+{
+    // TODO this is just a copy of is_water and this is a bad practice but currently the is_water function is not accessible by the data class. Fix: create a separate object taht module_base inherits that contains these functions. face_info will also inherit these functions.
+    soil_module::data& d = static_cast<soil_module::data&>(DTO);
+    bool is = false;
+
+    if(d.my_face->has_parameter("landcover"_s))
+    {
+        int LC = face->parameter("landcover"_s);
+        is = global_param->parameters.get<bool>("landcover." + std::to_string(LC) + ".is_glacier",false);
+    }
+    return is
+      
+}; 
