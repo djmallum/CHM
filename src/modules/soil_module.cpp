@@ -18,7 +18,6 @@ soil_module::soil_module(config_file cfg)
     provides("soil_rechr_storage");
     provides("depression_storage");
     provides("ground_water_storage");
-
 };
 
 soil_module::~soil_module()
@@ -45,6 +44,7 @@ void soil_module::init(mesh& domain)
     
         initial_soil_conditions(d);
 
+        set_local_module(d);
 
     }
 };
@@ -132,15 +132,24 @@ void soil_module::initial_soil_conditions(soil_module::data& d)
 
 bool soil_module::data::is_lake(soil_ET_DTO& DTO)
 {
-    // TODO this is just a copy of is_water and this is a bad practice but currently the is_water function is not accessible by the data class. Fix: create a separate object taht module_base inherits that contains these functions. face_info will also inherit these functions.
     soil_module::data& d = static_cast<soil_module::data&>(DTO);
-    bool is = false;
 
-    if(d.my_face->has_parameter("landcover"_s))
-    {
-        int LC = face->parameter("landcover"_s);
-        is = global_param->parameters.get<bool>("landcover." + std::to_string(LC) + ".is_glacier",false);
-    }
-    return is
+    return local_module->my_soil.is_water(d.my_face);
+};
+
+void set_local_module(soil_module::data& d)
+{
+    d.local_module = new soil_module::data::my_module(*this);
+};
+    // TODO this is just a copy of is_water and this is a bad practice but currently the is_water function is not accessible by the data class. Fix: create a separate object taht module_base inherits that contains these functions. face_info will also inherit these functions.
+ //   soil_module::data& d = static_cast<soil_module::data&>(DTO);
+ //   bool is = false;
+
+ //   if(d.my_face->has_parameter("landcover"_s))
+ //   {
+ //       int LC = face->parameter("landcover"_s);
+ //       is = global_param->parameters.get<bool>("landcover." + std::to_string(LC) + ".is_water",false);
+ //   }
+ //   return is
       
-}; 
+//}; 

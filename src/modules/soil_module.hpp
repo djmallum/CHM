@@ -95,7 +95,22 @@ public:
 
         // overridden
         bool is_lake(void) override;
+        
+        struct my_module
+        {
+            soil_module& my_soil;
+
+            my_module(soil_module& _my_soil) : my_soil(_my_soil) {};
+        };
+
+        my_module* local_module;
+    private:
+
+
     };
+
+    void set_local_A(soil_module::data& d);
+
 
 private:
 
@@ -104,5 +119,7 @@ private:
     void set_soil_params(soil_module::data& d);
     void set_ET_params(soil_module::data& d);
     void initial_soil_conditions(soil_module::data& d);
+
+    
 
 };
