@@ -53,7 +53,7 @@ set(MODULE_SRCS
 		modules/snowpack.cpp
 		modules/Gray_inf.cpp
         modules/Infil_All.cpp
-        modules/soil_modules.cpp
+        modules/soil_module.cpp
         modules/Simple_Canopy.cpp
 		modules/scale_wind_vert.cpp
 		modules/sub_grid.cpp

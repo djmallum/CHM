@@ -1,13 +1,13 @@
 #pragma once
 
 #include "soil_base.hpp"
-#include "soil.hpp"
+#include "soil_two_layer.hpp"
 #include <algorithm>
 #include "soil_DTO.hpp"
 
 // Temporary forward declaration
 // TODO add include after writing this
-class k_estimate;
+// class k_estimate;
 
 class soil_two_layer : public soil_base
 {
@@ -20,15 +20,15 @@ public: // methods
 private: //methods
     
     two_layer_DTO& DTO; 
-    k_estimate k_estimator; 
+    //k_estimate k_estimator; 
     
-    
+    void initialize_single_step_vars(); 
     void set_K_values();
     void set_layer_thaw_fraction(); // set the new value in a layer, ensure values are between 0 and 1.
     void set_condensation();
     void organize_soil_layers();
     void manage_detention();
-    void manage_depresssion();
+    void manage_depression();
     void manage_groundwater();
     void manage_subsurface_runoff();
 

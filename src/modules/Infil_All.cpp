@@ -24,8 +24,7 @@
 #include "Infil_All.hpp"
 REGISTER_MODULE_CPP(Infil_All);
 
-Infil_All::Infil_All(config_file cfg)
-    : module_base("Infil_All", parallel::data, cfg)
+Infil_All::Infil_All(config_file cfg) : module_base("Infil_All", parallel::data, cfg)
 {
 
     depends("swe");

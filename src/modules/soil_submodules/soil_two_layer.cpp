@@ -1,5 +1,3 @@
-#pragma once
-
 #include "soil_two_layer.hpp"
 
 soil_two_layer::soil_two_layer(two_layer_DTO& _DTO) : DTO(_DTO)
@@ -26,15 +24,13 @@ void soil_two_layer::run()
 
     organize_soil_layers();
 
-    set_detention_storage();
+    manage_detention();
 
-    set_depression_storage();
+    manage_depression();
 
-    set_ground_water();
+    manage_groundwater();
 
-    set_subsurface_runoff();
-
-    set_soil_ET();
+    manage_subsurface_runoff();
 
 };
 
@@ -44,41 +40,55 @@ void soil_two_layer::initialize_single_step_vars()
     DTO.actual_ET = 0.0;
     DTO.soil_excess_to_runoff = 0.0;
     DTO.soil_excess_to_gw = 0.0;
-    DTO.ground_water_outflow = 0.0;
+    DTO.ground_water_out = 0.0;
     DTO.soil_to_ssr = 0.0;
 };
 
 void soil_two_layer::set_K_values()
 {
-    k_estimator.run(DTO.K_soil_to_gw,DTO.K_rechr_to_ssr,DTO.K_lower_to_ssr,DTO.K_detention_snow_to_runoff,
-            DTO.K_detention_organic_to_runoff,DTO.K_depression_to_ssr);
+    //k_estimator.run(DTO.K_soil_to_gw,DTO.K_rechr_to_ssr,DTO.K_lower_to_ssr,DTO.K_detention_snow_to_runoff,
+    //        DTO.K_detention_organic_to_runoff,DTO.K_depression_to_ssr);
 };
 
-void soil_two_layer::set_thaw_fraction()
+void soil_two_layer::set_layer_thaw_fraction()
 {
     DTO.thaw_fraction_rechr = 0.0;
     DTO.thaw_fraction_lower = 0.0;
 
+    double rechr_depth = 0.0;
+    double soil_depth = 0.0;
+    
+        // TODO this might not be right, but the above is what CRHM does: 
+        // depth = storage / porosity, because porosity = storage / depth;
+    if (DTO.porosity > 0.0)  
+    {    
+    // TODO, porosity in rechr is the same as lower    
+        double rechr_depth = DTO.soil_rechr_max / DTO.porosity;
+        double soil_depth = DTO.soil_storage_max / DTO.porosity;
+    }
+
     if (DTO.thaw_front_depth == 0.0 && DTO.freeze_front_depth == 0.0)
+    {
         DTO.thaw_fraction_rechr = 1.0;
         DTO.thaw_fraction_lower = 1.0; 
+    }
     else 
     {
 
-        if (DTO.thaw_front_depth < DTO.rechr_depth)
-            DTO.thaw_fraction_rechr = DTO.thaw_front_depth / DTO.rechr_depth;
+        if (DTO.thaw_front_depth < rechr_depth)
+            DTO.thaw_fraction_rechr = DTO.thaw_front_depth / rechr_depth;
         
         else
         {
             DTO.thaw_fraction_rechr = 1.0;
-            DTO.thaw_fraction_lower = (DTO.thaw_front_depth - DTO.rechr_depth) 
-                / (DTO.soil_depth - DTO.rechr_depth);
+            DTO.thaw_fraction_lower = (DTO.thaw_front_depth - rechr_depth) 
+                / (soil_depth - rechr_depth);
         }   
     }
     
 };
 
-void soil_two_layers::set_condensation()
+void soil_two_layer::set_condensation()
 {
     if (DTO.potential_ET < 0.0)
     {
@@ -87,9 +97,9 @@ void soil_two_layers::set_condensation()
     }
 };
 
-void soil_two_layer::organize_soil_layers();
+void soil_two_layer::organize_soil_layers()
 {
-    if (soil_storage_max > 0.0)
+    if (DTO.soil_storage_max > 0.0)
     {
         double soil_lower_storage = DTO.soil_storage - DTO.soil_rechr_storage;
 
@@ -124,16 +134,16 @@ void soil_two_layer::organize_soil_layers();
 
         }
 
-        if (DTO.soil_excess_to_gw > DTO.K_soil_to_gw * thaw_fraction_lower)
+        if (DTO.soil_excess_to_gw > DTO.K_soil_to_gw * DTO.thaw_fraction_lower)
         {
-            double excess_to_gw_max = DTO.K_soil_to_gw * thaw_fraction_lower;
+            double excess_to_gw_max = DTO.K_soil_to_gw * DTO.thaw_fraction_lower;
             _push_excess_down(DTO.soil_excess_to_gw,excess_to_gw_max,DTO.excess);
         }
 
         // Line 607 of SoilX crhmcommetns branch, comment says upper layer but code says lower-layer, ask logan about this.
         if (DTO.excess_to_ssr && DTO.excess > 0.0)
         {
-            double excess_to_ssr_max = DTO.excess * (1.0 - thaw_fraction_lower);
+            double excess_to_ssr_max = DTO.excess * (1.0 - DTO.thaw_fraction_lower);
             _push_excess_down(DTO.excess,excess_to_ssr_max,DTO.soil_to_ssr);
         }
 
@@ -142,7 +152,7 @@ void soil_two_layer::organize_soil_layers();
     else
         DTO.excess = DTO.infil + DTO.condensation;
 
-    
+    }    
 };
 
 void soil_two_layer::manage_detention()
@@ -229,7 +239,7 @@ void soil_two_layer::manage_depression()
     if (DTO.depression_storage > 0.0 && DTO.K_depression_to_gw > 0.0)
     {
         double value = transfer_min(DTO.depression_storage,DTO.K_depression_to_gw);
-        DTO.soil_depresssion_to_gw += value;
+        DTO.depression_to_gw += value;
         DTO.depression_storage -= value;
         if (DTO.depression_storage < 0.0) // floatig point error safety?
             DTO.depression_storage = 0.0;
@@ -242,19 +252,19 @@ void soil_two_layer::manage_depression()
 
 void soil_two_layer::manage_groundwater()
 {
-    DTO.ground_water_storage += DTO.soil_depression_to_gw;
-    DTO.ground_water_flow = 0.0;
+    DTO.ground_water_storage += DTO.depression_to_gw;
+    DTO.ground_water_out = 0.0;
 
     if (DTO.ground_water_storage > DTO.ground_water_max)
     {
-        _push_excess_down(DTO.ground_water_storage,DTO.ground_water_max,DTO.ground_water_flow);
+        _push_excess_down(DTO.ground_water_storage,DTO.ground_water_max,DTO.ground_water_out);
     }
 
     if (DTO.ground_water_max > 0.0) // divide by zero safety
     {
         double spilled = DTO.ground_water_storage / DTO.ground_water_max * DTO.K_ground_water_out;
-        DTO.ground_water_storage -= spill;
-        DTO.ground_water_flow += spill;
+        DTO.ground_water_storage -= spilled;
+        DTO.ground_water_out += spilled;
     }
 
     // TODO daily and simulation totals, like in CRHM?
@@ -274,8 +284,9 @@ void soil_two_layer::manage_subsurface_runoff()
 
     if (DTO.K_lower_to_ssr > 0.0)
     {
-        double available = DTO.soil_storage - DTO.soil_rechr;
-        double value = transfer_min(DTO.K_lower_to_ssr * thaw_fraction_lower,available);
+        double available = DTO.soil_storage - DTO.soil_rechr_storage;
+        double lower_unfrozen = DTO.K_lower_to_ssr * DTO.thaw_fraction_lower;
+        double value = transfer_min(lower_unfrozen,available);
         DTO.soil_storage -= value;
         DTO.soil_to_ssr += value;
     }

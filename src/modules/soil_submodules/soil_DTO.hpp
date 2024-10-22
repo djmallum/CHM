@@ -8,7 +8,6 @@ struct shared_DTO
     double soil_storage = 0.0;
     double soil_rechr_storage = 0.0;
     double soil_rechr_max = 0.0;
-    double soil_rechr_storage = 0.0;
     double depression_storage = 0.0; 
     double potential_ET = 0.0; 
 };
@@ -37,9 +36,11 @@ struct two_layer_DTO : virtual shared_DTO
     double actual_ET = 0.0; //out
     double soil_excess_to_runoff = 0.0; //out (and used)
     double soil_excess_to_gw = 0.0; //out (and used)
-    double ground_water_outflow = 0.0; //out (and used)
+    double ground_water_out = 0.0; //out (and used)
     double soil_to_ssr = 0.0; //out (and used)
+    double rechr_to_ssr = 0.0;
     double excess = 0.0;
+    
 
 			// All K_ stuff are in
     double K_soil_to_gw = 0.0; // All these K's could be swapped to held from previous and could be global/system wide
@@ -54,15 +55,19 @@ struct two_layer_DTO : virtual shared_DTO
     // held from previous 
     double thaw_fraction_rechr = 0.0;
     double thaw_fraction_lower = 0.0;
+    double porosity = 0.0;
     bool excess_to_ssr = true; 
     double detention_max = 0.0;
+    double detention_storage = 0.0;
     double detention_snow_max = 0.0;
     double detention_organic_max = 0.0;
     double detention_snow_init = 0.0;
     double detention_organic_init = 0.0;
     double depression_max = 0.0;
+    double depression_to_gw = 0.0;
     double ground_water_storage = 0.0;
     double ground_water_max = 0.0;
+    double snow_covered_threshold = 0.0;
     
 };
 

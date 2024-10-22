@@ -1,4 +1,6 @@
-soil_ET::soil_ET(soil_ET_DTO& _DTO) : DTO(_DTO);
+#include "soil_ET.hpp"
+
+soil_ET::soil_ET(soil_ET_DTO& _DTO) : DTO(_DTO)
 {
 
 };
@@ -26,7 +28,7 @@ void soil_ET::run()
         else
         {
             available_to_evap = DTO.depression_storage;
-            depression_storage = 0.0;
+            DTO.depression_storage = 0.0;
         }
         DTO.actual_ET = available_to_evap;
     }
@@ -45,50 +47,50 @@ void soil_ET::run()
         double soil_lower_max = DTO.soil_storage_max - DTO.soil_rechr_max;
 
         if ( soil_lower_max > 0.0 ) // soil_lower > 0.0
-            pctl = soil_lower_storage / soil_lower_max;
+            percent_available_lower = soil_lower_storage / soil_lower_max;
         else
-            pctl = 0.0;
+            percent_available_lower = 0.0;
 
-        pctr = DTO.soil_rechr_storage / DTO.soil_rechr_max;
+        percent_available_rechr = DTO.soil_rechr_storage / DTO.soil_rechr_max;
 
-        etr = available_to_evap;
+        ET_rechr = available_to_evap;
+        
+        ET_rechr = set_ET_layer(ET_rechr,percent_available_rechr,DTO.soil_type_rechr);
 
-        etr = set_ET_layer(etr,percent,soil_type_rechr);
-
-        if (etr > available_to_evap) 
+        if (ET_rechr > available_to_evap) 
         {
-            etl = 0.0;
-            etr = available_to_evap;
+            ET_lower = 0.0;
+            ET_rechr = available_to_evap;
         }
         else
-            etl = available_to_evap - etr;
+            ET_lower = available_to_evap - ET_rechr;
 
-        if (etl > 0.0)
+        if (ET_lower > 0.0)
         {
-            etl = set_ET_layer(etl, pctl, soil_type_lower);
+            ET_lower = set_ET_layer(ET_lower, percent_available_lower, DTO.soil_type_lower);
         }
 
         double ET = 0.0;
         
-        switch (ground_cover_type)
+        switch (DTO.ground_cover_type)
         {
         case 0: // bare soil, no evap
             break; 
         case 1: // recharge layer only, crops 
-            if (etr > DTO.soil_rechr_storage)
+            if (ET_rechr > DTO.soil_rechr_storage)
             {
                 ET = DTO.soil_rechr_storage;
                 DTO.soil_rechr_storage = 0.0;
             }
             else
             {
-                DTO.soil_rechr_storage -= etr;
-                ET = etr;
+                DTO.soil_rechr_storage -= ET_rechr;
+                ET = ET_rechr;
             }
-            DTO.soil_storage -= etr;
+            DTO.soil_storage -= ET_rechr;
             break;
         case 2: // all soil moisture, grasses & shrubs
-            if (etr + etl >= DTO.soil_storage)
+            if (ET_rechr + ET_lower >= DTO.soil_storage)
             {
                 ET = DTO.soil_storage;
                 DTO.soil_storage = 0.0;
@@ -96,10 +98,10 @@ void soil_ET::run()
             }
             else
             {
-                ET = etr + etl;
+                ET = ET_rechr + ET_lower;
                 DTO.soil_storage -= ET;
 
-                DTO.soil_rechr_storage = std::max(DTO.soil_rechr_storage - etr, 0.0);
+                DTO.soil_rechr_storage = std::max(DTO.soil_rechr_storage - ET_rechr, 0.0);
             }
             break;
         }
@@ -108,11 +110,12 @@ void soil_ET::run()
 
         if (DTO.is_lake(DTO))
             DTO.actual_ET = DTO.potential_ET;
+    };
 };
 
 double soil_ET::set_ET_layer(double et, double& percent, int& type)
 {
-    switch type
+    switch (type)
     {
     case 1:
         if (percent < 0.25)

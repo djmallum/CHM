@@ -29,6 +29,8 @@
 #include "TPSpline.hpp"
 #include <cmath>
 #include "Soil.h"
+#include "soil_two_layer.hpp"
+#include "soil_ET.hpp"
 #include "soil_DTO.hpp"
 
 /**
@@ -94,7 +96,7 @@ public:
         std::unique_ptr<mesh_elem> my_face;
 
         // overridden
-        bool is_lake(void) override;
+        bool is_lake(soil_ET_DTO& DTO) override;
         
         struct my_module
         {

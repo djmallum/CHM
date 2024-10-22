@@ -1,4 +1,6 @@
-soil_module::soil_module(config_file cfg)
+#include "soil_module.hpp"
+
+soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel::data, cfg)
 {
     depends("swe");
     depends("thaw_front_depth"); 
@@ -12,7 +14,7 @@ soil_module::soil_module(config_file cfg)
     provides("actual_ET");
     provides("soil_excess_to_runoff");
     provides("soil_excess_to_gw");
-    provides("ground_water_outflow");
+    provides("ground_water_out");
     provides("soil_to_ssr");
     provides("soil_storage");
     provides("soil_rechr_storage");
@@ -27,7 +29,7 @@ soil_module::~soil_module()
 
 void soil_module::init(mesh& domain)
 {
-    for (size_t = 0; i < domain->size_faces(); i++)
+    for (size_t i = 0; i < domain->size_faces(); i++)
     {
         my_face = &(domain->face(i));
         auto& d = my_face->make_module_data<soil_module::data>(ID);
@@ -82,7 +84,7 @@ void soil_module::set_soil_outputs(mesh_elem& face)
     (*face)["actual_ET"_s] = d.actual_ET; 
     (*face)["soil_excess_to_runoff"_s] = d.soil_excess_to_runoff; 
     (*face)["soil_excess_to_gw"_s] = d.soil_excess_to_gw; 
-    (*face)["ground_water_outflow"_s] = d.ground_water_outflow; 
+    (*face)["ground_water_out"_s] = d.ground_water_out; 
     (*face)["soil_to_ssr"_s] = d.soil_to_ssr;
     (*face)["soil_storage"_s] = d.soil_storage;
     (*face)["soil_rechr_storage"_s] = d.soil_rechr_storage;
