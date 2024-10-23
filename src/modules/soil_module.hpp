@@ -93,7 +93,7 @@ public:
     public:
         std::unique_ptr<soil_base> soil_layers;
         std::unique_ptr<soil_base> ET;
-        std::unique_ptr<mesh_elem> my_face;
+        std::shared_ptr<mesh_elem> my_face;
 
         // overridden
         bool is_lake(soil_ET_DTO& DTO) override;

@@ -31,9 +31,10 @@ void soil_module::init(mesh& domain)
 {
     for (size_t i = 0; i < domain->size_faces(); i++)
     {
-        my_face = &(domain->face(i));
-        auto& d = my_face->make_module_data<soil_module::data>(ID);
-        
+        auto& face = domain->face(i);
+        auto& d = face->make_module_data<soil_module::data>(ID);
+        d.myface = std::make_shared<mesh_elem>(face);
+
         // it might be wise to actually have soil have an instance of ET inside of it, rather than separate here.
         //
         // while the processes are not tightly coupled, they operate on the same construct 
@@ -53,7 +54,11 @@ void soil_module::init(mesh& domain)
 
 void soil_module::run(mesh_elem& face)
 {
-    get_soil_inputs(face);
+
+    auto& d = face->make_module_data<soil_module::data>(ID);
+    
+    get_soil_inputs(face,d);
+
 
     // order of operations here is hard coded, but it wouldn't be physically wrong to impose ET before soil
     // This is fine because this soil module is run in this order.
@@ -62,13 +67,11 @@ void soil_module::run(mesh_elem& face)
     
     d.ET.run();
 
-    set_soil_outputs(face);
+    set_soil_outputs(face,d);
 };
 
-void soil_module::get_soil_inputs(mesh_elem& face)
+void soil_module::get_soil_inputs(mesh_elem& face,soil_module::data& d)
 {
-    auto& d->get_module_data<soil_module::data>(ID);
-
     d.swe = (*face)["swe"_s];
     d.thaw_front_depth = 0.0; //(*face)["thaw_front_depth"_s];
     d.freeze_front_depth = 0.0; //(*face)["freeze_front_depth"_s];
@@ -78,7 +81,7 @@ void soil_module::get_soil_inputs(mesh_elem& face)
     d.routing_residual = 0.0; //(*face)["routine_residual"_s];
 };
 
-void soil_module::set_soil_outputs(mesh_elem& face)
+void soil_module::set_soil_outputs(mesh_elem& face,soil_module::data& d)
 {
     (*face)["condensation"_s] = d.condensation;
     (*face)["actual_ET"_s] = d.actual_ET; 
@@ -104,8 +107,8 @@ void soil_module::set_soil_params(soil_module::data& d)
     d.depression_max = 0.0;
     d.ground_water_max = 0.0;
     d.ground_cover_type = 0.0;
-    d.soil_type = 0;
-
+    d.soil_type_rechr = 0;
+    d.soil_type_lower = 0;
 };
 
 
