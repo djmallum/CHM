@@ -37,7 +37,6 @@ void soil_two_layer::run()
 void soil_two_layer::initialize_single_step_vars()
 {
     DTO.condensation = 0.0;
-    DTO.actual_ET = 0.0;
     DTO.soil_excess_to_runoff = 0.0;
     DTO.soil_excess_to_gw = 0.0;
     DTO.ground_water_out = 0.0;

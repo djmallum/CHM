@@ -31,16 +31,16 @@ void soil_module::init(mesh& domain)
 {
     for (size_t i = 0; i < domain->size_faces(); i++)
     {
-        auto& face = domain->face(i);
+        auto face = domain->face(i);
         auto& d = face->make_module_data<soil_module::data>(ID);
-        d.myface = std::make_shared<mesh_elem>(face);
+        d.my_face = std::make_shared<mesh_elem>(face);
 
         // it might be wise to actually have soil have an instance of ET inside of it, rather than separate here.
         //
         // while the processes are not tightly coupled, they operate on the same construct 
-        d.soil = make_unique<soil_two_layer>(d);
-        d.ET = make_unique<soil_ET>(d);  
-        if (d.soil)
+        d.soil_layers = std::make_unique<soil_two_layer>(d);
+        d.ET = std::make_unique<soil_ET>(d);  
+        if (d.soil_layers)
             set_soil_params(d);
         if (d.ET)
             set_ET_params(d);
@@ -63,9 +63,9 @@ void soil_module::run(mesh_elem& face)
     // order of operations here is hard coded, but it wouldn't be physically wrong to impose ET before soil
     // This is fine because this soil module is run in this order.
 
-    d.soil_layers.run();
+    d.soil_layers->run();
     
-    d.ET.run();
+    d.ET->run();
 
     set_soil_outputs(face,d);
 };
@@ -139,12 +139,13 @@ bool soil_module::data::is_lake(soil_ET_DTO& DTO)
 {
     soil_module::data& d = static_cast<soil_module::data&>(DTO);
 
-    return local_module->my_soil.is_water(d.my_face);
+    return d.local_module->is_water(*d.my_face);
 };
 
-void set_local_module(soil_module::data& d)
+void soil_module::set_local_module(soil_module::data& d)
 {
-    d.local_module = new soil_module::data::my_module(*this);
+    d.local_module = std::make_shared<soil_module>(*this);
+    //d.local_module = new soil_module::data::my_module(*this);
 };
     // TODO this is just a copy of is_water and this is a bad practice but currently the is_water function is not accessible by the data class. Fix: create a separate object taht module_base inherits that contains these functions. face_info will also inherit these functions.
  //   soil_module::data& d = static_cast<soil_module::data&>(DTO);

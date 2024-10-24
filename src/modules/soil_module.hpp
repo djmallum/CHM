@@ -104,20 +104,20 @@ public:
 
             my_module(soil_module& _my_soil) : my_soil(_my_soil) {};
         };
-
-        my_module* local_module;
+        std::shared_ptr<soil_module> local_module;
+        //my_module* local_module;
     private:
 
 
     };
 
-    void set_local_A(soil_module::data& d);
+    void set_local_module(soil_module::data& d);
 
 
 private:
 
-    void get_soil_inputs(mesh_elem& face);
-    void set_soil_outputs(mesh_elem& face);
+    void get_soil_inputs(mesh_elem& face, data& d);
+    void set_soil_outputs(mesh_elem& face, data& d);
     void set_soil_params(soil_module::data& d);
     void set_ET_params(soil_module::data& d);
     void initial_soil_conditions(soil_module::data& d);

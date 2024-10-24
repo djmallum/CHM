@@ -20,7 +20,7 @@ struct soil_ET_DTO : virtual shared_DTO
     int soil_type_rechr = 0;
     int soil_type_lower = 0;
 
-    virtual bool is_lake(soil_ET_DTO& DTO);
+    virtual bool is_lake(soil_ET_DTO& DTO) = 0;
     
 };
 
@@ -33,7 +33,6 @@ struct two_layer_DTO : virtual shared_DTO
     double routing_residual = 0.0; //in - NetRoute
 
     double condensation = 0.0; //out (and used)
-    double actual_ET = 0.0; //out
     double soil_excess_to_runoff = 0.0; //out (and used)
     double soil_excess_to_gw = 0.0; //out (and used)
     double ground_water_out = 0.0; //out (and used)
