@@ -80,6 +80,9 @@ set(SUBMODEL_SRCS
         modules/soil_submodules/soil_two_layer.cpp
         modules/soil_submodules/soil_ET.cpp
         modules/soil_submodules/soil_DTO.hpp
+    
+        modules/soil_submodules/I_K_estimate.hpp
+        modules/soil_submodules/K_estimate.cpp
 
         CACHE INTERNAL "" FORCE )
 

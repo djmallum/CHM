@@ -33,12 +33,13 @@ void soil_module::init(mesh& domain)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<soil_module::data>(ID);
-        d.my_face = std::make_shared<mesh_elem>(face);
+        d.my_face = &face;
 
         // it might be wise to actually have soil have an instance of ET inside of it, rather than separate here.
         //
-        // while the processes are not tightly coupled, they operate on the same construct 
-        d.soil_layers = std::make_unique<soil_two_layer>(d);
+        // while the processes are not tightly coupled, they operate on the same construct
+        d.K_estimator = std::make_unique<K_estimate>(d);
+        d.soil_layers = std::make_unique<soil_two_layer>(d,*d.K_estimator);
         d.ET = std::make_unique<soil_ET>(d);  
         if (d.soil_layers)
             set_soil_params(d);
@@ -142,9 +143,17 @@ bool soil_module::data::is_lake(soil_ET_DTO& DTO)
     return d.local_module->is_water(*d.my_face);
 };
 
+double soil_module::data::get_dt(two_layer_DTO& DTO)
+{
+    soil_module::data& d = static_cast<soil_module::data&>(DTO);
+
+    return d.local_module->global_param->dt();
+
+};
+
 void soil_module::set_local_module(soil_module::data& d)
 {
-    d.local_module = std::make_shared<soil_module>(*this);
+    d.local_module = this;
     //d.local_module = new soil_module::data::my_module(*this);
 };
     // TODO this is just a copy of is_water and this is a bad practice but currently the is_water function is not accessible by the data class. Fix: create a separate object taht module_base inherits that contains these functions. face_info will also inherit these functions.

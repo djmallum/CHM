@@ -31,7 +31,7 @@
 #include "Soil.h"
 #include "soil_two_layer.hpp"
 #include "soil_ET.hpp"
-#include "soil_DTO.hpp"
+#include "K_estimate.hpp"
 
 /**
  * \ingroup modules infil soil_module exp
@@ -93,21 +93,15 @@ public:
     public:
         std::unique_ptr<soil_base> soil_layers;
         std::unique_ptr<soil_base> ET;
-        std::shared_ptr<mesh_elem> my_face;
-
+        // custom deletor that does nothing to make sure it doesn't try to delete the mesh_elem it points to
+        mesh_elem* my_face;//(nullptr, [](mesh_elem* ptr) {});
+        std::unique_ptr<I_K_estimate> K_estimator;
         // overridden
         bool is_lake(soil_ET_DTO& DTO) override;
-        
-        struct my_module
-        {
-            soil_module& my_soil;
+        double get_dt(two_layer_DTO& DTO) override;
 
-            my_module(soil_module& _my_soil) : my_soil(_my_soil) {};
-        };
-        std::shared_ptr<soil_module> local_module;
-        //my_module* local_module;
-    private:
-
+        // custom deletor that does nothing to make sure it doesn't try to delete the mesh_elem it points to
+        soil_module* local_module;//(nullptr, [](soil_module*) {});
 
     };
 

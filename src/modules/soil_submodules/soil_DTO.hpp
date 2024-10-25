@@ -45,11 +45,15 @@ struct two_layer_DTO : virtual shared_DTO
     double K_soil_to_gw = 0.0; // All these K's could be swapped to held from previous and could be global/system wide
     double K_rechr_to_ssr = 0.0;
     double K_lower_to_ssr = 0.0;
-    double K_detention_snow_to_runoff = 0.0;
-    double K_detention_organic_to_runoff = 0.0;
+    double K_detention_to_runoff = 0.0;
     double K_depression_to_ssr = 0.0;
     double K_depression_to_gw = 0.0;
     double K_ground_water_out = 0.0;
+    double Ksaturated_rechr = 0.0;
+    double Ksaturated_lower = 0.0;
+    double Ksaturated_ground_water = 0.0;
+    double Ksaturated_snow = 0.0;
+    double Ksaturated_organic = 0.0;
 
     // held from previous 
     double thaw_fraction_rechr = 0.0;
@@ -67,7 +71,16 @@ struct two_layer_DTO : virtual shared_DTO
     double ground_water_storage = 0.0;
     double ground_water_max = 0.0;
     double snow_covered_threshold = 0.0;
-    
+
+    // K_estimate
+    double pore_size_dist = 0.0;
+    double pore_size_dist_organic = 0.0;
+    double soil_index = 0.0;
+    double local_slope = 0.0;
+    double snow_grain_diameter = 0.0; // divided by 1000 in K_estimate, likely converting from mm to m, this var is mm
+    double snow_density = 0.0;
+
+    virtual double get_dt(two_layer_DTO& DTO) = 0;
 };
 
 struct main_DTO : two_layer_DTO, soil_ET_DTO

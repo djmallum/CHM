@@ -4,6 +4,7 @@
 #include "soil_two_layer.hpp"
 #include <algorithm>
 #include "soil_DTO.hpp"
+#include "I_K_estimate.hpp"
 
 // Temporary forward declaration
 // TODO add include after writing this
@@ -12,15 +13,15 @@
 class soil_two_layer : public soil_base
 {
 public: // methods
-    soil_two_layer(two_layer_DTO& _DTO);
-    ~soil_two_layer();
+    soil_two_layer(two_layer_DTO& _DTO,I_K_estimate& estimate) : DTO(_DTO), k_estimator(estimate) {};
+    ~soil_two_layer() {};
 
     void run() override;
 
 private: //methods
     
     two_layer_DTO& DTO; 
-    //k_estimate k_estimator; 
+    I_K_estimate& k_estimator; 
     
     void initialize_single_step_vars(); 
     void set_K_values();

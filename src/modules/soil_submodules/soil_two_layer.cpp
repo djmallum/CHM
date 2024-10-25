@@ -1,14 +1,5 @@
 #include "soil_two_layer.hpp"
 
-soil_two_layer::soil_two_layer(two_layer_DTO& _DTO) : DTO(_DTO)
-{
-};
-
-soil_two_layer::~soil_two_layer(void) 
-{
-
-};
-
 void soil_two_layer::run() 
 {
 
@@ -16,7 +7,9 @@ void soil_two_layer::run()
                                 // also would need to remove or use face_area
     initialize_single_step_vars(); 
 
-    set_K_values();
+    k_estimator.run();
+
+    //set_K_values();
 
     set_layer_thaw_fraction();
 
@@ -45,8 +38,7 @@ void soil_two_layer::initialize_single_step_vars()
 
 void soil_two_layer::set_K_values()
 {
-    //k_estimator.run(DTO.K_soil_to_gw,DTO.K_rechr_to_ssr,DTO.K_lower_to_ssr,DTO.K_detention_snow_to_runoff,
-    //        DTO.K_detention_organic_to_runoff,DTO.K_depression_to_ssr);
+    //K_estimate.calculate();
 };
 
 void soil_two_layer::set_layer_thaw_fraction()
@@ -185,21 +177,11 @@ void soil_two_layer::manage_detention()
         }
     }
 
-    if (DTO.detention_storage > 0.0)
+    if (DTO.detention_storage > 0.0 && DTO.K_detention_to_runoff > 0.0)
     {
-        double K_detention_to_runoff;
-
-        if (DTO.swe <= DTO.snow_covered_threshold) // default will be zero
-            K_detention_to_runoff = DTO.K_detention_organic_to_runoff;
-        else
-            K_detention_to_runoff = DTO.K_detention_snow_to_runoff;
-
-        if (K_detention_to_runoff > 0.0)
-        {
-            double transfer = std::min(DTO.detention_storage,K_detention_to_runoff);
-            DTO.soil_excess_to_runoff += transfer;
-            DTO.detention_storage -= transfer;
-        }
+        double transfer = std::min(DTO.detention_storage,DTO.K_detention_to_runoff);
+        DTO.soil_excess_to_runoff += transfer;
+        DTO.detention_storage -= transfer;
 
         if (DTO.detention_storage < 0.0001) // from CRHM, for safety and to drop any Floating-point errors
             DTO.detention_storage = 0.0;
