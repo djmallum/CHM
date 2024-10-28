@@ -33,13 +33,16 @@ void soil_module::init(mesh& domain)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<soil_module::data>(ID);
+        // I do some evil things here to allow for the submodules to access module_base functions like is_water
+        // A pointer to face is put in d, likewise a pointer to this instance of this class is also added, see the overridden functions
+        // get_dt and is_lake below.
         d.my_face = &face;
-
-        // it might be wise to actually have soil have an instance of ET inside of it, rather than separate here.
-        //
-        // while the processes are not tightly coupled, they operate on the same construct
+        set_local_module(d);
+            
+        // dependency injection of K_estimation
         d.K_estimator = std::make_unique<K_estimate>(d);
         d.soil_layers = std::make_unique<soil_two_layer>(d,*d.K_estimator);
+        // ET coud (should) have been dependecy injection. So TODO
         d.ET = std::make_unique<soil_ET>(d);  
         if (d.soil_layers)
             set_soil_params(d);
@@ -48,7 +51,6 @@ void soil_module::init(mesh& domain)
     
         initial_soil_conditions(d);
 
-        set_local_module(d);
 
     }
 };
