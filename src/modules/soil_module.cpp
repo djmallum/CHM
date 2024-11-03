@@ -44,12 +44,12 @@ void soil_module::init(mesh& domain)
         d.soil_layers = std::make_unique<soil_two_layer>(d,*d.K_estimator);
         // ET coud (should) have been dependecy injection. So TODO
         d.ET = std::make_unique<soil_ET>(d);  
-        if (d.soil_layers)
-            set_soil_params(d);
-        if (d.ET)
-            set_ET_params(d);
+        //if (d.soil_layers) Removed if statments for now because ET and soil modules are coupled. 
+        set_soil_params(face,d);
+        //if (d.ET)
+        set_ET_params(face,d);
     
-        initial_soil_conditions(d);
+        initial_soil_conditions(face,d);
 
 
     }
@@ -98,44 +98,84 @@ void soil_module::set_soil_outputs(mesh_elem& face,soil_module::data& d)
     (*face)["ground_water_storage"_s] = d.ground_water_storage;
 };
 
-void soil_module::set_soil_params(soil_module::data& d)
+void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
 {
     // TODO actually connect to stuff
-    d.soil_storage_max = 0.0;
-    d.soil_rechr_max = 0.0;
-    d.excess_to_ssr = true; 
-    d.detention_max = 0.0;
-    d.detention_snow_max = 0.0;
-    d.detention_organic_max = 0.0;
-    d.depression_max = 0.0;
-    d.ground_water_max = 0.0;
-    d.ground_cover_type = 0.0;
-    d.soil_type_rechr = 0;
-    d.soil_type_lower = 0;
-};
+    if (face->has_soil())
+    {
+        d.soil_storage_max = face->parameter("soil_storage_max"_s);
+        d.soil_rechr_max = face->parameter("soil_rechr_max"_s);
+        d.excess_to_ssr = trface->parameter("excess_to_ssr"_s) 
+        d.detention_max = face->parameter("detention_max"_s);
+        d.detention_snow_max = face->parameter("detention_snow_max"_s);
+        d.detention_organic_max = face->parameter("detention_organic_max"_s);
+        d.depression_max = face->parameter("depression_max"_s);
+        d.ground_water_max = face->parameter("ground_water_max"_s);
+        d.ground_cover_type = face->parameter("ground_cover_type"_s);
+        // TODO Get the soil type, sure, but it needs to be converted to what is needed for this model here.
+        d.soil_type_rechr = face->parameter("soil_type_rechr"_s);
+        d.soil_type_lower = face->parameter("soil_type_lower"_s);
+    }
+    else
+    {
+        d.soil_storage_max = 0.0;
+        d.soil_rechr_max = 0.0;
+        d.excess_to_ssr = 0.0;
+        d.detention_max = 0.0;
+        d.detention_snow_max = 0.0;
+        d.detention_organic_max = 0.0;
+        d.depression_max = 0.0;
+        d.ground_water_max = 0.0;
+        d.ground_cover_type = 0.0;
+        // TODO Get the soil type, sure, but it needs to be converted to what is needed for this model here.
+        d.soil_type_rechr = 0;
+        d.soil_type_lower = 0;
+    };
 
 
-void soil_module::set_ET_params(soil_module::data& d)
+void soil_module::set_ET_params(mesh_elem& face, soil_module::data& d)
 {
-    d.ground_cover_type = 1; //TODO access ground cover type from face and then figure out how to get it right
-    d.soil_type_rechr = 1; //TODO same as above. 
-    d.soil_type_lower = 1;
+    if (face->has_vegetation())
+    {
+        double canopy_height = face->veg_attribute("CanopyHeight");
+        //TODO set ground_cover_type depending on canopy height, revisit CRHM conditions
+    }
+    else
+    {
+        d.ground_cover_type = 0; //TODO access ground cover type from face and then figure out how to get it right
+
+    // soil_type_rechr and lower are both set in soil function, for now just leave it as this, should remove if statements.
 };
 
 
-void soil_module::initial_soil_conditions(soil_module::data& d)
+void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
 {
     // TODO actually connect to stuff
     // requires MESHER or at least data for one station
-    d.soil_storage = 0.0;
-    d.soil_rechr_storage = 0.0;
-    d.thaw_fraction_rechr = 0.0;
-    d.thaw_fraction_lower = 0.0;
-    d.soil_rechr_storage = 0.0;
-    d.detention_snow_init = 0.0;
-    d.detention_organic_init = 0.0;
-    d.depression_storage = 0.0;
-    d.ground_water_storage = 0.0;
+    if (face->has_soil())
+    {
+        d.soil_storage = face->parameter("soil_storage"_s);
+        d.soil_rechr_storage = face->parameter("soil_rechr_storage"_s);
+        d.thaw_fraction_rechr = face->parameter("thaw_fraction_rechr"_s);
+        d.thaw_fraction_lower = face->parameter("thaw_fraction_lower"_s);
+        d.soil_rechr_storage = face->parameter("soil_rechr_storage"_s);
+        d.detention_snow_init = face->parameter("detention_snow_init"_s);
+        d.detention_organic_init = face->parameter("detention_organic_init"_s);
+        d.depression_storage = face->parameter("depression_storage"_s);
+        d.ground_water_storage = face->parameter("ground_water_storage"_s);
+    }
+    else
+    {
+        d.soil_storage = 0.0;
+        d.soil_rechr_storage = 0.0;
+        d.thaw_fraction_rechr = 0.0;
+        d.thaw_fraction_lower = 0.0;
+        d.soil_rechr_storage = 0.0;
+        d.detention_snow_init = 0.0;
+        d.detention_organic_init = 0.0;
+        d.depression_storage = 0.0;
+        d.ground_water_storage = 0.0;
+    }
 };
 
 bool soil_module::data::is_lake(soil_ET_DTO& DTO)
