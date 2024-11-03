@@ -83,15 +83,21 @@ void Infil_All::init(mesh& domain)
         major = cfg.get("major",5); 
         AllowPriorInf = cfg.get("AllowPriorInf",true);
         ThawType = cfg.get("ThawType",0); // Default is Ayers
-        d.texture = cfg.get("soil_texture",0);
-        d.ground_cover = cfg.get("soil_groundcover",0);
+        if (ThawType == AYERS)
+        {
+            d.texture = cfg.get("soil_texture",0);
+            d.ground_cover = cfg.get("soil_groundcover",0);
+        }
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
+        // TODO could drop soil_type from d and just use it here as a local variable. then later
+        // it gets used to check if the soil is not soil but instead pavement, can create a tool for that
         d.soil_type = cfg.get("soil_type","sand"); // default is sand
                                                     // TODO Connect with MESHER
 
         SoilDataObj = std::make_unique<Soil::soils_na>();
 
         porosity = SoilDataObj->porosity(d.soil_type);
+        // TODO soil_depth not actually needed, connect max_soil_Storage with rechr storage
         soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
         max_soil_storage = porosity * soil_depth;
         ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
