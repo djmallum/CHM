@@ -98,7 +98,7 @@ public:
         std::unique_ptr<I_K_estimate> K_estimator;
         // overridden
         bool is_lake(soil_ET_DTO& DTO) override;
-        double get_dt(two_layer_DTO& DTO) override;
+        int get_dt(two_layer_DTO& DTO) override;
 
         // custom deletor that does nothing to make sure it doesn't try to delete the mesh_elem it points to
         soil_module* local_module;//(nullptr, [](soil_module*) {});

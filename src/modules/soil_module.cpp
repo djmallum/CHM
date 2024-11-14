@@ -185,7 +185,7 @@ bool soil_module::data::is_lake(soil_ET_DTO& DTO)
     return d.local_module->is_water(*d.my_face);
 };
 
-double soil_module::data::get_dt(two_layer_DTO& DTO)
+int soil_module::data::get_dt(two_layer_DTO& DTO)
 {
     soil_module::data& d = static_cast<soil_module::data&>(DTO);
 
