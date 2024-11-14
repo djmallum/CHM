@@ -11,14 +11,17 @@ public:
     {
 
     };
-    ~K_estimate() {};
+    ~surface_temperature() {};
 
     void run(void);
-
 private:
 
     two_layer_DTO& DTO;
 	double Zdt_last = 0.0;
+    void set_tsurface_bare(void);
+    void set_tsurface_snow(void);
+    void set_daily_tsurface(void);
+    void increment_daily_counters();
 
 
      
