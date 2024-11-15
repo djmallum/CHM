@@ -105,13 +105,13 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
     {
         d.soil_storage_max = face->parameter("soil_storage_max"_s);
         d.soil_rechr_max = face->parameter("soil_rechr_max"_s);
-        d.excess_to_ssr = trface->parameter("excess_to_ssr"_s) 
+        d.excess_to_ssr = face->parameter("excess_to_ssr"_s); 
         d.detention_max = face->parameter("detention_max"_s);
         d.detention_snow_max = face->parameter("detention_snow_max"_s);
         d.detention_organic_max = face->parameter("detention_organic_max"_s);
         d.depression_max = face->parameter("depression_max"_s);
         d.ground_water_max = face->parameter("ground_water_max"_s);
-        d.ground_cover_type = face->parameter("ground_cover_type"_s);
+        // d.ground_cover_type = face->parameter("ground_cover_type"_s); This is set in set in set_ET_params TODO check if it is needed for ET and soil
         // TODO Get the soil type, sure, but it needs to be converted to what is needed for this model here.
         d.soil_type_rechr = face->parameter("soil_type_rechr"_s);
         d.soil_type_lower = face->parameter("soil_type_lower"_s);
@@ -130,7 +130,9 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         // TODO Get the soil type, sure, but it needs to be converted to what is needed for this model here.
         d.soil_type_rechr = 0;
         d.soil_type_lower = 0;
-    };
+    }
+
+};
 
 
 void soil_module::set_ET_params(mesh_elem& face, soil_module::data& d)
@@ -141,7 +143,6 @@ void soil_module::set_ET_params(mesh_elem& face, soil_module::data& d)
         //TODO set ground_cover_type depending on canopy height, revisit CRHM conditions
     }
     else
-    {
         d.ground_cover_type = 0; //TODO access ground cover type from face and then figure out how to get it right
 
     // soil_type_rechr and lower are both set in soil function, for now just leave it as this, should remove if statements.
@@ -158,7 +159,6 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
         d.soil_rechr_storage = face->parameter("soil_rechr_storage"_s);
         d.thaw_fraction_rechr = face->parameter("thaw_fraction_rechr"_s);
         d.thaw_fraction_lower = face->parameter("thaw_fraction_lower"_s);
-        d.soil_rechr_storage = face->parameter("soil_rechr_storage"_s);
         d.detention_snow_init = face->parameter("detention_snow_init"_s);
         d.detention_organic_init = face->parameter("detention_organic_init"_s);
         d.depression_storage = face->parameter("depression_storage"_s);
@@ -170,7 +170,6 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
         d.soil_rechr_storage = 0.0;
         d.thaw_fraction_rechr = 0.0;
         d.thaw_fraction_lower = 0.0;
-        d.soil_rechr_storage = 0.0;
         d.detention_snow_init = 0.0;
         d.detention_organic_init = 0.0;
         d.depression_storage = 0.0;
