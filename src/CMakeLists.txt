@@ -44,6 +44,7 @@ set(MODULE_SRCS
 		modules/Marsh_shading_iswr.cpp
 		modules/Sicart_ilwr.cpp
 		modules/PenmanMonteith_evaporation.cpp
+        modules/Evapotranspiration_All.cpp
 		modules/interp_met/Thornton_p.cpp
 		modules/Walcek_cloud.cpp
 		modules/Harder_precip_phase.cpp
@@ -71,6 +72,13 @@ set(MODULE_SRCS
 
 		CACHE INTERNAL "" FORCE )
 
+
+set(MODEL_SRCS
+        modules/EvapotranspirationModels/evapbase.cpp
+        modules/EvapotranspirationModels/PenmanMonteith.cpp
+        modules/EvapotranspirationModels/PriestleyTaylor.cpp
+
+        CACHE INTERNAL "" FORCE )
 
 set(CHM_SRCS
 		#main.cpp needs to be added below so we can re use CHM_SRCS in the gtest build
@@ -111,7 +119,8 @@ set (HEADER_FILES
         modules/interp_met
 		modules/snobal
 		modules/testing
-		math
+        modules/EvapotranspirationModels/
+        math
         libmaw
         interpolation
         timeseries
@@ -228,8 +237,9 @@ add_executable(
 		CHM
 		main.cpp # this needs to be here so we can reuse CHM_SRCS in the gtest build. but since it links it's own main, we cannot have this one.
 		${CHM_SRCS}
-		${FILTER_SRCS}
-		${MODULE_SRCS}
+		${FILTER_SRCS}	
+        ${MODEL_SRCS}
+        ${MODULE_SRCS}
 		${LIBMAW_SRCS}
 )
 
@@ -425,6 +435,7 @@ if (BUILD_TESTS)
 			runUnitTests
 			${CHM_SRCS}
 			${FILTER_SRCS}
+            ${MODEL_SRCS}
 			${MODULE_SRCS}
 			${LIBMAW_SRCS}
 			${TEST_SRCS}
