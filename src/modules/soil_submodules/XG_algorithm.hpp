@@ -1,4 +1,5 @@
 #include "I_freeze_thaw_depths.hpp"
+#include <cmath>
 
 class XG_algorithm
 {
