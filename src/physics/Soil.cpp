@@ -2,6 +2,10 @@
 
 namespace Soil
 {
+<<<<<<< HEAD
+=======
+    
+>>>>>>> soil_module
     double _soils_base::lookup(const mymap& map, const std::string key) const
     {
         auto it = map.find(key);
@@ -25,7 +29,10 @@ namespace Soil
 
     }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> soil_module
     double soils_na::porosity(std::string soil_type) const
     {
         return lookup(_porosity,soil_type);

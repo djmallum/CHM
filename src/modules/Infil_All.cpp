@@ -24,8 +24,7 @@
 #include "Infil_All.hpp"
 REGISTER_MODULE_CPP(Infil_All);
 
-Infil_All::Infil_All(config_file cfg)
-    : module_base("Infil_All", parallel::data, cfg)
+Infil_All::Infil_All(config_file cfg) : module_base("Infil_All", parallel::data, cfg)
 {
 
     depends("swe");
@@ -102,6 +101,7 @@ void Infil_All::init(mesh& domain)
 }
 void Infil_All::run(mesh_elem &face)
 {
+    // TODO if its water it should probably take all rain as "infil", there will be no snowmelt... sorta, snow melting and leaking into the water under the ice in spring??
     if(is_water(face))
     {
         set_all_nan_on_skip(face);

@@ -54,6 +54,7 @@ set(MODULE_SRCS
 		modules/snowpack.cpp
 		modules/Gray_inf.cpp
         modules/Infil_All.cpp
+        modules/soil_module.cpp
         modules/Simple_Canopy.cpp
 		modules/scale_wind_vert.cpp
 		modules/sub_grid.cpp
@@ -72,11 +73,19 @@ set(MODULE_SRCS
 
 		CACHE INTERNAL "" FORCE )
 
-
 set(MODEL_SRCS
         modules/EvapotranspirationModels/evapbase.cpp
         modules/EvapotranspirationModels/PenmanMonteith.cpp
         modules/EvapotranspirationModels/PriestleyTaylor.cpp
+        
+        modules/submodule_base.hpp   
+        modules/soil_submodules/soil_base.hpp
+        modules/soil_submodules/soil_two_layer.cpp
+        modules/soil_submodules/soil_ET.cpp
+        modules/soil_submodules/soil_DTO.hpp
+    
+        modules/soil_submodules/I_K_estimate.hpp
+        modules/soil_submodules/K_estimate.cpp
 
         CACHE INTERNAL "" FORCE )
 
@@ -120,6 +129,7 @@ set (HEADER_FILES
 		modules/snobal
 		modules/testing
         modules/EvapotranspirationModels/
+        modules/soil_submodules/
         math
         libmaw
         interpolation
@@ -434,7 +444,6 @@ if (BUILD_TESTS)
 	add_executable(
 			runUnitTests
 			${CHM_SRCS}
-			${FILTER_SRCS}
             ${MODEL_SRCS}
 			${MODULE_SRCS}
 			${LIBMAW_SRCS}
