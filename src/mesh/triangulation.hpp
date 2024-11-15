@@ -324,6 +324,12 @@ public:
     double veg_attribute(const std::string &variable);
 
     /**
+     * Checks if the face has soil by loading the soil_storage_max parameter
+     * and then checking if it is greater than zero.
+     */ 
+    bool has_soil();
+
+    /**
      * Sets the vector for the given variable.
      * Does not support timeseries output.
      * There are no checks on inter-module vector guarantees like normal variables
@@ -1702,6 +1708,19 @@ double face<Gt, Fb>::veg_attribute(const std::string &variable)
 
     return result;
 };
+
+template < class Gt, class Fb >
+bool  face<Gt, Fb>::has_soil()
+{
+    if (has_parameter("soil_type"_s) )
+    {
+        double result = parameter("soil_storage_max"_s);
+        if (result >= 0.0)
+            return true;
+    }
+
+    return false;
+}
 
 template < class Gt, class Fb>
 Vector_3 face<Gt, Fb>::face_vector(const std::string& variable)
