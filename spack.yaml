@@ -18,7 +18,7 @@ spack:
   - cgal +header_only
   - hdf5 +cxx
   - "netcdf-cxx4@4.3:"
-  - "gdal@3.8 +hdf5 +netcdf"
+  - "gdal@3.8: +hdf5 +netcdf"
   - "proj@9: +curl+tiff"
   - sparsehash
   - "gperftools build_system=autotools"
