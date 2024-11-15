@@ -48,9 +48,12 @@ void XG_algorithm::run()
 
         thaw_low_layer = 1;
         freeze_low_layer = 1; 
-        
-        thaw_k_T_rechr = 
-        freeze_k_T_rechr 
+         
+        double thaw_k_T_rechr = get_k_T(DTO.soil_rechr_storage);
+        double freeze_k_T_rechr = ;
+        double thaw_k_T_lower = ;
+        double freeze_k_T_lower = ;
+         
         for (int ii = 0; ii < N_layers; ++ii)
         {
             if (DTO.soil_storage_max > 0.0)
