@@ -90,10 +90,10 @@ void Infil_All::init(mesh& domain)
 
         SoilDataObj = std::make_unique<Soil::soils_na>();
 
-        porosity = SoilDataObj->porosity(d.soil_type);
-        soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
-        max_soil_storage = porosity * soil_depth;
-        ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
+        // porosity = SoilDataObj->porosity(d.soil_type);
+        // soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
+        d.max_soil_storage = face->parameter("soil_storage_max"_s);
+        d.ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
 
 
 

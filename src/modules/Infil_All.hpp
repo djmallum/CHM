@@ -114,6 +114,8 @@ public:
         
         // GreenAmpt
         double soil_storage;
+		double max_soil_storage;
+		double ksaturated;
         std::unique_ptr<tempvars> GA_temp{nullptr};
         
     };
@@ -136,11 +138,10 @@ private:
 
 
     // GreenAmpt
-    double max_soil_storage;
-    double soil_depth;
-    double porosity;
+    // double max_soil_storage;
+    // double soil_depth;
+    // double porosity;
     enum GATable {PSI, KSAT, WILT, FCAP, PORG, PORE, AIENT, PORESZ, AVAIL}; // Used for mapping the soil table, PSI and KSAT are used, the others are unused but may but used in the future or other modules.    
-    double ksaturated;
     enum GAVars {TOTINF, RATEINF, SUCTION, THETA};
     //double soilproperties[][9];
     //double textureproperties[][6];
