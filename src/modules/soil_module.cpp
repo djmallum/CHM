@@ -127,8 +127,6 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         d.ground_water_max = 0.0;
         d.ground_cover_type = 0.0;
         // TODO Get the soil type, sure, but it needs to be converted to what is needed for this model here.
-        d.soil_type_rechr = 0;
-        d.soil_type_lower = 0;
     }
 
 };
@@ -138,11 +136,55 @@ void soil_module::set_ET_params(mesh_elem& face, soil_module::data& d)
 {
     
     d.ground_cover_type = face->soil_attribute<int>("soil_groundcover_ET"_s);
+    std::string type = face->soil_attribute<std::string>("soil_type"_s);
 
-    d.soil_type_rechr = face->soil_attribute<std::string>("soil_type"_s);
-    d.soil_type_lower = d.soil_type_rechr; //Same for now 
+    // I'm about to do something very evil. 
+    // CRHMs inconsistent soil typing is responsible
+    // likely the result of empirical techniques not 
+    // always classifying soils using the same exact categories
+    // soil_ET, from CHRM SoiX, only takes sand, loam, or clay
+    // physics/Soil.h takes 11 types, I use those types to infer the type here
+
+
+    int soil_type = 100;
+    bool sandy = compare_substring(type,"sand");
+    bool loamy = compare_substring(type,"loam");
+    bool clayy = compare_substring(type,"clay");
+
+        
+    if (sandy && !loamy && !clayy) // mainly sand 
+    {
+        soil_type = 1;
+    }
+    else if (sandy && loamy) // loamy sand or sandy loam
+    {
+        if (type.substr(0,4) == "loam") //loamy sand
+        {
+            soil_type = 1;
+        }
+        else //sandy loam
+            soil_type = 2;
+    }
+    else if (sandy && clayy) // sandy clay
+        soil_type = 3;
+    else if (clayy && loamy) // loam with clay (clay-y loam)
+        soil_type = 2;
+    else if (clayy) // mainly clay
+        soil_type = 3;
+    else if (loamy) // mainly loam
+        soil_type = 2;
+    
+    // detaul is 100, this is handled by soil_ET by treating the soil as mainly organic
+    d.soil_type_rechr = soil_type;
+    d.soil_type_lower = soil_type; //Same for now 
 
 };
+
+int soil_module::compare_substring(std::string& type, std::string sub);
+{
+    return str.find(sub) != std::string::npos; // find returns npos
+};
+
 
 void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
 {
