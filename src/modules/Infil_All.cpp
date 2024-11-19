@@ -84,11 +84,11 @@ void Infil_All::init(mesh& domain)
         thaw_type = cfg.get("thaw_type",0); // Default is Ayers
         if (thaw_type == AYERS)
         {    
-            d.texture = face->soil_attribute<std::string>("soil_texture");
-            d.ground_cover = face->soil_attribute<std::string>("soil_groundcover");
+            d.texture = face->soil_attribute<std::string>("soil_texture","soils");
+            d.ground_cover = face->soil_attribute<std::string>("soil_groundcover","soils");
         }
         else if (thaw_type == GREENAMPT)
-            d.soil_type = face->soil_attribute<std::string>("soil_type");
+            d.soil_type = face->soil_attribute<std::string>("soil_type","soils");
 
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
 

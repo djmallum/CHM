@@ -136,7 +136,7 @@ void soil_module::set_ET_params(mesh_elem& face, soil_module::data& d)
 {
     
     d.ground_cover_type = face->soil_attribute<int>("soil_groundcover_ET"_s);
-    std::string type = face->soil_attribute<std::string>("soil_type"_s);
+    std::string type = face->soil_attribute<std::string>("soil_type"_s,"soils");
 
     // I'm about to do something very evil. 
     // CRHMs inconsistent soil typing is responsible
