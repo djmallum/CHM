@@ -180,9 +180,9 @@ void soil_module::set_ET_params(mesh_elem& face, soil_module::data& d)
 
 };
 
-int soil_module::compare_substring(std::string& type, std::string sub);
+int soil_module::compare_substring(std::string& type, std::string sub)
 {
-    return str.find(sub) != std::string::npos; // find returns npos
+    return type.find(sub) != std::string::npos; // find returns npos
 };
 
 

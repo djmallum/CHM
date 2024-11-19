@@ -159,10 +159,10 @@ private:
     double convert_to_rate_hourly(double &rainfall); 
     bool is_space_in_dry_soil(double &moist, double &max, double &rainfall); 
     void Initialize_GA_Variables(data &d); 
-    void initialize_ponding_vars(std::unique_ptr<data::tempvars> &GA); 
-    void find_final_storage(std::unique_ptr<data::tempvars> &GA, \
+    void initialize_ponding_vars(data &d, std::unique_ptr<data::tempvars> &GA); 
+    void find_final_storage(data &d, std::unique_ptr<data::tempvars> &GA, \
         double &initial_storage, double &dt); 
-    double calc_GA_infiltration_rate(std::unique_ptr<data::tempvars> &GA, double &F);
+    double calc_GA_infiltration_rate(data &d, std::unique_ptr<data::tempvars> &GA, double &F);
 
 
 

@@ -329,7 +329,13 @@ public:
      */ 
     bool has_soil();
 
-    std::string soil_attribute(const std::string& variable);
+    /**
+     * Retrieves a vegetation attribute for the face. With a templated return type to allow for 
+     * double, int or std::string types. Distributed variables will only be double/int. But
+     * look-up tables can point to strings or another type.
+     * */
+    template <typename T>
+    T soil_attribute(const std::string& variable);
     /**
      * Sets the vector for the given variable.
      * Does not support timeseries output.

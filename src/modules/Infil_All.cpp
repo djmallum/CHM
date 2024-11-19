@@ -236,7 +236,7 @@ void Infil_All::run(mesh_elem &face)
                                            // ,this is a string handle pavement separately
                 runoff = rainfall;
             }
-            else if(is_space_in_dry_soil(d.soil_storage,max_soil_storage,rainfall)){
+            else if(is_space_in_dry_soil(d.soil_storage,d.max_soil_storage,rainfall)){
                 inf =  rainfall;
             }
             else {
@@ -251,7 +251,7 @@ void Infil_All::run(mesh_elem &face)
                     
                     double ponding_time = global_param->dt() / 3600.0;
                     
-                    find_final_storage(d.GA_temp,d.GA_temp->initial_storage,ponding_time);    
+                    find_final_storage(d,d.GA_temp,d.GA_temp->initial_storage,ponding_time);    
                     
                     d.GA_temp->pond = rainfall - (d.GA_temp->final_storage - d.GA_temp->initial_storage); 
 
@@ -261,14 +261,14 @@ void Infil_All::run(mesh_elem &face)
                 else {
 
                     d.GA_temp->final_storage = d.GA_temp->initial_storage + rainfall;
-                    d.GA_temp->final_rate = calc_GA_infiltration_rate(d.GA_temp,d.GA_temp->final_storage); //TODO calcf1 not a function anymore
+                    d.GA_temp->final_rate = calc_GA_infiltration_rate(d,d.GA_temp,d.GA_temp->final_storage); //TODO calcf1 not a function anymore
 
                     if (d.GA_temp->intensity > d.GA_temp->final_rate) { // ponding starts midway through the time step
-                        initialize_ponding_vars(d.GA_temp);
+                        initialize_ponding_vars(d,d.GA_temp);
 
                         double ponding_time = global_param->dt() / 3600.0 - d.GA_temp->time_to_ponding;
                         
-                        find_final_storage(d.GA_temp,d.GA_temp->storage_at_ponding,ponding_time);
+                        find_final_storage(d,d.GA_temp,d.GA_temp->storage_at_ponding,ponding_time);
                         
                         d.GA_temp->pond = rainfall - (d.GA_temp->final_storage - d.GA_temp->initial_storage); 
                     }
@@ -366,12 +366,12 @@ void Infil_All::Initialize_GA_Variables(Infil_All::data &d) {
     // TODO Make this a constructor for the tempvars struct
     std::unique_ptr<Infil_All::data::tempvars> &GA = d.GA_temp;
     
-    GA->soil_storage_deficit = (1.0 - d.soil_storage/max_soil_storage); // TODO GA in Dingman is porosity - pore space filed
+    GA->soil_storage_deficit = (1.0 - d.soil_storage/d.max_soil_storage); // TODO GA in Dingman is porosity - pore space filed
                                                                         // Here: 1.0 means we've filled all the pores
                                                                         // 0.4 - 0.2 = 0.2 (porosity)
                                                                         // 1.0 - 0.5/1.0 = 0.5 (current)
                                                                         // Is this a problem?
-    GA->initial_rate = calc_GA_infiltration_rate(GA,d.soil_storage);
+    GA->initial_rate = calc_GA_infiltration_rate(d,GA,d.soil_storage);
     GA->initial_storage = d.soil_storage;
     GA->final_storage = GA->initial_storage;
     GA->final_rate = GA->initial_rate;
@@ -379,12 +379,12 @@ void Infil_All::Initialize_GA_Variables(Infil_All::data &d) {
         * GA->soil_storage_deficit;
 }
 
-void Infil_All::initialize_ponding_vars(std::unique_ptr<Infil_All::data::tempvars> &GA) {
-    GA->storage_at_ponding = ksaturated * GA->capillary_suction / (GA->intensity - ksaturated); 
+void Infil_All::initialize_ponding_vars(Infil_All::data& d,std::unique_ptr<Infil_All::data::tempvars> &GA) {
+    GA->storage_at_ponding = d.ksaturated * GA->capillary_suction / (GA->intensity - d.ksaturated); 
     GA->time_to_ponding = (GA->storage_at_ponding - GA->initial_storage)/GA->intensity;
 }
 
-void Infil_All::find_final_storage(std::unique_ptr<Infil_All::data::tempvars> &GA, \
+void Infil_All::find_final_storage(Infil_All::data& d,std::unique_ptr<Infil_All::data::tempvars> &GA, \
         double &initial_storage, double &dt) {
     
     double LastF1;
@@ -393,7 +393,7 @@ void Infil_All::find_final_storage(std::unique_ptr<Infil_All::data::tempvars> &G
     
         LastF1 = GA->final_storage;
     
-        GA->final_storage = initial_storage + ksaturated*dt + GA->capillary_suction * \
+        GA->final_storage = initial_storage + d.ksaturated*dt + GA->capillary_suction * \
                             log((GA->final_storage + GA->capillary_suction) \
                             / (initial_storage + GA->capillary_suction));
     
@@ -401,9 +401,9 @@ void Infil_All::find_final_storage(std::unique_ptr<Infil_All::data::tempvars> &G
 
 }
 
-double Infil_All::calc_GA_infiltration_rate(std::unique_ptr<Infil_All::data::tempvars> &GA, double &F){
+double Infil_All::calc_GA_infiltration_rate(Infil_All::data& d,std::unique_ptr<Infil_All::data::tempvars> &GA, double &F){
 
-    return ksaturated*(GA->capillary_suction/F + 1.0);
+    return d.ksaturated*(GA->capillary_suction/F + 1.0);
 
 }
 
