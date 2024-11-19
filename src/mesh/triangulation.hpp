@@ -336,6 +336,19 @@ public:
      * */
     template <typename T>
     T soil_attribute(const std::string& variable);
+
+    /**
+     * This version of the function specifies that you need a look-up table.
+     * It is essentially identical to veg_attribute except it does not include the first if statement
+     * and it allows you to specify the look up map category name. For soils, it will always be soils.
+     * The obvious problem si that with veg_attribute you can keep a module unchanged and only change the 
+     * config with or without a look-up. This version requires changing the module to stop using a look up.
+     * Consider changing in the future.
+     * This is only found in the one argument version of this function 
+     *  */
+    template <typename T>
+    T soil_attribute(const std::string& variable,const std::string category);
+
     /**
      * Sets the vector for the given variable.
      * Does not support timeseries output.
@@ -1738,21 +1751,6 @@ T face<Gt, Fb>::soil_attribute(const std::string &variable)
     // first see if we have a distributed map of this parameter
     if(has_parameter(variable))
         result = parameter(variable);
-    else if(has_parameter("soil_type"_s) || has_parameter("soil_texture"_s) || has_parameter("soil_groundcover"_s) ) // For some specific parameters, we have a lookup table. Should be defined in the config file
-    {
-
-        int LC = parameter(variable);
-        auto param = _domain->_global->parameters; //this grabs the loaded map
-        try
-        {
-            result = param.get<T>(variable + "." + std::to_string(LC));
-        }
-        catch(const boost::property_tree::ptree_bad_path& e)
-        {
-            CHM_THROW_EXCEPTION(module_error, "Parameter " + variable +" does not exist.");
-        }
-
-    }
     else
     {
         CHM_THROW_EXCEPTION(module_error, "Parameter " + variable +" does not exist.");
@@ -1760,6 +1758,33 @@ T face<Gt, Fb>::soil_attribute(const std::string &variable)
 
     return result;
 };
+
+template < class Gt, class Fb >
+template< typename T >
+T face<Gt, Fb>::soil_attribute(const std::string &variable,const std::string category)
+{
+    T result{};
+    if (has_parameter(variable))
+    {    
+        int LC = parameter(variable);
+        auto param = _domain->_global->parameters;
+        try
+        {
+            T result = param.get<T>(category + "." + variable + "." + std::to_string(LC));
+        }
+        catch(const boost::property_tree::ptree_bad_path& e)
+        {
+            CHM_THROW_EXCEPTION(module_error, "Parameter " + variable + " in category " + category +" does not exist.");
+        }
+    }
+    else
+    {
+        CHM_THROW_EXCEPTION(module_error, "Parameter " + variable + " in category " + category +" does not exist.");
+    }
+
+    return result;
+};
+
 
 template < class Gt, class Fb>
 Vector_3 face<Gt, Fb>::face_vector(const std::string& variable)
