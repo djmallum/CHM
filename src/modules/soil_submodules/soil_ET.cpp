@@ -117,24 +117,26 @@ double soil_ET::set_ET_layer(double et, double& percent, int& type)
 {
     switch (type)
     {
-    case 1:
+    case 1: // sandy soil
         if (percent < 0.25)
             et = 0.5 * percent * et;
         break;
-    case 2:
+    case 2: // loam soil
         if (percent < 0.5)
             et = percent * et;
         break;
-    case 3:
+    case 3: // clay soil
         if (percent <= 0.33)
             et = 0.5 * percent * et;
         else if (percent < 0.67)
             et = percent * et;
         break;
-    default:
+    default: //organic soil
         // do nothing, use default above
         break;
     }
 
     return et;
 };
+
+
