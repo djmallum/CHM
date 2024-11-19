@@ -74,7 +74,7 @@ void Infil_All::init(mesh& domain)
         d.index = 0;
         d.max_major_per_melt = 0.;
         d.init_SWE = 0.;
-        d.soil_storage = 0.;
+        d.soil_storage = face->soil_attribute("soil_storage");
 
         // Model Parameters
         infDays = cfg.get("max_inf_days",6);
@@ -82,11 +82,15 @@ void Infil_All::init(mesh& domain)
         major = cfg.get("major",5); 
         AllowPriorInf = cfg.get("AllowPriorInf",true);
         thaw_type = cfg.get("thaw_type",0); // Default is Ayers
-        d.texture = cfg.get("soil_texture",0);
-        d.ground_cover = cfg.get("soil_groundcover",0);
+        if (thaw_type == AYERS)
+        {    
+            d.texture = face->soil_attribute("soil_texture");
+            d.ground_cover = face->soil_attribute("soil_groundcover");
+        }
+        else if (thaw_type == GREENAMPT)
+            d.soil_type = face->soil_attribute("soil_type");
+
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
-        d.soil_type = cfg.get("soil_type","sand"); // default is sand
-                                                    // TODO Connect with MESHER
 
         SoilDataObj = std::make_unique<Soil::soils_na>();
 
