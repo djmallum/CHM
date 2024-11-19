@@ -103,14 +103,14 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
     // TODO actually connect to stuff
     if (face->has_soil())
     {
-        d.soil_storage_max = face->soil_attribute("soil_storage_max"_s);
-        d.soil_rechr_max = face->soil_attribute("soil_rechr_max"_s);
-        d.excess_to_ssr = face->soil_attribute("excess_to_ssr"_s); 
-        d.detention_max = face->soil_attribute("detention_max"_s);
-        d.detention_snow_max = face->soil_attribute("detention_snow_max"_s);
-        d.detention_organic_max = face->soil_attribute("detention_organic_max"_s);
-        d.depression_max = face->soil_attribute("depression_max"_s);
-        d.ground_water_max = face->soil_attribute("ground_water_max"_s);
+        d.soil_storage_max = face->soil_attribute<double>("soil_storage_max"_s);
+        d.soil_rechr_max = face->soil_attribute<double>("soil_rechr_max"_s);
+        d.excess_to_ssr = face->soil_attribute<bool>("excess_to_ssr"_s); 
+        d.detention_max = face->soil_attribute<double>("detention_max"_s);
+        d.detention_snow_max = face->soil_attribute<double>("detention_snow_max"_s);
+        d.detention_organic_max = face->soil_attribute<double>("detention_organic_max"_s);
+        d.depression_max = face->soil_attribute<double>("depression_max"_s);
+        d.ground_water_max = face->soil_attribute<double>("ground_water_max"_s);
         // d.ground_cover_type = face->parameter("ground_cover_type"_s); This is set in set in set_ET_params TODO check if it is needed for ET and soil
         // TODO Get the soil type, sure, but it needs to be converted to what is needed for this model here.
            
@@ -137,16 +137,9 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
 void soil_module::set_ET_params(mesh_elem& face, soil_module::data& d)
 {
     
-    int type = face->soil_attribute("soil_groundcover"_s);
+    d.ground_cover_type = face->soil_attribute<int>("soil_groundcover_ET"_s);
 
-    if (type == 0)
-        d.ground_cover_type = type;
-    else if (type >= 1 && type <= 4)
-        d.ground_cover_type = 1;
-    else (type == 5)
-        d.ground_cover_type = 2;
-
-    d.soil_type_rechr = face->soil_attribute("soil_type"_s);
+    d.soil_type_rechr = face->soil_attribute<std::string>("soil_type"_s);
     d.soil_type_lower = d.soil_type_rechr; //Same for now 
 
 };
@@ -157,14 +150,14 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
     // requires MESHER or at least data for one station
     if (face->has_soil())
     {
-        d.soil_storage = face->soil_attribute("soil_storage"_s);
-        d.soil_rechr_storage = face->soil_attribute("soil_rechr_storage"_s);
-        d.thaw_fraction_rechr = face->soil_attribute("thaw_fraction_rechr"_s);
-        d.thaw_fraction_lower = face->soil_attribute("thaw_fraction_lower"_s);
-        d.detention_snow_init = face->soil_attribute("detention_snow_init"_s);
-        d.detention_organic_init = face->soil_attribute("detention_organic_init"_s);
-        d.depression_storage = face->soil_attribute("depression_storage"_s);
-        d.ground_water_storage = face->soil_attribute("ground_water_storage"_s);
+        d.soil_storage = face->soil_attribute<double>("soil_storage"_s);
+        d.soil_rechr_storage = face->soil_attribute<double>("soil_rechr_storage"_s);
+        d.thaw_fraction_rechr = face->soil_attribute<double>("thaw_fraction_rechr"_s);
+        d.thaw_fraction_lower = face->soil_attribute<double>("thaw_fraction_lower"_s);
+        d.detention_snow_init = face->soil_attribute<double>("detention_snow_init"_s);
+        d.detention_organic_init = face->soil_attribute<double>("detention_organic_init"_s);
+        d.depression_storage = face->soil_attribute<double>("depression_storage"_s);
+        d.ground_water_storage = face->soil_attribute<double>("ground_water_storage"_s);
     }
     else
     {

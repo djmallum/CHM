@@ -329,6 +329,7 @@ public:
      */ 
     bool has_soil();
 
+    std::string soil_attribute(const std::string& variable);
     /**
      * Sets the vector for the given variable.
      * Does not support timeseries output.
@@ -1712,7 +1713,7 @@ double face<Gt, Fb>::veg_attribute(const std::string &variable)
 template < class Gt, class Fb >
 bool  face<Gt, Fb>::has_soil()
 {
-    if (has_parameter("soil_type"_s) )
+    if (has_parameter("soil_storage_max"_s) )
     {
         double result = parameter("soil_storage_max"_s);
         if (result >= 0.0)
@@ -1721,6 +1722,38 @@ bool  face<Gt, Fb>::has_soil()
 
     return false;
 }
+
+template < class Gt, class Fb >
+template< typename T >
+T face<Gt, Fb>::soil_attribute(const std::string &variable)
+{
+    
+    T result{};
+    // first see if we have a distributed map of this parameter
+    if(has_parameter(variable))
+        result = parameter(variable);
+    else if(has_parameter("soil_type"_s) || has_parameter("soil_texture"_s) || has_parameter("soil_groundcover"_s) ) // For some specific parameters, we have a lookup table. Should be defined in the config file
+    {
+
+        int LC = parameter(variable);
+        auto param = _domain->_global->parameters; //this grabs the loaded map
+        try
+        {
+            result = param.get<T>(variable + "." + std::to_string(LC));
+        }
+        catch(const boost::property_tree::ptree_bad_path& e)
+        {
+            CHM_THROW_EXCEPTION(module_error, "Parameter " + variable +" does not exist.");
+        }
+
+    }
+    else
+    {
+        CHM_THROW_EXCEPTION(module_error, "Parameter " + variable +" does not exist.");
+    }
+
+    return result;
+};
 
 template < class Gt, class Fb>
 Vector_3 face<Gt, Fb>::face_vector(const std::string& variable)

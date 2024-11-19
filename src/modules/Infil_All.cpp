@@ -74,7 +74,7 @@ void Infil_All::init(mesh& domain)
         d.index = 0;
         d.max_major_per_melt = 0.;
         d.init_SWE = 0.;
-        d.soil_storage = face->soil_attribute("soil_storage");
+        d.soil_storage = face->soil_attribute<double>("soil_storage");
 
         // Model Parameters
         infDays = cfg.get("max_inf_days",6);
@@ -84,11 +84,11 @@ void Infil_All::init(mesh& domain)
         thaw_type = cfg.get("thaw_type",0); // Default is Ayers
         if (thaw_type == AYERS)
         {    
-            d.texture = face->soil_attribute("soil_texture");
-            d.ground_cover = face->soil_attribute("soil_groundcover");
+            d.texture = face->soil_attribute<std::string>("soil_texture");
+            d.ground_cover = face->soil_attribute<std::string>("soil_groundcover");
         }
         else if (thaw_type == GREENAMPT)
-            d.soil_type = face->soil_attribute("soil_type");
+            d.soil_type = face->soil_attribute<std::string>("soil_type");
 
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
 
