@@ -3,12 +3,12 @@
 soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel::data, cfg)
 {
     depends("swe");
-    depends("thaw_front_depth"); 
-    depends("freeze_front_depth");
+//    depends("thaw_front_depth"); 
+//    depends("freeze_front_depth");
     depends("ET");
     depends("inf");
     depends("runoff");
-    depends("routing_residual");
+//    depends("routing_residual");
 
     provides("condensation");
     provides("actual_ET");
