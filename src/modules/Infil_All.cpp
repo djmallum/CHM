@@ -296,7 +296,7 @@ void Infil_All::run(mesh_elem &face)
     (*face)["total_excess"_s]=d.total_excess;
     (*face)["total_meltexcess"_s]=d.total_meltexcess;
     (*face)["total_inf"_s]=d.total_inf;
-    (*face)["total_snownf"_s]=d.total_snowinf;
+    (*face)["total_snowinf"_s]=d.total_snowinf;
     (*face)["total_rain_on_snow"_s]=d.total_rain_on_snow;
 
     (*face)["runoff"_s]=runoff;
