@@ -31,11 +31,11 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
 {
     // TODO Constructor is not properly editted with all new inputs (see set vars function at the end)
     depends("iswr");
-    depends("ilwr");
+    depends("netall");
+    depends("P_atm");
     depends("rh");
     depends("t");
     depends("U_2m_above_srf"); // 
-    depends("snow_albedo"); // named inaccurate to this module, 
     depends("soil_storage");                      // but is how albedo is used in CHM as of Sept, 2024
 
     provides("ET");
