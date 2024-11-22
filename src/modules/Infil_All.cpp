@@ -53,7 +53,6 @@ Infil_All::~Infil_All()
 
 void Infil_All::init(mesh& domain)
 {
-
     //store all of snobals global variables from this timestep to be used as ICs for the next timestep
 #pragma omp parallel for
     for (size_t i = 0; i < domain->size_faces(); i++)
@@ -88,8 +87,10 @@ void Infil_All::init(mesh& domain)
             d.ground_cover = face->soil_attribute<std::string>("soil_groundcover","soils");
         }
         else if (thaw_type == GREENAMPT)
+        {
             d.soil_type = face->soil_attribute<std::string>("soil_type","soils");
-
+            d.ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
+        }
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
 
         SoilDataObj = std::make_unique<Soil::soils_na>();
@@ -97,8 +98,6 @@ void Infil_All::init(mesh& domain)
         // porosity = SoilDataObj->porosity(d.soil_type);
         // soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
         d.max_soil_storage = face->parameter("soil_storage_max"_s);
-        d.ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
-
 
 
    }
@@ -111,7 +110,8 @@ void Infil_All::run(mesh_elem &face)
         set_all_nan_on_skip(face);
         return;
     }
-
+    
+    SPDLOG_DEBUG("In infil run");
 
     auto& d = face->get_module_data<Infil_All::data>(ID);
 

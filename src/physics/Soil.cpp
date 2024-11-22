@@ -1,10 +1,12 @@
 #include "Soil.h"
+#include <iostream>
 
 namespace Soil
 {
     double _soils_base::lookup(const mymap& map, const std::string key) const
     {
         auto it = map.find(key);
+        std::cout << key << std::endl;
         if (it != map.end())
         {
            return it->second;

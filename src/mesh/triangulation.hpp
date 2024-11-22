@@ -1767,6 +1767,7 @@ T face<Gt, Fb>::soil_attribute(const std::string &variable,const std::string cat
     if (has_parameter(variable))
     {    
         int LC = parameter(variable);
+        std::cout << LC << std::endl;
         auto param = _domain->_global->parameters;
         try
         {

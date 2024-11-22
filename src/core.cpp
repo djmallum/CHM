@@ -979,6 +979,9 @@ void core::config_output(pt::ptree &value)
 
                 out.x = out.longitude;
                 out.y = out.latitude;
+                std::cout << out.x << std::endl;
+                std::cout << out.y << std::endl;
+
 
                 OGRCoordinateTransformation* coordTrans = OGRCreateCoordinateTransformation(&insrs, &outsrs);
 
@@ -990,11 +993,26 @@ void core::config_output(pt::ptree &value)
 
                 OGRCoordinateTransformation::DestroyCT(coordTrans);
             }
+            std::cout << out.x << std::endl;
+            std::cout << out.y << std::endl;
 
-            if(!_mesh->is_geographic())
-                out.face = _mesh->locate_face(out.x, out.y);
-            else
-                out.face = _mesh->locate_face(out.longitude, out.latitude);
+
+           // if(!_mesh->is_geographic())
+           // {
+           //     SPDLOG_WARN("Output point {} HERE", out.name);
+           //     std::cout << out.x << std::endl;
+           //     std::cout << out.y << std::endl;
+           //     out.face = _mesh->locate_face(out.x, out.y);
+           // }
+           // else
+           // {
+           //     SPDLOG_WARN("Output point {} here instead", out.name);
+           //     out.face = _mesh->locate_face(out.longitude, out.latitude);
+           // }
+           //std::vector< mesh_elem > my = _mesh->find_faces_in_radius(out.x,out.y,10000.0);
+           //std::cout << my.size() << std::endl;
+           out.face = _mesh->face(0);
+           // out.face = _mesh->locate_face(-115.175, 50.9565);
 
             if(out.face != nullptr)
             {

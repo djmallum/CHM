@@ -43,7 +43,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     // In CRHM, the below calculation is an option, for now just use the minimum option.
     if (has_vegetation)
     {
-        double LAI = veg_Ht/2.0*leaf_area_index_max; //TODO ad hoc for test
+        double LAI = Veg_height/2.0*leaf_area_index_max; //TODO ad hoc for test
         rcstar = stomatal_resistance_min * leaf_area_index_max / LAI;
         // rcstar = stomatal_resistance_min * leaf_area_index_max / leaf_area_index; TODO commented for test
     }
