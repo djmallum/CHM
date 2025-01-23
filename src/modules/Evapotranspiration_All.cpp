@@ -33,7 +33,7 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
     depends("iswr");
     depends("netall");
     depends("P_atm");
-    depends("rh");
+    depends("ea");
     depends("t");
     depends("U_2m_above_srf"); // 
     depends("soil_storage");                      // but is how albedo is used in CHM as of Sept, 2024
@@ -93,7 +93,6 @@ void Evapotranspiration_All::init(mesh& domain)
 
 void Evapotranspiration_All::run(mesh_elem& face)
 {
-
     auto& d = face->get_module_data<Evapotranspiration_All::data>(ID);
     model_output output;
 
@@ -117,7 +116,7 @@ void Evapotranspiration_All::run(mesh_elem& face)
 
         double t = (*face)["t"_s];
         double SVP = Atmosphere::saturatedVapourPressure(t);  
-        double VP = (*face)["rh"_s] * SVP;
+        double VP = (*face)["ea"_s];
         PM_vars my_PM_vars = set_PenmanMonteith_vars(face,t,SVP,VP);
     
         d.MyPenmanMonteith->CalcEvapT(my_PM_vars,output);
