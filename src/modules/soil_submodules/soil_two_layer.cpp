@@ -142,6 +142,7 @@ void soil_two_layer::organize_soil_layers()
         
     else
         DTO.excess = DTO.infil + DTO.condensation;
+    // TODO tracking actual infiltration: possible - excess, might be useful
 
     }    
 };
@@ -154,13 +155,12 @@ void soil_two_layer::manage_detention()
     
     if (DTO.soil_excess_to_runoff > 0.0)
     {
-        double detention_max;
         if (DTO.swe <= DTO.snow_covered_threshold)
-            detention_max = DTO.detention_snow_max;
+            DTO.detention_max = DTO.detention_snow_max;
         else
-            detention_max = DTO.detention_organic_max;
+            DTO.detention_max = DTO.detention_organic_max;
 
-        double detention_space = detention_max - DTO.detention_storage;
+        double detention_space = DTO.detention_max - DTO.detention_storage;
 
         if (detention_space > 0.0)
         {
@@ -233,7 +233,7 @@ void soil_two_layer::manage_depression()
 
 void soil_two_layer::manage_groundwater()
 {
-    DTO.ground_water_storage += DTO.depression_to_gw;
+    DTO.ground_water_storage += DTO.depression_to_gw; // TODO Possible error source, should be adding soil_excess_to_gw rather than depression to gw
     DTO.ground_water_out = 0.0;
 
     if (DTO.ground_water_storage > DTO.ground_water_max)
