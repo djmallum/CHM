@@ -47,7 +47,7 @@ void soil_ET::run()
         double percent_available_rechr;
         double ET_lower;
         double ET_rechr;
-        double soil_lower_storage = DTO.soil_storage_max - DTO.soil_rechr_max;
+        double soil_lower_storage = DTO.soil_storage - DTO.soil_rechr_storage;
         double soil_lower_max = DTO.soil_storage_max - DTO.soil_rechr_max;
 
         if ( soil_lower_max > 0.0 ) // soil_lower > 0.0
