@@ -48,13 +48,13 @@ point_mode::point_mode(config_file cfg)
     if(unit_test_new_modules)    
     {
         // Infil_All
-        depends_from_met("swe");
+        depends_from_met("SWE");
         provides("swe");
 
-        depends_from_met("snowmelt_int");
+        depends_from_met("snowmeltD");
         provides("snowmelt_int"); 
         
-        depends_from_met("rainfall_int");
+        depends_from_met("net_rain");
         provides("rainfall_int");  
         
         //depends_from_met("soil_storage_at_freeze");
@@ -63,21 +63,29 @@ point_mode::point_mode(config_file cfg)
         // t is included in another section
 
         // Evapotranspiration_All
-        depends_from_met("netall");
+        depends_from_met("Rn");
         provides("netall");   
         
-        depends_from_met("P_atm");
+        depends_from_met("Pa");
         provides("P_atm");  
 
-        depends_from_met("ea");
+        depends_from_met("hru_ea");
         provides("ea"); 
        
         // rh, t, U_2m_above_srf included already here
         // soil_storage comes from the soil module
 
         // soil_module
+        depends_from_met("rho");
+        provides("snow_density");
         // All depends/provides come from other modules
         // swe, ET, inf, runoff
+        //
+        depends_from_met("hru_t");
+        provides("t");
+
+        depends_from_met("hru_u");
+        provides("U_2m_above_srf");
     }    
     if(t)
     {
@@ -163,25 +171,35 @@ void point_mode::run(mesh_elem &face)
 
     if(unit_test_new_modules)
     {
-        double swe = (*face->nearest_station())["swe"_s];
+        double swe = (*face->nearest_station())["SWE"_s];
         (*face)["swe"_s] = swe;
 
-        double snowmelt_int = (*face->nearest_station())["snowmelt_int"_s];
-        (*face)["snowmelt_int"_s] = snowmelt_int;
+        double snowmelt_int = (*face->nearest_station())["snowmeltD"_s];
+        (*face)["snowmelt_int"_s] = snowmelt_int/24;
 
-        double rainfall_int = (*face->nearest_station())["rainfall_int"_s];
+        double rainfall_int = (*face->nearest_station())["net_rain"_s];
         (*face)["rainfall_int"_s] = rainfall_int;
 
         (*face)["soil_storage_at_freeze"_s] = soil_storage_at_freeze;
 
-        double netall = (*face->nearest_station())["netall"_s];
+        double netall = (*face->nearest_station())["Rn"_s];
         (*face)["netall"_s] = netall;
 
         double P_atm = 101.3*pow( (293.0 - 0.0065*elevation)/293.0,5.26);
         (*face)["P_atm"_s] = P_atm;
 
-        double ea = (*face->nearest_station())["ea"_s];
+        double ea = (*face->nearest_station())["hru_ea"_s];
         (*face)["ea"_s] = ea;
+
+        double rho = (*face->nearest_station())["rho"_s];
+        (*face)["snow_density"_s] = rho;
+
+        double t = (*face->nearest_station())["hru_t"_s];
+        (*face)["t"_s] = t;
+        
+        double u = (*face->nearest_station())["hru_u"_s];
+        (*face)["U_2m_above_srf"_s] = u;
+
     }
     if(t)
     {
