@@ -11,7 +11,9 @@ soil_ET::~soil_ET()
 };
 
 void soil_ET::run()
-{
+{   
+    DTO.actual_ET = 0.0;
+
     std::cout << "in soil ET" << std::endl;
     double available_to_evap = DTO.potential_ET;
     if (DTO.depression_storage + DTO.soil_storage > 0.0)
