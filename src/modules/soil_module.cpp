@@ -1,5 +1,7 @@
 #include "soil_module.hpp"
 
+REGISTER_MODULE_CPP(soil_module);
+
 soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel::data, cfg)
 {
     depends("swe");
@@ -67,10 +69,12 @@ void soil_module::run(mesh_elem& face)
     // This is fine because this soil module is run in this order.
 
     d.soil_layers->run();
-    
+
     d.ET->run();
 
     set_soil_outputs(face,d);
+
+
 };
 
 void soil_module::get_soil_inputs(mesh_elem& face,soil_module::data& d)
@@ -106,7 +110,6 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         d.soil_storage_max = face->soil_attribute<double>("soil_storage_max"_s);
         d.soil_rechr_max = face->soil_attribute<double>("soil_rechr_max"_s);
         d.excess_to_ssr = face->soil_attribute<bool>("excess_to_ssr"_s); 
-        d.detention_max = face->soil_attribute<double>("detention_max"_s);
         d.detention_snow_max = face->soil_attribute<double>("detention_snow_max"_s);
         d.detention_organic_max = face->soil_attribute<double>("detention_organic_max"_s);
         d.depression_max = face->soil_attribute<double>("depression_max"_s);
@@ -194,8 +197,8 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
     {
         d.soil_storage = face->soil_attribute<double>("soil_storage"_s);
         d.soil_rechr_storage = face->soil_attribute<double>("soil_rechr_storage"_s);
-        d.thaw_fraction_rechr = face->soil_attribute<double>("thaw_fraction_rechr"_s);
-        d.thaw_fraction_lower = face->soil_attribute<double>("thaw_fraction_lower"_s);
+        //d.thaw_fraction_rechr = face->soil_attribute<double>("thaw_fraction_rechr"_s);
+        //d.thaw_fraction_lower = face->soil_attribute<double>("thaw_fraction_lower"_s);
         d.detention_snow_init = face->soil_attribute<double>("detention_snow_init"_s);
         d.detention_organic_init = face->soil_attribute<double>("detention_organic_init"_s);
         d.depression_storage = face->soil_attribute<double>("depression_storage"_s);
@@ -217,7 +220,7 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
 bool soil_module::data::is_lake(soil_ET_DTO& DTO)
 {
     soil_module::data& d = static_cast<soil_module::data&>(DTO);
-
+    bool temp = d.local_module->is_water(*d.my_face);
     return d.local_module->is_water(*d.my_face);
 };
 
