@@ -481,16 +481,11 @@ public:
     bool is_water(mesh_elem& face)
     {
         bool is = false;
-        bool tmp = face->has_parameter("landcover"_s);
-        SPDLOG_DEBUG("iswater");
         if(face->has_parameter("landcover"_s))
         {
             int LC = face->parameter("landcover"_s);
-            SPDLOG_DEBUG("iswater {}", LC);
             is = global_param->parameters.get<bool>("landcover." + std::to_string(LC) + ".is_water",false);
-            SPDLOG_DEBUG("hi");
         }
-        SPDLOG_DEBUG("hey");
         return is;
     }
 
