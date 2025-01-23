@@ -79,7 +79,7 @@
 
 class soil_module : public module_base
 {
-REGISTER_MODULE_HPP(soil_module)
+REGISTER_MODULE_HPP(soil_module);
 public:
     soil_module(config_file cfg);
 
