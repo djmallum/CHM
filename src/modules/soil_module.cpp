@@ -219,9 +219,16 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
 
 bool soil_module::data::is_lake(soil_ET_DTO& DTO)
 {
-    soil_module::data& d = static_cast<soil_module::data&>(DTO);
-    bool temp = d.local_module->is_water(*d.my_face);
-    return d.local_module->is_water(*d.my_face);
+    try 
+    {
+        // TODO resolve this bug
+        soil_module::data& d = dynamic_cast<soil_module::data&>(DTO);
+        //bool temp = d.local_module->is_water(*d.my_face);
+        return false;//d.local_module->is_water(*d.my_face);
+    } catch (const std::bad_cast& e) {
+        SPDLOG_DEBUG("bad cast");
+        return false;
+    }
 };
 
 int soil_module::data::get_dt(two_layer_DTO& DTO)
