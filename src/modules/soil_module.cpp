@@ -22,6 +22,7 @@ soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel:
     provides("soil_rechr_storage");
     provides("depression_storage");
     provides("ground_water_storage");
+    provides("detention_storage");
 };
 
 soil_module::~soil_module()
@@ -100,6 +101,7 @@ void soil_module::set_soil_outputs(mesh_elem& face,soil_module::data& d)
     (*face)["soil_rechr_storage"_s] = d.soil_rechr_storage;
     (*face)["depression_storage"_s] = d.depression_storage;
     (*face)["ground_water_storage"_s] = d.ground_water_storage;
+    (*face)["detention_storage"_s] = d.detention_storage;
 };
 
 void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
