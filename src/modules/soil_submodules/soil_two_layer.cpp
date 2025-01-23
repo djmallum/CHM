@@ -54,14 +54,15 @@ void soil_two_layer::set_layer_thaw_fraction()
     if (DTO.porosity > 0.0)  
     {    
     // TODO, porosity in rechr is the same as lower    
-        double rechr_depth = DTO.soil_rechr_max / DTO.porosity;
-        double soil_depth = DTO.soil_storage_max / DTO.porosity;
+        rechr_depth = DTO.soil_rechr_max / DTO.porosity;
+        soil_depth = DTO.soil_storage_max / DTO.porosity;
     }
+    
 
     if (DTO.thaw_front_depth == 0.0 && DTO.freeze_front_depth == 0.0)
     {
         DTO.thaw_fraction_rechr = 1.0;
-        DTO.thaw_fraction_lower = 1.0; 
+        DTO.thaw_fraction_lower = 1.0;
     }
     else 
     {
@@ -97,7 +98,6 @@ void soil_two_layer::organize_soil_layers()
         double potential = DTO.infil + DTO.condensation;
 
         double possible = DTO.thaw_fraction_rechr * (DTO.soil_rechr_max - DTO.soil_rechr_storage);
-
         if (possible > potential)
             possible = potential;
         else
@@ -190,7 +190,7 @@ void soil_two_layer::manage_detention()
 
 void soil_two_layer::manage_depression()
 {
-    if (DTO.soil_excess_to_runoff > 0.0 && DTO.depression_storage > 0.0)
+    if (DTO.soil_excess_to_runoff > 0.0 && DTO.depression_max > 0.0)
     {
         double exponent = -1.0 * std::min(12.0,DTO.soil_excess_to_runoff / DTO.depression_max);
 
@@ -282,7 +282,7 @@ void soil_two_layer::_push_excess_down(double& layer_storage, double& layer_max,
     layer_storage = layer_max;
 
     layer_down += excess;
-}
+};
     
 double soil_two_layer::transfer_min(double& val1, double& val2)
 {
