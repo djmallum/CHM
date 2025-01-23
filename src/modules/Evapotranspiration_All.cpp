@@ -48,7 +48,7 @@ void Evapotranspiration_All::init(mesh& domain)
     alpha = cfg.get("alpha_PriestleyTaylor",1.26);
     wind_height = cfg.get("wind_measurement_height",2);
     stomatal_resistance_min = cfg.get("stomatal_resistance_min",62);
-    Frac_to_ground = cfg.get<double>("Frac_to_ground",1); // iswr_subcanopy exists.
+    Frac_to_ground = cfg.get<double>("Frac_to_ground",1.0); // iswr_subcanopy exists.
 
     SoilDataObj = std::make_unique<Soil::soils_na>();
 
@@ -164,7 +164,6 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d
 PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& t, double& saturated_vapour_pressure,double& vapour_pressure)
 {
     PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],(*face)["netall"_s],t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"_s]); 
-
 
     return vars;
 }
