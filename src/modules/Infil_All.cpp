@@ -81,6 +81,8 @@ void Infil_All::init(mesh& domain)
         major = cfg.get("major",5); 
         AllowPriorInf = cfg.get("AllowPriorInf",true);
         thaw_type = cfg.get("thaw_type",0); // Default is Ayers
+
+        SoilDataObj = std::make_unique<Soil::soils_na>();
         if (thaw_type == AYERS)
         {    
             d.texture = face->soil_attribute<std::string>("soil_texture","soils");
@@ -93,10 +95,7 @@ void Infil_All::init(mesh& domain)
         }
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
 
-        SoilDataObj = std::make_unique<Soil::soils_na>();
 
-        // porosity = SoilDataObj->porosity(d.soil_type);
-        // soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
         d.max_soil_storage = face->parameter("soil_storage_max"_s);
 
 
@@ -111,7 +110,6 @@ void Infil_All::run(mesh_elem &face)
         return;
     }
     
-
     auto& d = face->get_module_data<Infil_All::data>(ID);
 
     auto id = face->cell_local_id;
@@ -160,19 +158,15 @@ void Infil_All::run(mesh_elem &face)
             }
             else if (soil_storage_at_freeze > 0 && soil_storage_at_freeze < 100) // Limited
             {
-		        
                 Check_for_ice_lens(d,airtemp);
-                
                 if ((d.major_melt_count == 0 & snowmelt >= major) || swe >= d.init_SWE) {
                     Calc_Index(d,swe,soil_storage_at_freeze);
-                    
                     snowinf = Calc_Actual_Inf(d,snowmelt);
-                    
+
                     d.major_melt_count += 1;
                 }
                 else if (d.major_melt_count > 0 && d.major_melt_count < infDays) {
                     snowinf = Calc_Actual_Inf(d,snowmelt);
-
                     d.major_melt_count += 1;
                 }
                 else if (d.major_melt_count == 0 and AllowPriorInf) {
@@ -214,7 +208,8 @@ void Infil_All::run(mesh_elem &face)
     {
         if (rainfall > 0.0)
         {
-            double maxinfil = SoilDataObj->ayers_texture(d.texture,d.ground_cover); // TODO Currently texture properties is assumed uniform, later make this triangle specific.
+            // TODO set maxinfil at the beginning
+            double maxinfil = SoilDataObj->ayers_texture(d.texture,d.ground_cover); 
             if (maxinfil > rainfall)
             {
                 inf = rainfall;
@@ -228,11 +223,8 @@ void Infil_All::run(mesh_elem &face)
         
         if (snowmelt > 0.0)
         {
-            // TODO this is adapted to daily snowmelt values, will have to be changed to work with snobal or FSM
-            double melt_per_step = snowmelt * global_param->dt() * 1 / 86400;
-
-            inf += melt_per_step;             
-            snowinf += melt_per_step;
+            inf += snowmelt;             
+            snowinf += snowmelt;
         }
         // Increment totals
         Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
