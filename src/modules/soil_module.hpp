@@ -119,6 +119,4 @@ private:
     int compare_substring(std::string& type, std::string sub);
 
 
-    
-
 };
