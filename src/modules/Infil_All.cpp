@@ -111,7 +111,6 @@ void Infil_All::run(mesh_elem &face)
         return;
     }
     
-    SPDLOG_DEBUG("In infil run");
 
     auto& d = face->get_module_data<Infil_All::data>(ID);
 
