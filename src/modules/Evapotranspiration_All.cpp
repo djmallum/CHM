@@ -48,8 +48,8 @@ void Evapotranspiration_All::init(mesh& domain)
     alpha = cfg.get("alpha_PriestleyTaylor",1.26);
     wind_height = cfg.get("wind_measurement_height",2);
     stomatal_resistance_min = cfg.get("stomatal_resistance_min",62);
-    Frac_to_ground = cfg.get("Frac_to_ground",1); // iswr_subcanopy exists.
-                                                  
+    Frac_to_ground = cfg.get<double>("Frac_to_ground",1); // iswr_subcanopy exists.
+
     SoilDataObj = std::make_unique<Soil::soils_na>();
 
     for (size_t i = 0; i < domain->size_faces(); i++)
@@ -115,7 +115,7 @@ void Evapotranspiration_All::run(mesh_elem& face)
         // t is made its own copy to avoid dereferencing face for "t" twice
 
         double t = (*face)["t"_s];
-        double SVP = Atmosphere::saturatedVapourPressure(t);  
+        double SVP = Atmosphere::saturatedVapourPressure(t+273.15)/1000; // units of kelvin expected 
         double VP = (*face)["ea"_s];
         PM_vars my_PM_vars = set_PenmanMonteith_vars(face,t,SVP,VP);
     
