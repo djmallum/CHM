@@ -43,7 +43,7 @@ Infil_All::Infil_All(config_file cfg) : module_base("Infil_All", parallel::data,
     provides("melt_runoff"); // NEW
     provides("total_rain_on_snow"); // NEW
     provides("rain_on_snow"); // NEW
-
+    provides("frozen");
 }
 
 Infil_All::~Infil_All()
@@ -137,6 +137,11 @@ void Infil_All::run(mesh_elem &face)
         d.max_major_per_melt = 0.;
         d.init_SWE = 0.;
     }
+    else if (swe <= 0.0 && d.major_melt_count > 0)
+    {
+        d.frozen = false;
+        d.major_melt_count = 0;
+    }
 
     if (d.frozen) // Gray's infiltration, 1985
     {
@@ -220,7 +225,15 @@ void Infil_All::run(mesh_elem &face)
                 runoff = rainfall - maxinfil;
             }
         }
+        
+        if (snowmelt > 0.0)
+        {
+            // TODO this is adapted to daily snowmelt values, will have to be changed to work with snobal or FSM
+            double melt_per_step = snowmelt * global_param->dt() * 1 / 86400;
 
+            inf += melt_per_step;             
+            snowinf += melt_per_step;
+        }
         // Increment totals
         Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
     }
@@ -303,6 +316,7 @@ void Infil_All::run(mesh_elem &face)
     (*face)["rain_on_snow"_s]=rain_on_snow;
     (*face)["snowinf"_s]=snowinf;
     (*face)["melt_runoff"_s]=melt_runoff;
+    (*face)["frozen"_s]=static_cast<int>(d.frozen);
 }
 
 //General Functions
