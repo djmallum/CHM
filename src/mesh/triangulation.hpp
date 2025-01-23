@@ -335,7 +335,7 @@ public:
      * look-up tables can point to strings or another type.
      * */
     template <typename T>
-    T soil_attribute(const std::string& variable);
+    T soil_attribute(const std::string variable);
 
     /**
      * This version of the function specifies that you need a look-up table.
@@ -347,7 +347,7 @@ public:
      * This is only found in the one argument version of this function 
      *  */
     template <typename T>
-    T soil_attribute(const std::string& variable,const std::string category);
+    T soil_attribute(const std::string variable,const std::string category);
 
     /**
      * Sets the vector for the given variable.
@@ -1744,7 +1744,7 @@ bool  face<Gt, Fb>::has_soil()
 
 template < class Gt, class Fb >
 template< typename T >
-T face<Gt, Fb>::soil_attribute(const std::string &variable)
+T face<Gt, Fb>::soil_attribute(const std::string variable)
 {
     
     T result{};
@@ -1755,23 +1755,21 @@ T face<Gt, Fb>::soil_attribute(const std::string &variable)
     {
         CHM_THROW_EXCEPTION(module_error, "Parameter " + variable +" does not exist.");
     }
-
     return result;
 };
 
 template < class Gt, class Fb >
 template< typename T >
-T face<Gt, Fb>::soil_attribute(const std::string &variable,const std::string category)
+T face<Gt, Fb>::soil_attribute(const std::string variable,const std::string category)
 {
     T result{};
     if (has_parameter(variable))
     {    
         int LC = parameter(variable);
-        std::cout << LC << std::endl;
         auto param = _domain->_global->parameters;
         try
         {
-            T result = param.get<T>(category + "." + variable + "." + std::to_string(LC));
+            result = param.get<T>(category + "." + variable + "." + std::to_string(LC));
         }
         catch(const boost::property_tree::ptree_bad_path& e)
         {
@@ -1782,7 +1780,6 @@ T face<Gt, Fb>::soil_attribute(const std::string &variable,const std::string cat
     {
         CHM_THROW_EXCEPTION(module_error, "Parameter " + variable + " in category " + category +" does not exist.");
     }
-
     return result;
 };
 
