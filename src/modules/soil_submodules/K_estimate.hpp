@@ -2,6 +2,7 @@
 
 #include "I_K_estimate.hpp"
 #include "soil_DTO.hpp"
+#include <iostream>
 #include <memory>
 // using an interface is pointless for now, since both are exposed, but this is more flexible in the future
 // and would allow for dependecy injection from the parent module.
@@ -24,6 +25,8 @@ public:
     virtual void calculate() = 0;
 
     I_Darcy_Vels(two_layer_DTO& _DTO) : DTO(_DTO) {};
+
+    void init_vels();
 protected:
     two_layer_DTO& DTO;
 };
@@ -31,8 +34,8 @@ protected:
 class Darcy_Vels : public I_Darcy_Vels
 {
 public:
-    Darcy_Vels(two_layer_DTO& _DTO) : I_Darcy_Vels(_DTO), exponent(3.0 + 2.0/DTO.pore_size_dist) {};
-    ~Darcy_Vels() {};
+    explicit Darcy_Vels(two_layer_DTO& _DTO) : I_Darcy_Vels(_DTO), exponent(3.0 + 2.0/DTO.pore_size_dist), exponent_organic(3.0 + 2.0/DTO.pore_size_dist_organic) {};
+    ~Darcy_Vels() override {};
     virtual void calculate() override;
 
 private:
@@ -40,7 +43,7 @@ private:
     // only used exactly in this manner
     const double factor = 1000.0 * 9.8 * 0.001787;
     const double exponent;
-    
+    const double exponent_organic; 
     void set_snow();
     void set_clear();
     double get_lateral_lower();
@@ -54,11 +57,8 @@ private:
 class K_estimate : public I_K_estimate
 {
 public:
-    K_estimate(two_layer_DTO& _DTO) : DTO(_DTO) 
-    {
-
-    };
-    ~K_estimate() {};
+    explicit K_estimate(two_layer_DTO& _DTO); 
+    ~K_estimate() override {};
 
     void run(void) override;
 
