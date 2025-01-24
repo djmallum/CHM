@@ -363,7 +363,7 @@ void Infil_All::increment_major_count(Infil_All::data& d,double& snowmelt)
 
 bool Infil_All::is_first_major(Infil_All::data& d, double& snowmelt, double& swe)
 {
-    return (d.major_melt_count == 0 & snowmelt >= major) || swe >= d.init_SWE;
+    return (d.major_melt_count == 0 & snowmelt >= major) || (swe >= d.init_SWE & d.major_melt_count > 0);
 };
 
 bool Infil_All::is_limited_phase(Infil_All::data& d)
