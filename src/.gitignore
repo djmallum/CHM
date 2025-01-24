@@ -1,3 +1,4 @@
 /CMakeFiles/
 *.cmake
 Makefile
+**/*.py
