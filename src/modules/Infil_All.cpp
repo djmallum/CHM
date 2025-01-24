@@ -159,18 +159,21 @@ void Infil_All::run(mesh_elem &face)
             else if (soil_storage_at_freeze > 0 && soil_storage_at_freeze < 100) // Limited
             {
                 Check_for_ice_lens(d,airtemp);
-                if ((d.major_melt_count == 0 & snowmelt >= major) || swe >= d.init_SWE) {
+                if (is_first_major(d,snowmelt,swe))
+                {
                     Calc_Index(d,swe,soil_storage_at_freeze);
                     snowinf = Calc_Actual_Inf(d,snowmelt);
    
                     increment_major_count(d,snowmelt);
                 }
-                else if (d.major_melt_count > 0 && d.major_melt_count < infDays) {
+                else if (is_limited_phase(d))
+                {
                     snowinf = Calc_Actual_Inf(d,snowmelt);
                     
                     increment_major_count(d,snowmelt);
                 }
-                else if (d.major_melt_count == 0 and AllowPriorInf) {
+                else if (is_prior_first_major(d))
+                {
                     snowinf = snowmelt;
                 }
 
@@ -357,6 +360,22 @@ void Infil_All::increment_major_count(Infil_All::data& d,double& snowmelt)
     if (snowmelt > major)
         d.major_melt_count += 1;
 };
+
+bool Infil_All::is_first_major(Infil_All::data& d, double& snowmelt, double& swe)
+{
+    return (d.major_melt_count == 0 & snowmelt >= major) || swe >= d.init_SWE;
+};
+
+bool Infil_All::is_limited_phase(Infil_All::data& d)
+{
+    return d.major_melt_count > 0 && d.major_melt_count < infDays;
+};
+
+bool Infil_All::is_prior_first_major(Infil_All::data& d)
+{
+    return d.major_melt_count == 0 and AllowPriorInf;
+};
+
 // Ayers
 
 // Green-Ampt Functions

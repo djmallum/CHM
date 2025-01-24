@@ -155,6 +155,11 @@ private:
     double Calc_Actual_Inf(data &d, double &melt);
     void Check_for_ice_lens(data &d, double &t); 
     void increment_major_count(Infil_All::data& d,double& snowmelt);
+    bool is_first_major(Infil_All::data& d, double& snowmelt, double& swe);
+    bool is_limited_phase(Infil_All::data& d);
+    bool is_prior_first_major(Infil_All::data& d);
+
+
 
     // Green-Ampt Functions
     double convert_to_rate_hourly(double &rainfall); 
