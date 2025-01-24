@@ -162,12 +162,13 @@ void Infil_All::run(mesh_elem &face)
                 if ((d.major_melt_count == 0 & snowmelt >= major) || swe >= d.init_SWE) {
                     Calc_Index(d,swe,soil_storage_at_freeze);
                     snowinf = Calc_Actual_Inf(d,snowmelt);
-
-                    d.major_melt_count += 1;
+   
+                    increment_major_count(d,snowmelt);
                 }
                 else if (d.major_melt_count > 0 && d.major_melt_count < infDays) {
                     snowinf = Calc_Actual_Inf(d,snowmelt);
-                    d.major_melt_count += 1;
+                    
+                    increment_major_count(d,snowmelt);
                 }
                 else if (d.major_melt_count == 0 and AllowPriorInf) {
                     snowinf = snowmelt;
@@ -351,6 +352,11 @@ void Infil_All::Check_for_ice_lens(Infil_All::data &d, double &t) {
     }
 }
 
+void Infil_All::increment_major_count(Infil_All::data& d,double& snowmelt)
+{
+    if (snowmelt > major)
+        d.major_melt_count += 1;
+};
 // Ayers
 
 // Green-Ampt Functions

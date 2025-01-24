@@ -154,6 +154,7 @@ private:
     void Calc_Index(data &d, double &swe, double &theta);
     double Calc_Actual_Inf(data &d, double &melt);
     void Check_for_ice_lens(data &d, double &t); 
+    void increment_major_count(Infil_All::data& d,double& snowmelt);
 
     // Green-Ampt Functions
     double convert_to_rate_hourly(double &rainfall); 
