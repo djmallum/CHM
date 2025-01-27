@@ -73,7 +73,9 @@ void Infil_All::init(mesh& domain)
         d.index = 0;
         d.max_major_per_melt = 0.;
         d.init_SWE = 0.;
+        d.daily_melt_total = 0.;
         d.soil_storage = face->soil_attribute<double>("soil_storage");
+        d.current_day_is_major = false;
 
         // Model Parameters
         infDays = cfg.get("max_inf_days",6);
@@ -81,6 +83,7 @@ void Infil_All::init(mesh& domain)
         major = cfg.get("major",5); 
         AllowPriorInf = cfg.get("AllowPriorInf",true);
         thaw_type = cfg.get("thaw_type",0); // Default is Ayers
+        last_day = 0;
 
         SoilDataObj = std::make_unique<Soil::soils_na>();
         if (thaw_type == AYERS)
@@ -158,19 +161,23 @@ void Infil_All::run(mesh_elem &face)
             }
             else if (soil_storage_at_freeze > 0 && soil_storage_at_freeze < 100) // Limited
             {
+                
                 Check_for_ice_lens(d,airtemp);
+
+                daily_melt_increment(d,snowmelt);
+
                 if (is_first_major(d,snowmelt,swe))
                 {
                     Calc_Index(d,swe,soil_storage_at_freeze);
                     snowinf = Calc_Actual_Inf(d,snowmelt);
    
-                    increment_major_count(d,snowmelt);
+                    increment_major_count(d);
                 }
                 else if (is_limited_phase(d))
                 {
                     snowinf = Calc_Actual_Inf(d,snowmelt);
                     
-                    increment_major_count(d,snowmelt);
+                    increment_major_count(d);
                 }
                 else if (is_prior_first_major(d))
                 {
@@ -355,16 +362,25 @@ void Infil_All::Check_for_ice_lens(Infil_All::data &d, double &t) {
     }
 }
 
-void Infil_All::increment_major_count(Infil_All::data& d,double& snowmelt)
-{
-    if (snowmelt > major)
-        d.major_melt_count += 1;
-};
-
 bool Infil_All::is_first_major(Infil_All::data& d, double& snowmelt, double& swe)
 {
-    return (d.major_melt_count == 0 & snowmelt >= major) || (swe >= d.init_SWE & d.major_melt_count > 0);
+    return ( (d.major_melt_count == 0) & (is_major_melt(d)) ) || ( (swe >= d.init_SWE) & (d.major_melt_count > 0));
 };
+
+bool Infil_All::is_major_melt(Infil_All::data& d)
+{
+    return d.daily_melt_total > major;
+};
+
+void Infil_All::increment_major_count(Infil_All::data& d)
+{
+    if (is_major_melt(d) && !d.current_day_is_major)
+    {
+        d.major_melt_count++;
+        d.current_day_is_major = true;
+    }
+}; 
+
 
 bool Infil_All::is_limited_phase(Infil_All::data& d)
 {
@@ -376,6 +392,21 @@ bool Infil_All::is_prior_first_major(Infil_All::data& d)
     return d.major_melt_count == 0 and AllowPriorInf;
 };
 
+bool Infil_All::is_new_day(void)
+{
+    int current_day = global_param->day();
+
+    return current_day != last_day;
+};
+
+void Infil_All::daily_melt_increment(Infil_All::data& d, double& snowmelt)
+{
+    if (!is_new_day())
+        d.daily_melt_total += snowmelt;
+    else
+        d.daily_melt_total = snowmelt;
+        d.current_day_is_major = false;
+};
 // Ayers
 
 // Green-Ampt Functions
