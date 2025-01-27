@@ -109,6 +109,8 @@ public:
         double daily_melt_total;
         unsigned int major_melt_count;
         bool current_day_is_major; 
+        int last_day;
+
         // Ayers
         std::string texture;
         std::string ground_cover;
@@ -132,7 +134,6 @@ private:
     unsigned int infDays;
     bool AllowPriorInf;   
     double lenstemp;
-    bool last_day;
 
     // General, thawed soil
     enum ThawOptions { AYERS, GREENAMPT};
@@ -160,7 +161,7 @@ private:
     bool is_first_major(Infil_All::data& d, double& snowmelt, double& swe);
     bool is_limited_phase(Infil_All::data& d);
     bool is_prior_first_major(Infil_All::data& d);
-    bool is_new_day();
+    bool is_new_day(Infil_All::data& d);
     bool is_major_melt(Infil_All::data& d);
     void daily_melt_increment(Infil_All::data& d, double& snowmelt);
 
