@@ -44,6 +44,7 @@ Infil_All::Infil_All(config_file cfg) : module_base("Infil_All", parallel::data,
     provides("total_rain_on_snow"); // NEW
     provides("rain_on_snow"); // NEW
     provides("frozen");
+    provides("major_melt_count");
 }
 
 Infil_All::~Infil_All()
@@ -77,6 +78,7 @@ void Infil_All::init(mesh& domain)
         d.soil_storage = face->soil_attribute<double>("soil_storage");
         d.current_day_is_major = false;
         d.last_day = 0;
+        d.tmax = 0.0;
 
         // Model Parameters
         infDays = cfg.get("max_inf_days",6);
@@ -165,6 +167,7 @@ void Infil_All::run(mesh_elem &face)
                 Check_for_ice_lens(d,airtemp);
 
                 daily_melt_increment(d,snowmelt);
+                increment_major_count(d);
                 if (is_first_major(d,snowmelt,swe))
                 {
                     SPDLOG_DEBUG("First Major");
@@ -215,7 +218,10 @@ void Infil_All::run(mesh_elem &face)
 
 
             Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
-             
+            if (is_new_day(d))
+            {
+                d.last_day = global_param->day();
+            }      
 
         }
     }
@@ -242,6 +248,7 @@ void Infil_All::run(mesh_elem &face)
             snowinf += snowmelt;
         }
         // Increment totals
+        
         Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
     }
     else if (thaw_type == GREENAMPT) // if not frozen, do GreenAmpt
@@ -324,6 +331,7 @@ void Infil_All::run(mesh_elem &face)
     (*face)["snowinf"_s]=snowinf;
     (*face)["melt_runoff"_s]=melt_runoff;
     (*face)["frozen"_s]=static_cast<int>(d.frozen);
+    (*face)["major_melt_count"_s]=d.major_melt_count;
 }
 
 //General Functions
@@ -362,10 +370,16 @@ double Infil_All::Calc_Actual_Inf(Infil_All::data &d, double &melt) {
 
 void Infil_All::Check_for_ice_lens(Infil_All::data &d, double &t) 
 {
-    if (d.major_melt_count > 0 && t < lenstemp)
+    d.tmax = std::max(d.tmax,t);
+
+    if (is_new_day(d))
     {
-        SPDLOG_DEBUG("Ice lens found"); 
-        d.major_melt_count = infDays + 4;
+        if (d.major_melt_count > 0 && d.tmax < lenstemp)
+        {
+            SPDLOG_DEBUG("Ice lens found"); 
+            d.major_melt_count = infDays + 4;
+        }
+        d.tmax = 0.0;
     }
 }
 
@@ -402,18 +416,18 @@ bool Infil_All::is_prior_first_major(Infil_All::data& d)
 bool Infil_All::is_new_day(Infil_All::data& d)
 {
     int current_day = global_param->day();
-
+    
     if (current_day == d.last_day)
         return false;
     else 
     {
-        d.last_day = current_day;
         return true;
     }
 };
 
 void Infil_All::daily_melt_increment(Infil_All::data& d, double& snowmelt)
 {
+
     if (!is_new_day(d))
         d.daily_melt_total += snowmelt;
     else

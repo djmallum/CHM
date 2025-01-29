@@ -110,6 +110,7 @@ public:
         unsigned int major_melt_count;
         bool current_day_is_major; 
         int last_day;
+        double tmax;
 
         // Ayers
         std::string texture;
