@@ -244,8 +244,8 @@ void Infil_All::run(mesh_elem &face)
         
         if (snowmelt > 0.0)
         {
-            inf += snowmelt;             
-            snowinf += snowmelt;
+            runoff += snowmelt;             
+            meltrunoff += snowmelt;
         }
         // Increment totals
         
