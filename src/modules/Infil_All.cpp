@@ -242,11 +242,8 @@ void Infil_All::run(mesh_elem &face)
             }
         }
         
-        if (snowmelt > 0.0)
-        {
-            runoff += snowmelt;             
-            meltrunoff += snowmelt;
-        }
+        melt_to_runoff(runoff,melt_runoff,snowmelt);
+        
         // Increment totals
         
         Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
@@ -312,7 +309,11 @@ void Infil_All::run(mesh_elem &face)
             // Increment totals
             Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
             d.soil_storage += d.GA_temp->final_storage;  
+
+            melt_to_runoff(runoff,melt_runoff,snowmelt);
+
             d.GA_temp.reset();
+
         } // if(net_rain[hh] + net_snow[hh] > 0.0) greenampt routine
     }  
 
@@ -343,6 +344,16 @@ void Infil_All::Increment_Totals(Infil_All::data &d, double &runoff, double &mel
     d.total_rain_on_snow += rain_on_snow;
 }      
 
+void Infil_All::melt_to_runoff(double& runoff,double& melt_runoff,double& snowmelt)
+{
+    // This function determines what to do with the excess melt after swe = 0 when the crack model shuts off
+    // Logan suggested setting it as runoff
+    if (snowmelt > 0.0)
+    {
+        runoff += snowmelt;             
+        melt_runoff += snowmelt;
+    }
+};
 
 // Crack Functions
 void Infil_All::Calc_Index(Infil_All::data &d, double &swe, double &theta) {
