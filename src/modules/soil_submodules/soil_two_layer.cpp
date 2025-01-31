@@ -67,7 +67,7 @@ void soil_two_layer::set_layer_thaw_fraction()
     }
     else 
     {
-
+        // TODO Verify this calculation
         if (DTO.thaw_front_depth < rechr_depth)
             DTO.thaw_fraction_rechr = DTO.thaw_front_depth / rechr_depth;
         
