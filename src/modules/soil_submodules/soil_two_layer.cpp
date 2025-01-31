@@ -7,8 +7,6 @@ void soil_two_layer::run()
                                 // also would need to remove or use face_area
     initialize_single_step_vars(); 
 
-    k_estimator.run();
-
     //set_K_values();
 
     set_layer_thaw_fraction();
@@ -24,7 +22,8 @@ void soil_two_layer::run()
     manage_groundwater();
 
     manage_subsurface_runoff();
-
+    
+    k_estimator.run();
 };
 
 void soil_two_layer::initialize_single_step_vars()
