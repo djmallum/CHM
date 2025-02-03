@@ -153,7 +153,7 @@ private:
     // TODO I should put all these functions on the data class
     // General Functions
     void Increment_Totals(data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
-    void melt_to_runoff(double& runoff,double& melt_runoff,double& snowmelt);
+    void melt_to_infil(double& inf,double& snowinf,double& snowmelt);
 
     // Crack Functions
     void Calc_Index(data &d, double &swe, double &theta);
