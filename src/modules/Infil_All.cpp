@@ -242,7 +242,7 @@ void Infil_All::run(mesh_elem &face)
             }
         }
         
-        melt_to_runoff(runoff,melt_runoff,snowmelt);
+        melt_to_infil(inf,snowinf,snowmelt);
         
         // Increment totals
         
@@ -310,7 +310,7 @@ void Infil_All::run(mesh_elem &face)
             Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
             d.soil_storage += d.GA_temp->final_storage;  
 
-            melt_to_runoff(runoff,melt_runoff,snowmelt);
+            melt_to_infil(inf,snowinf,snowmelt);
 
             d.GA_temp.reset();
 
@@ -344,14 +344,14 @@ void Infil_All::Increment_Totals(Infil_All::data &d, double &runoff, double &mel
     d.total_rain_on_snow += rain_on_snow;
 }      
 
-void Infil_All::melt_to_runoff(double& runoff,double& melt_runoff,double& snowmelt)
+void Infil_All::melt_to_infil(double& inf,double& snowinf,double& snowmelt)
 {
     // This function determines what to do with the excess melt after swe = 0 when the crack model shuts off
     // Logan suggested setting it as runoff
     if (snowmelt > 0.0)
     {
-        runoff += snowmelt;             
-        melt_runoff += snowmelt;
+        inf += snowmelt;             
+        snowinf += snowmelt;
     }
 };
 
