@@ -33,21 +33,21 @@ public:
     // double Veg_height;
     // double Veg_height_max;
     
-    double& leaf_area_index;
+    double leaf_area_index;
     //double LAImin;
     //double seasonal_growth;
-    double& leaf_area_index_max;
-    double& Veg_height;
-    double& wind_measurement_height; // This one might be uniform...
-    double& stomatal_resistance_min; // Also might be domain wide
-    double& soil_depth;
-    double& Frac_to_ground;
-    const double& heat_capacity_air;
-    const double& kappa; // also might be domain wide
-    const double& air_entry_tension;
-    const double& pore_size_dist; 
-    const double& wilt_point;
-    const double& porosity; 
+    double leaf_area_index_max;
+    double Veg_height;
+    double wind_measurement_height; // This one might be uniform...
+    double stomatal_resistance_min; // Also might be domain wide
+    double soil_depth;
+    double Frac_to_ground;
+    const double heat_capacity_air;
+    const double kappa; // also might be domain wide
+    const double air_entry_tension;
+    const double pore_size_dist; 
+    const double wilt_point;
+    const double porosity; 
 private:
 
     // dont delete

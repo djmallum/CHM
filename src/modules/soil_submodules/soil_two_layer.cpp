@@ -113,9 +113,11 @@ void soil_two_layer::organize_soil_layers()
         if (DTO.soil_storage > DTO.soil_storage_max)
             _push_excess_down(DTO.soil_storage,DTO.soil_storage_max,DTO.soil_excess_to_gw);
         
+        SPDLOG_DEBUG(DTO.K_rechr_to_ssr); 
         if (DTO.swe == 0.0) // if there is no snowcover
         {
             DTO.rechr_to_ssr = DTO.soil_rechr_storage / DTO.soil_rechr_max * DTO.K_rechr_to_ssr * DTO.thaw_fraction_rechr;
+            SPDLOG_DEBUG(DTO.rechr_to_ssr);
             DTO.rechr_to_ssr = std::min(DTO.rechr_to_ssr,DTO.soil_rechr_storage * DTO.thaw_fraction_rechr);
 
             DTO.soil_rechr_storage = std::max(0.0, DTO.soil_rechr_storage - DTO.rechr_to_ssr);
