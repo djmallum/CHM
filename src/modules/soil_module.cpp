@@ -78,8 +78,11 @@ void soil_module::run(mesh_elem& face)
     // This is fine because this soil module is run in this order.
 
     d.soil_layers->run();
-
-    d.ET->run();
+    
+    if (d.swe == 0.0)
+        d.ET->run();
+    else
+        d.actual_ET = 0.0;
 
     set_soil_outputs(face,d);
 
