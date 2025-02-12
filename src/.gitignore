@@ -2,3 +2,4 @@
 *.cmake
 Makefile
 **/*.py
+**/*.swo
