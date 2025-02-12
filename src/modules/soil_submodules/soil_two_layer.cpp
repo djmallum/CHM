@@ -82,7 +82,7 @@ void soil_two_layer::set_layer_thaw_fraction()
 
 void soil_two_layer::set_condensation()
 {
-    if (DTO.potential_ET < 0.0)
+    if (DTO.potential_ET < 0.0 && DTO.swe == 0.0)
     {
         DTO.condensation = -1.0 * DTO.potential_ET;
         DTO.potential_ET = 0.0;
