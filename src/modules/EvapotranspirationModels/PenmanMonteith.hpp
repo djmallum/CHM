@@ -19,9 +19,9 @@ class PenmanMonteith : public evapT_base
 public:
 
     PenmanMonteith(double& LAI, double& LAImax, double& veg_Ht, double& wind_height, 
-            double& stomatal_res_min, double& soil_d, double& F_to_g, const double& Cp, 
-            const double& K, const double& tension, const double& pore_sz, 
-            const double& theta_pwp, const double& phi); 
+            double& stomatal_res_min, double& soil_d, double& F_to_g, const double Cp, 
+            const double K, const double tension, const double pore_sz, 
+            const double theta_pwp, const double phi); 
    
                      
     ~PenmanMonteith(void) override; // Deconstructor
@@ -42,12 +42,12 @@ public:
     double& stomatal_resistance_min; // Also might be domain wide
     double& soil_depth;
     double& Frac_to_ground;
-    const double& heat_capacity_air;
-    const double& kappa; // also might be domain wide
-    const double& air_entry_tension;
-    const double& pore_size_dist; 
-    const double& wilt_point;
-    const double& porosity; 
+    const double heat_capacity_air;
+    const double kappa; // also might be domain wide
+    const double air_entry_tension;
+    const double pore_size_dist; 
+    const double wilt_point;
+    const double porosity; 
 private:
 
     // dont delete
