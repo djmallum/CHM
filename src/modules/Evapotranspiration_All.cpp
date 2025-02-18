@@ -60,7 +60,7 @@ void Evapotranspiration_All::init(mesh& domain)
         // Consider if an if statement is necessary.
 
         
-        d.soil_depth = 1.0; // Nothing for now
+        d.soil_depth = face->soil_attribute<double>("soil_depth"_s);
         if (face->has_vegetation())
         {
             d.LAI = face->veg_attribute("LAI");
@@ -73,7 +73,6 @@ void Evapotranspiration_All::init(mesh& domain)
             d.LAImax = 0.0;
             d.vegetation_height = 0.0;
         }
-
         // TODO Consider if we can have a single model object per triangle.
         // Polymorpish would let this work well
         // It wouldn't work if PT model is used for normal soils when they are saturated.
@@ -140,19 +139,16 @@ void Evapotranspiration_All::init_PriestleyTaylor(Evapotranspiration_All::data& 
 void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d,mesh_elem& face, double& wind_height, double& stomatal_resistance_min, double& Frac_to_ground)
 {
     
-    const std::string soil_type = cfg.get("soil_type","sand");
-
-   
+    const std::string soil_type = face->soil_attribute<std::string>("soil_type"_s,"soils");
     
-    const double& Cp = Atmosphere::Cp;
-    const double& kappa = Atmosphere::kappa;
-    const double& air_entry_tension = SoilDataObj->air_entry_tension(soil_type);
-    const double& pore_size_dist = SoilDataObj->pore_size_dist(soil_type);
-    const double& wilt_point = SoilDataObj->wilt_point(soil_type);
-    const double& porosity = SoilDataObj->porosity(soil_type);
+    const double Cp = Atmosphere::Cp;
+    const double kappa = Atmosphere::kappa;
+    const double air_entry_tension = SoilDataObj->air_entry_tension(soil_type);
+    const double pore_size_dist = SoilDataObj->pore_size_dist(soil_type);
+    const double wilt_point = SoilDataObj->wilt_point(soil_type);
+    const double porosity = SoilDataObj->porosity(soil_type);
     
     double soil_storage_max = face->soil_attribute<double>("soil_storage_max"_s);
-    d.soil_depth = soil_storage_max/porosity;
     // Leaf area index is not used if no vegetation, but LAI and LAImax are references in the PenmanMonteith model, therefore values are needed for initialization. It is ok if these values go out of scope as long as there is no vegetation. 
 
     d.MyPenmanMonteith = std::make_unique<PenmanMonteith>(d.LAI, d.LAImax, d.vegetation_height, wind_height, 
