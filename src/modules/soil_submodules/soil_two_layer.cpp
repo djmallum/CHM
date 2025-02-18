@@ -143,19 +143,20 @@ void soil_two_layer::organize_soil_layers()
         }
 
         
-        
-    else
-        DTO.excess = DTO.infil + DTO.condensation;
-    // TODO tracking actual infiltration: possible - excess, might be useful
-
     }    
+    else
+    {
+        DTO.excess = DTO.infil + DTO.condensation;
+    }
+
+        
+
 };
 
 void soil_two_layer::manage_detention()
 {
     double face_area = 1.0; // Later will be pulled from face, but since routine_residual is always zero, ignoring it here.
     DTO.soil_excess_to_runoff += DTO.runoff + DTO.excess + DTO.routing_residual / face_area; // routing_residual comes from the crhm varaible redirected_residual which has units of mm*km^2/int (not sure why), so face_area is there for now for consistency.
-        
     
     if (DTO.soil_excess_to_runoff > 0.0)
     {
@@ -165,7 +166,7 @@ void soil_two_layer::manage_detention()
             DTO.detention_max = DTO.detention_organic_max;
 
         double detention_space = DTO.detention_max - DTO.detention_storage;
-
+        
         if (detention_space > 0.0)
         {
             if (DTO.soil_excess_to_runoff > detention_space)
