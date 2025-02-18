@@ -56,8 +56,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     double f2 = std::max(1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
 //<double> (1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
 
-    double p = air_entry_tension * pow(porosity / (var.soil_storage/soil_depth + wilt_point), pore_size_dist);  
-    
+    double p = air_entry_tension * pow(porosity / (var.soil_storage/soil_depth/1000.0 + wilt_point), pore_size_dist);  
     double f3 = std::max(1.0, p/40.0);
 
     double f4 = 1.0;
