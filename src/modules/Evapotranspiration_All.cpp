@@ -73,7 +73,6 @@ void Evapotranspiration_All::init(mesh& domain)
             d.LAImax = 0.0;
             d.vegetation_height = 0.0;
         }
-
         // TODO Consider if we can have a single model object per triangle.
         // Polymorpish would let this work well
         // It wouldn't work if PT model is used for normal soils when they are saturated.
