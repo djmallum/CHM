@@ -34,6 +34,8 @@ void soil_two_layer::initialize_single_step_vars()
     DTO.ground_water_out = 0.0;
     DTO.soil_to_ssr = 0.0;
     DTO.rechr_to_ssr = 0.0;
+    DTO.excess = 0.0;
+    
 };
 
 void soil_two_layer::set_K_values()
