@@ -60,7 +60,7 @@ void Evapotranspiration_All::init(mesh& domain)
         // Consider if an if statement is necessary.
 
         
-        d.soil_depth = 1.0; // Nothing for now
+        d.soil_depth = face->soil_attribute<double>("soil_depth"_s);
         if (face->has_vegetation())
         {
             d.LAI = face->veg_attribute("LAI");
