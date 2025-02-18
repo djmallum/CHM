@@ -160,7 +160,7 @@ void soil_two_layer::manage_detention()
     
     if (DTO.soil_excess_to_runoff > 0.0)
     {
-        if (DTO.swe <= DTO.snow_covered_threshold)
+        if (DTO.swe == 0.0)
             DTO.detention_max = DTO.detention_snow_max;
         else
             DTO.detention_max = DTO.detention_organic_max;
