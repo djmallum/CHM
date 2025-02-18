@@ -238,7 +238,8 @@ void soil_two_layer::manage_depression()
 
 void soil_two_layer::manage_groundwater()
 {
-    DTO.ground_water_storage += DTO.depression_to_gw; // TODO Possible error source, should be adding soil_excess_to_gw rather than depression to gw
+    DTO.soil_excess_to_gw += DTO.depression_to_gw;
+    DTO.ground_water_storage += DTO.soil_excess_to_gw;
 
     if (DTO.ground_water_storage > DTO.ground_water_max)
     {
