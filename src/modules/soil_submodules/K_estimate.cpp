@@ -111,7 +111,11 @@ void Darcy_Vels::set_snow()
 
 void Darcy_Vels::set_clear()
 {
+    std::cout << "Ksaturated_rechr: " << DTO.Ksaturated_rechr << std::endl;
+    std::cout << "exponent: " << exponent << std::endl;
+    std::cout << "local slope: " << DTO.local_slope << std::endl;
     lateral_rechr = DTO.Ksaturated_rechr * pow( DTO.soil_rechr_storage/DTO.soil_rechr_max, exponent) * tan(DTO.local_slope);
+    std::cout << "Recharge Storage: " << DTO.soil_rechr_storage << std::endl; 
     lateral_lower = get_lateral_lower();
     
     vertical_depression = get_reused();
