@@ -112,8 +112,6 @@ void Evapotranspiration_All::run(mesh_elem& face)
         // All members of PM_vars are references and must be set at initialization
         // Therefore we need a copy of SVP to reference
         // t is made its own copy to avoid dereferencing face for "t" twice
-        const std::string soil_type = cfg.get("soil_type","sand");
-
 
         double t = (*face)["t"_s];
         double SVP = Atmosphere::saturatedVapourPressure(t+273.15)/1000; // units of kelvin expected 
