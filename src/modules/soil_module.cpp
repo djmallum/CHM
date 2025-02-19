@@ -146,21 +146,51 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         d.Ksaturated_lower = face->soil_attribute<double>("Ksaturated_lower");
         d.Ksaturated_ground_water = face->soil_attribute<double>("Ksaturated_ground_water");
         d.Ksaturated_organic = face->soil_attribute<double>("Ksaturated_organic"); 
-        // Note: Ksaturated_snow is computed in K_estimate    
+        // Note: Ksaturated_snow is computed in K_estimate   
+         
     }
     else
     {
         d.soil_storage_max = 0.0;
         d.soil_rechr_max = 0.0;
         d.excess_to_ssr = 0.0;
-        d.detention_max = 0.0;
         d.detention_snow_max = 0.0;
         d.detention_organic_max = 0.0;
         d.depression_max = 0.0;
         d.ground_water_max = 0.0;
-        d.ground_cover_type = 0.0;
-        // TODO Get the soil type, sure, but it needs to be converted to what is needed for this model here.
+        d.local_slope = 0.0;
+
+        d.pore_size_dist = 0.0;
+        d.pore_size_dist_organic = 0.0;
+        d.soil_index = 0.0;
+        d.snow_grain_diameter =0.0;
+
+        d.Ksaturated_rechr = 0.0;
+        d.Ksaturated_lower = 0.0;
+        d.Ksaturated_ground_water = 0.0;
+        d.Ksaturated_organic = 0.0;
+
     }
+
+    
+    (*face)["soil_storage_max"_s] = d.soil_storage_max;
+    (*face)["soil_rechr_max"_s] = d.soil_rechr_max;
+    (*face)["detention_snow_max"_s] = d.detention_snow_max;
+    (*face)["detention_organic_max"_s] = d.detention_organic_max;
+    (*face)["depression_max"_s] = d.depression_max;
+    (*face)["ground_water_max"_s] = d.ground_water_max;
+
+    // parameters 
+    (*face)["local_slope"_s] = d.local_slope;
+    (*face)["pore_size_dist"_s] = d.pore_size_dist;
+    (*face)["pore_size_dist_organic"_s] = d.pore_size_dist_organic;
+    (*face)["soil_index"_s] = d.soil_index;
+    (*face)["snow_grain_diameter"_s] = d.snow_grain_diameter;
+
+    (*face)["Ksaturated_rechr"_s] = d.Ksaturated_rechr;
+    (*face)["Ksaturated_lower"_s] = d.Ksaturated_lower;
+    (*face)["Ksaturated_ground_water"_s] = d.Ksaturated_ground_water;
+    (*face)["Ksaturated_organic"_s] = d.Ksaturated_organic;
 
 };
 
@@ -246,9 +276,17 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
         d.detention_organic_init = 0.0;
         d.depression_storage = 0.0;
         d.ground_water_storage = 0.0;
-        d.pore_size_dist = 1.0; // Set to 1 be default becuase there is a divide by zero with this value. It probably will actually be skipped so not a real worry.
-        d.local_slope = 0.0;
     }
+
+    (*face)["soil_storage"_s] = d.soil_storage;
+    (*face)["soil_rechr_storage"_s] = d.soil_rechr_storage;
+    (*face)["thaw_fraction_rechr"_s] = d.thaw_fraction_rechr;
+    (*face)["thaw_fraction_lower"_s] = d.thaw_fraction_lower;
+    (*face)["detention_snow_init"_s] = d.detention_snow_init;
+    (*face)["detention_organic_init"_s] = d.detention_organic_init;
+    (*face)["depression_storage"_s] = d.depression_storage;
+    (*face)["ground_water_storage"_s] = d.ground_water_storage;
+
 };
 
 bool soil_module::data::is_lake(soil_ET_DTO& DTO)

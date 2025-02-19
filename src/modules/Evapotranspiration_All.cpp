@@ -61,7 +61,6 @@ void Evapotranspiration_All::init(mesh& domain)
 
         
         d.soil_depth = face->soil_attribute<double>("soil_depth"_s);
-        SPDLOG_DEBUG("soil depth: {}",d.soil_depth);
         if (face->has_vegetation())
         {
             d.LAI = face->veg_attribute("LAI");
@@ -73,15 +72,6 @@ void Evapotranspiration_All::init(mesh& domain)
             d.LAI = 0.0;
             d.LAImax = 0.0;
             d.vegetation_height = 0.0;
-        }
-        if (face->has_soil())
-        {
-            double soil_storage = face->soil_attribute<double>("soil_storage");
-            (*face)["soil_storage"_s] = soil_storage;
-        }
-        else
-        {
-            (*face)["soil_storage"_s] = 0.0;
         }
         // TODO Consider if we can have a single model object per triangle.
         // Polymorpish would let this work well
