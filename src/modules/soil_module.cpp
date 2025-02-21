@@ -1,5 +1,7 @@
 #include "soil_module.hpp"
 
+REGISTER_MODULE_CPP(soil_module);
+
 soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel::data, cfg)
 {
     depends("swe");
