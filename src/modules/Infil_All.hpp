@@ -106,8 +106,12 @@ public:
         double index;
         double max_major_per_melt;
         double init_SWE;
+        double daily_melt_total;
         unsigned int major_melt_count;
-       
+        bool current_day_is_major; 
+        int last_day;
+        double tmax;
+
         // Ayers
         std::string texture;
         std::string ground_cover;
@@ -146,14 +150,24 @@ private:
     //double soilproperties[][9];
     //double textureproperties[][6];
      
-
+    // TODO I should put all these functions on the data class
     // General Functions
     void Increment_Totals(data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
+    void melt_to_infil(double& inf,double& snowinf,double& snowmelt);
 
     // Crack Functions
     void Calc_Index(data &d, double &swe, double &theta);
     double Calc_Actual_Inf(data &d, double &melt);
     void Check_for_ice_lens(data &d, double &t); 
+    void increment_major_count(Infil_All::data& d);
+    bool is_first_major(Infil_All::data& d, double& snowmelt, double& swe);
+    bool is_limited_phase(Infil_All::data& d);
+    bool is_prior_first_major(Infil_All::data& d);
+    bool is_new_day(Infil_All::data& d);
+    bool is_major_melt(Infil_All::data& d);
+    void daily_melt_increment(Infil_All::data& d, double& snowmelt);
+
+
 
     // Green-Ampt Functions
     double convert_to_rate_hourly(double &rainfall); 

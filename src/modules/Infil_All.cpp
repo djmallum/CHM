@@ -43,7 +43,8 @@ Infil_All::Infil_All(config_file cfg) : module_base("Infil_All", parallel::data,
     provides("melt_runoff"); // NEW
     provides("total_rain_on_snow"); // NEW
     provides("rain_on_snow"); // NEW
-
+    provides("frozen");
+    provides("major_melt_count");
 }
 
 Infil_All::~Infil_All()
@@ -53,7 +54,6 @@ Infil_All::~Infil_All()
 
 void Infil_All::init(mesh& domain)
 {
-
     //store all of snobals global variables from this timestep to be used as ICs for the next timestep
 #pragma omp parallel for
     for (size_t i = 0; i < domain->size_faces(); i++)
@@ -74,7 +74,11 @@ void Infil_All::init(mesh& domain)
         d.index = 0;
         d.max_major_per_melt = 0.;
         d.init_SWE = 0.;
+        d.daily_melt_total = 0.;
         d.soil_storage = face->soil_attribute<double>("soil_storage");
+        d.current_day_is_major = false;
+        d.last_day = 0;
+        d.tmax = 0.0;
 
         // Model Parameters
         infDays = cfg.get("max_inf_days",6);
@@ -82,23 +86,22 @@ void Infil_All::init(mesh& domain)
         major = cfg.get("major",5); 
         AllowPriorInf = cfg.get("AllowPriorInf",true);
         thaw_type = cfg.get("thaw_type",0); // Default is Ayers
+
+        SoilDataObj = std::make_unique<Soil::soils_na>();
         if (thaw_type == AYERS)
         {    
             d.texture = face->soil_attribute<std::string>("soil_texture","soils");
             d.ground_cover = face->soil_attribute<std::string>("soil_groundcover","soils");
         }
         else if (thaw_type == GREENAMPT)
+        {
             d.soil_type = face->soil_attribute<std::string>("soil_type","soils");
-
+            d.ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
+        }
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
 
-        SoilDataObj = std::make_unique<Soil::soils_na>();
 
-        // porosity = SoilDataObj->porosity(d.soil_type);
-        // soil_depth = cfg.get("soil_depth",1); // metres, default 1 m
         d.max_soil_storage = face->parameter("soil_storage_max"_s);
-        d.ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
-
 
 
    }
@@ -111,8 +114,7 @@ void Infil_All::run(mesh_elem &face)
         set_all_nan_on_skip(face);
         return;
     }
-
-
+    
     auto& d = face->get_module_data<Infil_All::data>(ID);
 
     auto id = face->cell_local_id;
@@ -138,6 +140,11 @@ void Infil_All::run(mesh_elem &face)
         d.max_major_per_melt = 0.;
         d.init_SWE = 0.;
     }
+    else if (swe <= 0.0 && d.major_melt_count > 0)
+    {
+        d.frozen = false;
+        d.major_melt_count = 0;
+    }
 
     if (d.frozen) // Gray's infiltration, 1985
     {
@@ -156,22 +163,29 @@ void Infil_All::run(mesh_elem &face)
             }
             else if (soil_storage_at_freeze > 0 && soil_storage_at_freeze < 100) // Limited
             {
-		        
-                Check_for_ice_lens(d,airtemp);
                 
-                if ((d.major_melt_count == 0 & snowmelt >= major) || swe >= d.init_SWE) {
-                    Calc_Index(d,swe,soil_storage_at_freeze);
-                    
-                    snowinf = Calc_Actual_Inf(d,snowmelt);
-                    
-                    d.major_melt_count += 1;
-                }
-                else if (d.major_melt_count > 0 && d.major_melt_count < infDays) {
-                    snowinf = Calc_Actual_Inf(d,snowmelt);
+                Check_for_ice_lens(d,airtemp);
 
-                    d.major_melt_count += 1;
+                daily_melt_increment(d,snowmelt);
+                increment_major_count(d);
+                if (is_first_major(d,snowmelt,swe))
+                {
+                    SPDLOG_DEBUG("First Major");
+                    Calc_Index(d,swe,soil_storage_at_freeze);
+                    snowinf = Calc_Actual_Inf(d,snowmelt);
+   
+                    increment_major_count(d);
                 }
-                else if (d.major_melt_count == 0 and AllowPriorInf) {
+                else if (is_limited_phase(d))
+                {
+                    SPDLOG_DEBUG("Limited Phase");
+                    snowinf = Calc_Actual_Inf(d,snowmelt);
+                    
+                    increment_major_count(d);
+                }
+                else if (is_prior_first_major(d))
+                {
+                    SPDLOG_DEBUG("Prior");
                     snowinf = snowmelt;
                 }
 
@@ -182,6 +196,7 @@ void Infil_All::run(mesh_elem &face)
                 d.major_melt_count = 1;
             }
 
+           
             melt_runoff = snowmelt - snowinf;
 
             // melt_runoff and snowinf only track melt related quantities
@@ -201,8 +216,12 @@ void Infil_All::run(mesh_elem &face)
             runoff += melt_runoff;
             inf += snowinf;
 
+
             Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
-          
+            if (is_new_day(d))
+            {
+                d.last_day = global_param->day();
+            }      
 
         }
     }
@@ -210,7 +229,8 @@ void Infil_All::run(mesh_elem &face)
     {
         if (rainfall > 0.0)
         {
-            double maxinfil = SoilDataObj->ayers_texture(d.texture,d.ground_cover); // TODO Currently texture properties is assumed uniform, later make this triangle specific.
+            // TODO set maxinfil at the beginning
+            double maxinfil = SoilDataObj->ayers_texture(d.texture,d.ground_cover); 
             if (maxinfil > rainfall)
             {
                 inf = rainfall;
@@ -221,8 +241,11 @@ void Infil_All::run(mesh_elem &face)
                 runoff = rainfall - maxinfil;
             }
         }
-
+        
+        melt_to_infil(inf,snowinf,snowmelt);
+        
         // Increment totals
+        
         Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
     }
     else if (thaw_type == GREENAMPT) // if not frozen, do GreenAmpt
@@ -286,7 +309,11 @@ void Infil_All::run(mesh_elem &face)
             // Increment totals
             Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
             d.soil_storage += d.GA_temp->final_storage;  
+
+            melt_to_infil(inf,snowinf,snowmelt);
+
             d.GA_temp.reset();
+
         } // if(net_rain[hh] + net_snow[hh] > 0.0) greenampt routine
     }  
 
@@ -304,6 +331,8 @@ void Infil_All::run(mesh_elem &face)
     (*face)["rain_on_snow"_s]=rain_on_snow;
     (*face)["snowinf"_s]=snowinf;
     (*face)["melt_runoff"_s]=melt_runoff;
+    (*face)["frozen"_s]=static_cast<int>(d.frozen);
+    (*face)["major_melt_count"_s]=d.major_melt_count;
 }
 
 //General Functions
@@ -315,6 +344,16 @@ void Infil_All::Increment_Totals(Infil_All::data &d, double &runoff, double &mel
     d.total_rain_on_snow += rain_on_snow;
 }      
 
+void Infil_All::melt_to_infil(double& inf,double& snowinf,double& snowmelt)
+{
+    // This function determines what to do with the excess melt after swe = 0 when the crack model shuts off
+    // Logan suggested setting it as runoff
+    if (snowmelt > 0.0)
+    {
+        inf += snowmelt;             
+        snowinf += snowmelt;
+    }
+};
 
 // Crack Functions
 void Infil_All::Calc_Index(Infil_All::data &d, double &swe, double &theta) {
@@ -340,12 +379,74 @@ double Infil_All::Calc_Actual_Inf(Infil_All::data &d, double &melt) {
 }
 
 
-void Infil_All::Check_for_ice_lens(Infil_All::data &d, double &t) {
-    if (d.major_melt_count > 0 && t < lenstemp) {
-        d.major_melt_count = infDays + 1;
+void Infil_All::Check_for_ice_lens(Infil_All::data &d, double &t) 
+{
+    d.tmax = std::max(d.tmax,t);
+
+    if (is_new_day(d))
+    {
+        if (d.major_melt_count > 0 && d.tmax < lenstemp)
+        {
+            SPDLOG_DEBUG("Ice lens found"); 
+            d.major_melt_count = infDays + 4;
+        }
+        d.tmax = 0.0;
     }
 }
 
+bool Infil_All::is_first_major(Infil_All::data& d, double& snowmelt, double& swe)
+{
+    return ( (d.major_melt_count == 0) & (is_major_melt(d)) ) || ( (swe >= d.init_SWE) & (is_limited_phase(d)));
+};
+
+bool Infil_All::is_major_melt(Infil_All::data& d)
+{
+    return d.daily_melt_total > major;
+};
+
+void Infil_All::increment_major_count(Infil_All::data& d)
+{
+    if (is_major_melt(d) && !d.current_day_is_major)
+    {
+        d.major_melt_count++;
+        d.current_day_is_major = true;
+    }
+}; 
+
+
+bool Infil_All::is_limited_phase(Infil_All::data& d)
+{
+    return d.major_melt_count > 0 && d.major_melt_count <= infDays;
+};
+
+bool Infil_All::is_prior_first_major(Infil_All::data& d)
+{
+    return d.major_melt_count == 0 and AllowPriorInf;
+};
+
+bool Infil_All::is_new_day(Infil_All::data& d)
+{
+    int current_day = global_param->day();
+    
+    if (current_day == d.last_day)
+        return false;
+    else 
+    {
+        return true;
+    }
+};
+
+void Infil_All::daily_melt_increment(Infil_All::data& d, double& snowmelt)
+{
+
+    if (!is_new_day(d))
+        d.daily_melt_total += snowmelt;
+    else
+    {
+        d.daily_melt_total = snowmelt; 
+        d.current_day_is_major = false;
+    }
+};
 // Ayers
 
 // Green-Ampt Functions

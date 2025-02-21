@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include "logger.hpp"
 
 struct var_base
 {

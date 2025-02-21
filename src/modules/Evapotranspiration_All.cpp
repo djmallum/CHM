@@ -48,8 +48,8 @@ void Evapotranspiration_All::init(mesh& domain)
     alpha = cfg.get("alpha_PriestleyTaylor",1.26);
     wind_height = cfg.get("wind_measurement_height",2);
     stomatal_resistance_min = cfg.get("stomatal_resistance_min",62);
-    Frac_to_ground = cfg.get("Frac_to_ground",1); // iswr_subcanopy exists.
-                                                  
+    Frac_to_ground = cfg.get<double>("Frac_to_ground",1.0); // iswr_subcanopy exists.
+
     SoilDataObj = std::make_unique<Soil::soils_na>();
 
     for (size_t i = 0; i < domain->size_faces(); i++)
@@ -60,7 +60,7 @@ void Evapotranspiration_All::init(mesh& domain)
         // Consider if an if statement is necessary.
 
         
-        d.soil_depth = 1.0; // Nothing for now
+        d.soil_depth = face->soil_attribute<double>("soil_depth"_s);
         if (face->has_vegetation())
         {
             d.LAI = face->veg_attribute("LAI");
@@ -73,7 +73,6 @@ void Evapotranspiration_All::init(mesh& domain)
             d.LAImax = 0.0;
             d.vegetation_height = 0.0;
         }
-
         // TODO Consider if we can have a single model object per triangle.
         // Polymorpish would let this work well
         // It wouldn't work if PT model is used for normal soils when they are saturated.
@@ -93,7 +92,6 @@ void Evapotranspiration_All::init(mesh& domain)
 
 void Evapotranspiration_All::run(mesh_elem& face)
 {
-    SPDLOG_DEBUG("In Evap run");
     auto& d = face->get_module_data<Evapotranspiration_All::data>(ID);
     model_output output;
 
@@ -116,7 +114,7 @@ void Evapotranspiration_All::run(mesh_elem& face)
         // t is made its own copy to avoid dereferencing face for "t" twice
 
         double t = (*face)["t"_s];
-        double SVP = Atmosphere::saturatedVapourPressure(t);  
+        double SVP = Atmosphere::saturatedVapourPressure(t+273.15)/1000; // units of kelvin expected 
         double VP = (*face)["ea"_s];
         PM_vars my_PM_vars = set_PenmanMonteith_vars(face,t,SVP,VP);
     
@@ -141,19 +139,16 @@ void Evapotranspiration_All::init_PriestleyTaylor(Evapotranspiration_All::data& 
 void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d,mesh_elem& face, double& wind_height, double& stomatal_resistance_min, double& Frac_to_ground)
 {
     
-    const std::string soil_type = cfg.get("soil_type","sand");
-
-   
+    const std::string soil_type = face->soil_attribute<std::string>("soil_type"_s,"soils");
     
-    const double& Cp = Atmosphere::Cp;
-    const double& kappa = Atmosphere::kappa;
-    const double& air_entry_tension = SoilDataObj->air_entry_tension(soil_type);
-    const double& pore_size_dist = SoilDataObj->pore_size_dist(soil_type);
-    const double& wilt_point = SoilDataObj->wilt_point(soil_type);
-    const double& porosity = SoilDataObj->porosity(soil_type);
+    const double Cp = Atmosphere::Cp;
+    const double kappa = Atmosphere::kappa;
+    const double air_entry_tension = SoilDataObj->air_entry_tension(soil_type);
+    const double pore_size_dist = SoilDataObj->pore_size_dist(soil_type);
+    const double wilt_point = SoilDataObj->wilt_point(soil_type);
+    const double porosity = SoilDataObj->porosity(soil_type);
     
     double soil_storage_max = face->soil_attribute<double>("soil_storage_max"_s);
-    d.soil_depth = soil_storage_max/porosity;
     // Leaf area index is not used if no vegetation, but LAI and LAImax are references in the PenmanMonteith model, therefore values are needed for initialization. It is ok if these values go out of scope as long as there is no vegetation. 
 
     d.MyPenmanMonteith = std::make_unique<PenmanMonteith>(d.LAI, d.LAImax, d.vegetation_height, wind_height, 
@@ -165,8 +160,7 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d
 PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& t, double& saturated_vapour_pressure,double& vapour_pressure)
 {
     PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],(*face)["netall"_s],t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"_s]); 
-
-
+    
     return vars;
 }
 

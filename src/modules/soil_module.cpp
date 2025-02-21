@@ -18,10 +18,19 @@ soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel:
     provides("soil_excess_to_gw");
     provides("ground_water_out");
     provides("soil_to_ssr");
+    provides("rechr_to_ssr");
     provides("soil_storage");
     provides("soil_rechr_storage");
     provides("depression_storage");
     provides("ground_water_storage");
+    provides("detention_storage");
+    provides("K_rechr_to_ssr");
+    provides("K_lower_to_ssr");
+    provides("K_detention_to_runoff");
+    provides("K_depression_to_ssr");
+    provides("K_depression_to_gw");
+    provides("K_ground_water_out");
+    provides("K_soil_to_gw");
 };
 
 soil_module::~soil_module()
@@ -40,19 +49,20 @@ void soil_module::init(mesh& domain)
         // get_dt and is_lake below.
         d.my_face = &face;
         set_local_module(d);
-            
+        set_soil_params(face,d);
+   
         // dependency injection of K_estimation
         d.K_estimator = std::make_unique<K_estimate>(d);
         d.soil_layers = std::make_unique<soil_two_layer>(d,*d.K_estimator);
         // ET coud (should) have been dependecy injection. So TODO
         d.ET = std::make_unique<soil_ET>(d);  
         //if (d.soil_layers) Removed if statments for now because ET and soil modules are coupled. 
-        set_soil_params(face,d);
-        //if (d.ET)
+                //if (d.ET)
         set_ET_params(face,d);
     
         initial_soil_conditions(face,d);
-
+    
+        set_soil_outputs(face,d);
 
     }
 };
@@ -69,8 +79,11 @@ void soil_module::run(mesh_elem& face)
     // This is fine because this soil module is run in this order.
 
     d.soil_layers->run();
-
-    d.ET->run();
+    
+    if (d.swe == 0.0)
+        d.ET->run();
+    else
+        d.actual_ET = 0.0;
 
     set_soil_outputs(face,d);
 
@@ -96,10 +109,19 @@ void soil_module::set_soil_outputs(mesh_elem& face,soil_module::data& d)
     (*face)["soil_excess_to_gw"_s] = d.soil_excess_to_gw; 
     (*face)["ground_water_out"_s] = d.ground_water_out; 
     (*face)["soil_to_ssr"_s] = d.soil_to_ssr;
+    (*face)["rechr_to_ssr"_s] = d.rechr_to_ssr;
     (*face)["soil_storage"_s] = d.soil_storage;
     (*face)["soil_rechr_storage"_s] = d.soil_rechr_storage;
     (*face)["depression_storage"_s] = d.depression_storage;
     (*face)["ground_water_storage"_s] = d.ground_water_storage;
+    (*face)["detention_storage"_s] = d.detention_storage;
+    (*face)["K_rechr_to_ssr"_s] = d.K_rechr_to_ssr;
+    (*face)["K_lower_to_ssr"_s] = d.K_lower_to_ssr;
+    (*face)["K_detention_to_runoff"_s] = d.K_detention_to_runoff;
+    (*face)["K_depression_to_ssr"_s] = d.K_depression_to_ssr;
+    (*face)["K_depression_to_gw"_s] = d.K_depression_to_gw;
+    (*face)["K_ground_water_out"_s] = d.K_ground_water_out;
+    (*face)["K_soil_to_gw"_s] = d.K_soil_to_gw;
 };
 
 void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
@@ -114,23 +136,62 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         d.detention_organic_max = face->soil_attribute<double>("detention_organic_max"_s);
         d.depression_max = face->soil_attribute<double>("depression_max"_s);
         d.ground_water_max = face->soil_attribute<double>("ground_water_max"_s);
-        // d.ground_cover_type = face->parameter("ground_cover_type"_s); This is set in set in set_ET_params TODO check if it is needed for ET and soil
-        // TODO Get the soil type, sure, but it needs to be converted to what is needed for this model here.
-           
+        d.local_slope = face->soil_attribute<double>("local_slope"_s)*3.14159265/180;
+        
+        d.pore_size_dist = face->soil_attribute<double>("PSD_K_estimator");
+        d.pore_size_dist_organic = face->soil_attribute<double>("PSD_K_organic");
+        d.soil_index = face->soil_attribute<double>("soil_index");
+        d.snow_grain_diameter = face->soil_attribute<double>("snow_grain_diameter");
+
+        d.Ksaturated_rechr = face->soil_attribute<double>("Ksaturated_rechr");
+        d.Ksaturated_lower = face->soil_attribute<double>("Ksaturated_lower");
+        d.Ksaturated_ground_water = face->soil_attribute<double>("Ksaturated_ground_water");
+        d.Ksaturated_organic = face->soil_attribute<double>("Ksaturated_organic"); 
+        // Note: Ksaturated_snow is computed in K_estimate   
+         
     }
     else
     {
         d.soil_storage_max = 0.0;
         d.soil_rechr_max = 0.0;
         d.excess_to_ssr = 0.0;
-        d.detention_max = 0.0;
         d.detention_snow_max = 0.0;
         d.detention_organic_max = 0.0;
         d.depression_max = 0.0;
         d.ground_water_max = 0.0;
-        d.ground_cover_type = 0.0;
-        // TODO Get the soil type, sure, but it needs to be converted to what is needed for this model here.
+        d.local_slope = 0.0;
+
+        d.pore_size_dist = 0.0;
+        d.pore_size_dist_organic = 0.0;
+        d.soil_index = 0.0;
+        d.snow_grain_diameter =0.0;
+
+        d.Ksaturated_rechr = 0.0;
+        d.Ksaturated_lower = 0.0;
+        d.Ksaturated_ground_water = 0.0;
+        d.Ksaturated_organic = 0.0;
+
     }
+
+    
+    (*face)["soil_storage_max"_s] = d.soil_storage_max;
+    (*face)["soil_rechr_max"_s] = d.soil_rechr_max;
+    (*face)["detention_snow_max"_s] = d.detention_snow_max;
+    (*face)["detention_organic_max"_s] = d.detention_organic_max;
+    (*face)["depression_max"_s] = d.depression_max;
+    (*face)["ground_water_max"_s] = d.ground_water_max;
+
+    // parameters 
+    (*face)["local_slope"_s] = d.local_slope;
+    (*face)["pore_size_dist"_s] = d.pore_size_dist;
+    (*face)["pore_size_dist_organic"_s] = d.pore_size_dist_organic;
+    (*face)["soil_index"_s] = d.soil_index;
+    (*face)["snow_grain_diameter"_s] = d.snow_grain_diameter;
+
+    (*face)["Ksaturated_rechr"_s] = d.Ksaturated_rechr;
+    (*face)["Ksaturated_lower"_s] = d.Ksaturated_lower;
+    (*face)["Ksaturated_ground_water"_s] = d.Ksaturated_ground_water;
+    (*face)["Ksaturated_organic"_s] = d.Ksaturated_organic;
 
 };
 
@@ -149,6 +210,7 @@ void soil_module::set_ET_params(mesh_elem& face, soil_module::data& d)
     // physics/Soil.h takes 11 types, I use those types to infer the type here
 
 
+    // NOTE: This soil_type is not the same as the soil_type used for other parameters like porosity. This is purely used for a computation in the ET calculation in the soil.
     int soil_type = 100;
     bool sandy = compare_substring(type,"sand");
     bool loamy = compare_substring(type,"loam");
@@ -203,6 +265,7 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
         d.detention_organic_init = face->soil_attribute<double>("detention_organic_init"_s);
         d.depression_storage = face->soil_attribute<double>("depression_storage"_s);
         d.ground_water_storage = face->soil_attribute<double>("ground_water_storage"_s);
+        
     }
     else
     {
@@ -214,14 +277,24 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
         d.detention_organic_init = 0.0;
         d.depression_storage = 0.0;
         d.ground_water_storage = 0.0;
+        d.pore_size_dist = 1.0; // Set to 1 be default becuase there is a divide by zero with this value. It probably will actually be skipped so not a real worry.
+        d.local_slope = 0.0;
     }
+
 };
 
 bool soil_module::data::is_lake(soil_ET_DTO& DTO)
 {
-    soil_module::data& d = static_cast<soil_module::data&>(DTO);
-
-    return d.local_module->is_water(*d.my_face);
+    try 
+    {
+        // TODO resolve this bug
+        soil_module::data& d = dynamic_cast<soil_module::data&>(DTO);
+        //bool temp = d.local_module->is_water(*d.my_face);
+        return false;//d.local_module->is_water(*d.my_face);
+    } catch (const std::bad_cast& e) {
+        SPDLOG_DEBUG("bad cast");
+        return false;
+    }
 };
 
 int soil_module::data::get_dt(two_layer_DTO& DTO)

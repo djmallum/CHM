@@ -2,10 +2,8 @@
 
 #include "soil_base.hpp"
 #include "soil_two_layer.hpp"
-#include <algorithm>
 #include "soil_DTO.hpp"
 #include "I_K_estimate.hpp"
-
 // Temporary forward declaration
 // TODO add include after writing this
 // class k_estimate;

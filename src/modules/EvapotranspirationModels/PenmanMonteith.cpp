@@ -1,7 +1,7 @@
 #include "PenmanMonteith.hpp"
 
 
-PenmanMonteith::PenmanMonteith(double& LAI, double& LAImax, double& veg_Ht, double& wind_height, double& stomatal_res_min, double& soil_d, double& F_to_g, const double& Cp, const double& K, const double& tension, const double& pore_sz, const double& theta_pwp, const double& phi) 
+PenmanMonteith::PenmanMonteith(double& LAI, double& LAImax, double& veg_Ht, double& wind_height, double& stomatal_res_min, double& soil_d, double& F_to_g, const double Cp, const double K, const double tension, const double pore_sz, const double theta_pwp, const double phi) 
     : leaf_area_index(LAI), leaf_area_index_max(LAImax), Veg_height(veg_Ht), wind_measurement_height(wind_height), stomatal_resistance_min(stomatal_res_min), soil_depth(soil_d), Frac_to_ground(F_to_g), heat_capacity_air(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi)
 {
     if (leaf_area_index == 0)
@@ -43,7 +43,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     // In CRHM, the below calculation is an option, for now just use the minimum option.
     if (has_vegetation)
     {
-        double LAI = veg_Ht/2.0*leaf_area_index_max; //TODO ad hoc for test
+        double LAI = Veg_height/2.0*leaf_area_index_max; //TODO ad hoc for test
         rcstar = stomatal_resistance_min * leaf_area_index_max / LAI;
         // rcstar = stomatal_resistance_min * leaf_area_index_max / leaf_area_index; TODO commented for test
     }
@@ -56,8 +56,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     double f2 = std::max(1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
 //<double> (1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
 
-    double p = air_entry_tension * pow(porosity / (var.soil_storage/soil_depth + wilt_point), pore_size_dist);  
-    
+    double p = air_entry_tension * pow(porosity / (var.soil_storage/soil_depth/1000.0 + wilt_point), pore_size_dist);  
     double f3 = std::max(1.0, p/40.0);
 
     double f4 = 1.0;

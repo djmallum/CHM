@@ -1,4 +1,5 @@
 #include "Soil.h"
+#include <iostream>
 
 namespace Soil
 {
@@ -11,6 +12,7 @@ namespace Soil
         }
         else
         {
+
            CHM_THROW_EXCEPTION(module_error, "Soil Type does not exist in map"); 
         } 
     }
@@ -59,7 +61,9 @@ namespace Soil
     {
         auto it = _ayers_texture.find(texture);
         if (it != _ayers_texture.end())
+        {
             return lookup(it->second, ground_cover);
+        }
         else
             CHM_THROW_EXCEPTION(module_error, "Soil Type does not exist in map"); 
 

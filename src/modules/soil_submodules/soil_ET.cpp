@@ -1,5 +1,5 @@
 #include "soil_ET.hpp"
-
+#include <iostream>
 soil_ET::soil_ET(soil_ET_DTO& _DTO) : DTO(_DTO)
 {
 
@@ -11,7 +11,14 @@ soil_ET::~soil_ET()
 };
 
 void soil_ET::run()
-{
+{  
+    
+    DTO.actual_ET = 0.0;
+
+    if (DTO.swe > 0.0)
+       return; 
+
+    std::cout << "in soil ET" << std::endl;
     double available_to_evap = DTO.potential_ET;
     if (DTO.depression_storage + DTO.soil_storage > 0.0)
     {
@@ -34,7 +41,8 @@ void soil_ET::run()
     }
     else
         available_to_evap = 0.0;
-
+    
+    std::cout << "in soil ET" << std::endl;
     available_to_evap = DTO.potential_ET - available_to_evap;
 
     if (available_to_evap > 0.0 && DTO.soil_storage > 0.0 && DTO.ground_cover_type > 0)
@@ -43,7 +51,7 @@ void soil_ET::run()
         double percent_available_rechr;
         double ET_lower;
         double ET_rechr;
-        double soil_lower_storage = DTO.soil_storage_max - DTO.soil_rechr_max;
+        double soil_lower_storage = DTO.soil_storage - DTO.soil_rechr_storage;
         double soil_lower_max = DTO.soil_storage_max - DTO.soil_rechr_max;
 
         if ( soil_lower_max > 0.0 ) // soil_lower > 0.0
@@ -71,7 +79,7 @@ void soil_ET::run()
         }
 
         double ET = 0.0;
-        
+        std::cout << "in soil ET" << std::endl; 
         switch (DTO.ground_cover_type)
         {
         case 0: // bare soil, no evap
@@ -107,9 +115,12 @@ void soil_ET::run()
         }
 
         DTO.actual_ET += ET;
-
+        std::cout << "in soil ET" << std::endl;
         if (DTO.is_lake(DTO))
+        {
+            std::cout << "out" <<  std::endl;
             DTO.actual_ET = DTO.potential_ET;
+        }
     };
 };
 
