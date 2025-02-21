@@ -118,8 +118,8 @@ public:
         
         // GreenAmpt
         double soil_storage;
-		double max_soil_storage;
-		double ksaturated;
+	double soil_storage_max;
+	double ksaturated;
         std::unique_ptr<tempvars> GA_temp{nullptr};
         
     };
