@@ -61,7 +61,8 @@ void soil_module::init(mesh& domain)
         set_ET_params(face,d);
     
         initial_soil_conditions(face,d);
-
+    
+        set_soil_outputs(face,d);
 
     }
 };
@@ -276,16 +277,9 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
         d.detention_organic_init = 0.0;
         d.depression_storage = 0.0;
         d.ground_water_storage = 0.0;
+        d.pore_size_dist = 1.0; // Set to 1 be default becuase there is a divide by zero with this value. It probably will actually be skipped so not a real worry.
+        d.local_slope = 0.0;
     }
-
-    (*face)["soil_storage"_s] = d.soil_storage;
-    (*face)["soil_rechr_storage"_s] = d.soil_rechr_storage;
-    (*face)["thaw_fraction_rechr"_s] = d.thaw_fraction_rechr;
-    (*face)["thaw_fraction_lower"_s] = d.thaw_fraction_lower;
-    (*face)["detention_snow_init"_s] = d.detention_snow_init;
-    (*face)["detention_organic_init"_s] = d.detention_organic_init;
-    (*face)["depression_storage"_s] = d.depression_storage;
-    (*face)["ground_water_storage"_s] = d.ground_water_storage;
 
 };
 
