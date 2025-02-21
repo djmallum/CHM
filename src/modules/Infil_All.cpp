@@ -101,7 +101,7 @@ void Infil_All::init(mesh& domain)
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
 
 
-        d.max_soil_storage = face->parameter("soil_storage_max"_s);
+        d.soil_storage_max = face->parameter("soil_storage_max"_s);
 
 
    }
@@ -259,7 +259,7 @@ void Infil_All::run(mesh_elem &face)
                                            // ,this is a string handle pavement separately
                 runoff = rainfall;
             }
-            else if(is_space_in_dry_soil(d.soil_storage,d.max_soil_storage,rainfall)){
+            else if(is_space_in_dry_soil(d.soil_storage,d.soil_storage_max,rainfall)){
                 inf =  rainfall;
             }
             else {
@@ -467,7 +467,7 @@ void Infil_All::Initialize_GA_Variables(Infil_All::data &d) {
     // TODO Make this a constructor for the tempvars struct
     std::unique_ptr<Infil_All::data::tempvars> &GA = d.GA_temp;
     
-    GA->soil_storage_deficit = (1.0 - d.soil_storage/d.max_soil_storage); // TODO GA in Dingman is porosity - pore space filed
+    GA->soil_storage_deficit = (1.0 - d.soil_storage/d.soil_storage_max); // TODO GA in Dingman is porosity - pore space filed
                                                                         // Here: 1.0 means we've filled all the pores
                                                                         // 0.4 - 0.2 = 0.2 (porosity)
                                                                         // 1.0 - 0.5/1.0 = 0.5 (current)
