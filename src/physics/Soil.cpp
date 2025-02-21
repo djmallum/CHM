@@ -1,8 +1,8 @@
 #include "Soil.h"
+#include <iostream>
 
 namespace Soil
 {
-    
     double _soils_base::lookup(const mymap& map, const std::string key) const
     {
         auto it = map.find(key);
@@ -12,6 +12,7 @@ namespace Soil
         }
         else
         {
+
            CHM_THROW_EXCEPTION(module_error, "Soil Type does not exist in map"); 
         } 
     }
@@ -60,7 +61,9 @@ namespace Soil
     {
         auto it = _ayers_texture.find(texture);
         if (it != _ayers_texture.end())
+        {
             return lookup(it->second, ground_cover);
+        }
         else
             CHM_THROW_EXCEPTION(module_error, "Soil Type does not exist in map"); 
 
