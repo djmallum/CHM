@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cmath>
+#include <iostream>
+#include "logger.hpp"
+#include <algorithm>
 
 struct _input_base
 {
