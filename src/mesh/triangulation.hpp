@@ -17,8 +17,7 @@
 #pragma once
 
 #include "interpolation.hpp"
-
-
+#include "gis.hpp"
 #include "station.hpp"
 #include "global.hpp"
 
@@ -902,6 +901,12 @@ public:
     void update_vtk_data(std::vector<std::string> output_variables);
 
     /**
+     * Writes the bounding box of the mesh to geojson
+     * @param filename
+     */
+    void write_bbox_geojson(const std::string& filename);
+
+    /**
     * Saves the mesh with this timesteps values to a vtu file for visualization in Paraview
     */
 	void write_vtu(std::string fname);
@@ -965,12 +970,16 @@ public:
     boost::mpi::communicator _comm_world;
 #endif
 
-    struct bounding_box{
-        double x_min {0};
-        double x_max {0};
-        double y_min {0};
-        double y_max {0};
-    } _bounding_box;
+    // some of the coordinates might be negative, so by init with a nan
+    // when this is filled using std::min and std::max, the nan willbe ignored on the first
+    // comparison
+    struct bounding_box
+    {
+        double x_min {std::nan("")};
+        double x_max {std::nan("")};
+        double y_min {std::nan("")};
+        double y_max {std::nan("")};
+    } __attribute__((aligned(32))) _bounding_box;
 
 protected:
 
@@ -1078,7 +1087,7 @@ protected:
 #else
 	std::map<std::string, vtkSmartPointer<vtkFloatArray> > data;
 	std::map<std::string, vtkSmartPointer<vtkFloatArray> > vectors;
-        std::map<std::string, vtkSmartPointer<vtkFloatArray> > vertex_data;
+    std::map<std::string, vtkSmartPointer<vtkFloatArray> > vertex_data;
 #endif
 
     //should we write parameters to the vtu file?
@@ -1838,6 +1847,7 @@ void face<Gt, Fb>::to_file(std::string fname)
 {
     _data->to_file(fname);
 }
+
 
 template < class Gt, class Fb>
 double face<Gt, Fb>::get_x()

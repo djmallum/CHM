@@ -245,11 +245,11 @@ void triangulation::from_json(pt::ptree &mesh)
         _max_z = std::max(_max_z,vertex[2]);
         _min_z = std::min(_min_z,vertex[2]);
 
-        _bounding_box.x_max = std::max(_bounding_box.x_max, vertex[0]);
-        _bounding_box.x_min = std::min(_bounding_box.x_min, vertex[0]);
+        _bounding_box.x_max = std::fmax(_bounding_box.x_max, vertex[0]);
+        _bounding_box.x_min = std::fmin(_bounding_box.x_min, vertex[0]);
 
-        _bounding_box.y_max = std::max(_bounding_box.y_max, vertex[1]);
-        _bounding_box.y_min = std::min(_bounding_box.y_min, vertex[1]);
+        _bounding_box.y_max = std::fmax(_bounding_box.y_max, vertex[1]);
+        _bounding_box.y_min = std::fmin(_bounding_box.y_min, vertex[1]);
 
 
         Vertex_handle Vh = this->create_vertex();
@@ -879,11 +879,11 @@ void triangulation::load_mesh_from_h5(const std::string& mesh_filename)
             _max_z = std::max(_max_z, vertex[i][2]);
             _min_z = std::min(_min_z, vertex[i][2]);
 
-            _bounding_box.x_max = std::max(_bounding_box.x_max, vertex[i][0]);
-            _bounding_box.x_min = std::min(_bounding_box.x_min, vertex[i][0]);
+            _bounding_box.x_max = std::fmax(_bounding_box.x_max, vertex[i][0]);
+            _bounding_box.x_min = std::fmin(_bounding_box.x_min, vertex[i][0]);
 
-            _bounding_box.y_max = std::max(_bounding_box.y_max, vertex[i][1]);
-            _bounding_box.y_min = std::min(_bounding_box.y_min, vertex[i][1]);
+            _bounding_box.y_max = std::fmax(_bounding_box.y_max, vertex[i][1]);
+            _bounding_box.y_min = std::fmin(_bounding_box.y_min, vertex[i][1]);
 
             Vertex_handle Vh = this->create_vertex();
             Vh->set_point(pt);
@@ -1236,6 +1236,43 @@ void triangulation::from_hdf5(const std::string& mesh_filename,
 
 void triangulation::load_hdf5_parameters( const std::vector<std::string>& param_filenames)
 {
+
+    // we might have modules params but we aren't loading file params, so do the init here
+    // this is a copy paste as the logic in the main loop below has to handle loading multiple param files
+
+    if (param_filenames.empty())
+    {
+        if(_mesh_is_from_partition)
+        {
+            // init the parameter storage on each face
+            // as we are using a pre-partitioned mesh, _faces holds local+ghosts, so can do it in one go which is
+            // faster
+#pragma omp parallel for
+            for (size_t i = 0; i < _faces.size(); i++)
+            {
+                _faces.at(i)->init_parameters(_parameters);
+            }
+        }
+        else
+        {
+            // if we are not reading from a partitioned file, we need to ensure we do the local faces + ghosts
+            // separetely
+            // init the parameter storage on each face
+#pragma omp parallel for
+            for (size_t i = 0; i < _num_faces; i++)
+            {
+                face(i)->init_parameters(_parameters);
+            }
+
+            // init the parameter storage for the ghost regions
+#pragma omp parallel for
+            for (size_t i = 0; i < _ghost_faces.size(); i++)
+            {
+                _ghost_faces.at(i)->init_parameters(_parameters);
+            }
+        }
+    }
+
     for (auto param_filename : param_filenames)
     {
         try
@@ -1410,6 +1447,11 @@ void triangulation::reorder_faces(std::vector<size_t> permutation)
   		     {
   		       return fa->cell_global_id < fb->cell_global_id;
   		     });
+}
+
+void triangulation::write_bbox_geojson(const std::string& filename)
+{
+    gis::bbox2geojson(_bounding_box.x_min, _bounding_box.y_min, _bounding_box.x_max, _bounding_box.y_max, filename, proj4());
 }
 
 void triangulation::load_partition_from_mesh(const std::string& mesh_filename)

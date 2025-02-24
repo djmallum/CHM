@@ -23,17 +23,30 @@
 
 #include "metdata.hpp"
 
-metdata::metdata(std::string mesh_proj4)
+metdata::metdata(const mesh& mesh, boost::filesystem::path output_dir, boost::optional<int> num_stations_to_use)
 {
     _nc = nullptr;
     _use_netcdf = false;
     _n_timesteps = 0;
-    _mesh_proj4 = mesh_proj4;
-    is_first_timestep = true;
 
+    is_first_timestep = true;
+    _is_multipart_nc = false;
+    _just_loaded_nc = false;
+    _missing_z = false;
+    _output_dir = output_dir;
+
+    _mesh_proj4 = mesh->proj4();
     OGRSpatialReference srs;
     srs.importFromProj4(_mesh_proj4.c_str());
     _is_geographic = srs.IsGeographic();
+
+    // make a copy as we might need to modify it
+    _bounding_box = mesh->_bounding_box;
+
+    _num_stations_to_use = num_stations_to_use;
+
+    // write out the geojson and vtp of this rank's stations
+    boost::filesystem::create_directories(output_dir / "forcing");
 }
 
 metdata::~metdata()
@@ -41,25 +54,72 @@ metdata::~metdata()
 
 }
 
-void metdata::load_from_netcdf(const std::string& path, const triangulation::bounding_box* box, std::map<std::string, boost::shared_ptr<filter_base> > filters)
+void metdata::load_from_listof_netcdf(const std::string& path, std::map<std::string, boost::shared_ptr<filter_base> > filters)
+{
+    _is_multipart_nc = true;
+    SPDLOG_DEBUG("Loading forcing from list of netcdf file");
+
+    auto nclist_root = read_json(path);
+
+    try
+    {
+        // Iterate through the array
+        for (const auto& item : nclist_root)
+        {
+            const auto& obj = item.second;
+
+            _nc_list.emplace(
+                boost::posix_time::from_iso_string(obj.get<std::string>("start_time")),
+                boost::posix_time::from_iso_string(obj.get<std::string>("end_time")),
+                obj.get<std::string>("file_name")
+            );
+
+        }
+    }
+    catch (const pt::json_parser_error& e)
+    {
+        CHM_THROW_EXCEPTION(config_error, e.what());
+
+    }
+
+    auto [start_time, _, nc_path] = _nc_list.front();
+    auto [___, end_time, ____] = _nc_list.back();
+
+    _start_time = start_time;
+    _end_time = end_time;
+
+    SPDLOG_DEBUG("Global start is {}",  boost::posix_time::to_simple_string(start_time));
+    SPDLOG_DEBUG("Global end is {}",  boost::posix_time::to_simple_string(end_time));
+
+    _nc_list.pop();
+    load_from_netcdf(nc_path, filters);
+
+}
+
+void metdata::load_from_netcdf(const std::string& path, std::map<std::string, boost::shared_ptr<filter_base> > filters, bool preserve_current_ts)
 {
     if(_mesh_proj4 == "")
     {
         CHM_THROW_EXCEPTION(forcing_error, "Met loader not initialized with proj4 string");
     }
 
-    SPDLOG_DEBUG("Found NetCDF file");
+    SPDLOG_DEBUG("Found NetCDF file {}", path);
 
     _use_netcdf = true;
+    _just_loaded_nc = true;
     _nc = std::make_unique<netcdf>();
 
-    // make a copy of the filters and track what they provide
-    for(auto& itr : filters)
+    // only do this once, don't repeat if we have them cached
+    if(_netcdf_filters.empty())
     {
-        _netcdf_filters[itr.first] = itr.second;
-        for(auto& p : itr.second->provides())
+        // make a copy of the filters and track what they provide
+        for(auto& itr : filters)
         {
-            _provides_from_nc_filters.insert(p);
+            _netcdf_filters[itr.first] = itr.second;
+            for(auto& p : itr.second->provides())
+            {
+                _provides_from_nc_filters.insert(p);
+            }
         }
     }
 
@@ -87,18 +147,90 @@ void metdata::load_from_netcdf(const std::string& path, const triangulation::bou
         }
     }
 
+    try
+    {
+        // reset variables as we may have reloaded from a new netcdf file
+        _variables.clear();
+        _stations.clear();
+        _dD_tree.clear();
+        _nc_ignored_variables.clear();
+
+        _nc->open_GEM(path);
+
+        _missing_z = _nc->missing_z();
+    } catch(netCDF::exceptions::NcException& e)
+    {
+        OGRCoordinateTransformation::DestroyCT(coordTrans);
+        CHM_THROW_EXCEPTION(forcing_error, std::format("Failed to open netcdf file {}. Error: {}", path, e.what()));
+    }
 
     try
     {
-        _nc->open_GEM(path);
+        // these variables might have unknown to CHM variables names that we can convert to CHM names via
+        // the standard_name mapping
+        auto _variables_nc = _nc->get_variable_names();
 
-        _variables = _nc->get_variable_names();
+        for(const auto& itr : _variables_nc)
+        {
+            std::string stdname;
+            try
+            {
+                stdname = _nc->get_var_standard_name(itr);
+            }
+            catch(netCDF::exceptions::NcException& e)
+            {
+                _nc_ignored_variables.insert(itr);
+                SPDLOG_WARN("No standard_name for nc var {}, ignoring", itr);
+            }
+
+
+            // check if we have a nc standard_name -> CHM mapping
+            auto chm_var = itr;
+            if(stdname != "")
+            {
+                chm_var = CF_name_mapping::standard_names.right.find(stdname)->second;
+
+                if(chm_var == "")
+                {
+                    _nc_ignored_variables.insert(itr);
+                    SPDLOG_WARN("Could not remap nc var {} with standard_name {}, ignoring", itr, stdname);
+                    continue;
+                    // CHM_THROW_EXCEPTION(forcing_error, std::format("Could not remap nc var {} with standard_name {}", itr, stdname));
+                }
+
+                SPDLOG_DEBUG("Remapping variable nc var {} to {} ", itr, chm_var);
+            }
+            _variables.insert(chm_var);
+        }
 
         _variables.insert(_provides_from_nc_filters.begin(),_provides_from_nc_filters.end());
+    } catch(netCDF::exceptions::NcException& e)
+    {
+        OGRCoordinateTransformation::DestroyCT(coordTrans);
+        CHM_THROW_EXCEPTION(forcing_error, std::format("Failed to map variables. Error: {}", e.what()));
+    }
 
-        _start_time = _nc->get_start();
-        _end_time = _nc->get_end();
-        _n_timesteps = _nc->get_ntimesteps();
+    try{
+
+        if(_is_multipart_nc)
+        {
+            // the global start and end times will have been handled by the multipart loader
+            // only update the file start/end times
+            _file_start_time = _nc->get_start();
+            _file_end_time = _nc->get_end();
+
+            // we need to compute this from the globally known start / end times
+            // +1 to be inclusive of the start time
+            _n_timesteps = (_end_time - _start_time).total_seconds() /  _nc->get_dt().total_seconds() +1 ;
+        }
+        else
+        {
+            _file_start_time = _start_time = _nc->get_start();
+            _file_end_time = _end_time = _nc->get_end();
+            _n_timesteps = _nc->get_ntimesteps();
+        }
+
+
 
         _nstations = _nc->get_xsize() * _nc->get_ysize();
         _stations.resize(_nstations);
@@ -106,90 +238,174 @@ void metdata::load_from_netcdf(const std::string& path, const triangulation::bou
         SPDLOG_DEBUG( "Grid is (y) {} by (x) {}", _nc->get_ysize(),  _nc->get_xsize());
 
         SPDLOG_DEBUG("Loading lat/long grid...");
+    } catch(netCDF::exceptions::NcException& e)
+    {
+        OGRCoordinateTransformation::DestroyCT(coordTrans);
+        CHM_THROW_EXCEPTION(forcing_error, std::format("Failed to load coordinates. Error: {}", e.what()));
+    }
 
-        auto lat = _nc->get_lat();
-        auto lon = _nc->get_lon();
-        auto e = _nc->get_z();
+    try
+    {
+        auto is_2D_coords = _nc->get_coord_dimensionality() == 2;
+
+        std::variant<netcdf::data, netcdf::vec> lat = is_2D_coords ? std::variant<netcdf::data, netcdf::vec>(_nc->get_lat2D()) : std::variant<netcdf::data, netcdf::vec>(_nc->get_lat());
+        std::variant<netcdf::data, netcdf::vec> lon = is_2D_coords ? std::variant<netcdf::data, netcdf::vec>(_nc->get_lon2D()) : std::variant<netcdf::data, netcdf::vec>(_nc->get_lon());
 
         SPDLOG_DEBUG("Initializing datastructure");
+
+
+        netcdf::data e;
+        if(!missing_z())
+            e = _nc->get_z();
+
 
         // #pragma omp parallel for
         // hangs, unclear why, critical sections around the json and gdal calls
         // don't seem to help. Probably _dD_tree is not thread safe
 
+        // guarantee at least this number of stations are found, might need to expand bbox
+        int at_least = _num_stations_to_use ? *_num_stations_to_use : 0;
+        int tries = 0;
         int skipped = 0; // keep track of how many we skipped due to nans
-        for (size_t y = 0; y < _nc->get_ysize(); y++)
+
+        bool done = false;
+        do
         {
-            for (size_t x = 0; x < _nc->get_xsize(); x++)
+            skipped = 0;
+            for (size_t y = 0; y < _nc->get_ysize(); y++)
             {
-                size_t index = x + y * _nc->get_xsize();
-
-                double latitude = 0;
-                double longitude = 0 ;
-                double z = 0;
-
-                latitude = lat[y][x];
-                longitude = lon[y][x];
-                z = e[y][x];
-
-                // Some Netcdf files have NaN grid squares, For these cases we will just insert a nullptr station and
-                // don't add the station to the dD list which is the only way it ever gets to modules
-                if ( std::isnan(latitude) ||
-                    std::isnan(longitude) ||
-                    std::isnan(z))
+                for (size_t x = 0; x < _nc->get_xsize(); x++)
                 {
-                    _stations.at(index) = nullptr;
-                    ++skipped;
-                    continue;
-                }
+                    size_t index = x + y * _nc->get_xsize();
 
+                    double latitude = 0;
+                    double longitude = 0 ;
+                    double z = 0;
 
-                std::string station_name = std::to_string(index); // these don't really have names
-
-                //need to convert the input lat/long into the coordinate system our mesh is in
-                if (!_is_geographic)
-                {
-                    //CRS created with the “EPSG:4326” or “WGS84” strings use the latitude first, longitude second axis order.
-                    if (!coordTrans->Transform(1, &longitude, &latitude))
+                    if(is_2D_coords)
                     {
-                        CHM_THROW_EXCEPTION(forcing_error, "Station=" + station_name + ": unable to convert coordinates to mesh format.");
-                    }
-                }
+                        latitude = (*std::get<netcdf::data>(lat))[y][x];
+                        longitude = (*std::get<netcdf::data>(lon))[y][x];
 
-                if(box)
-                {
-                    if( longitude > box->x_max || longitude < box->x_min ||
-                        latitude > box->y_max || latitude < box->y_min)
+                    }
+                    else
+                    {
+                        latitude = (*std::get<netcdf::vec>(lat))[y];
+                        longitude = (*std::get<netcdf::vec>(lon))[x];
+                    }
+
+                    // Some Netcdf files have NaN grid squares, For these cases we will just insert a nullptr station and
+                    // don't add the station to the dD list which is the only way it ever gets to modules
+                    if ( std::isnan(latitude) ||
+                        std::isnan(longitude) ||
+                        std::isnan(z))
                     {
                         _stations.at(index) = nullptr;
                         ++skipped;
                         continue;
                     }
+
+                    std::string station_name = std::to_string(index); // these don't really have names
+
+                    //need to convert the input lat/long into the coordinate system our mesh is in
+                    if (!_is_geographic)
+                    {
+                        //CRS created with the “EPSG:4326” or “WGS84” strings use the latitude first, longitude second axis order.
+                        if (!coordTrans->Transform(1, &longitude, &latitude))
+                        {
+                            CHM_THROW_EXCEPTION(forcing_error, "Station=" + station_name + ": unable to convert coordinates to mesh format.");
+                        }
+                    }
+
+                    // constain point insertion to the mesh's bounding box
+                    if( longitude > _bounding_box.x_max || longitude < _bounding_box.x_min ||
+                            latitude > _bounding_box.y_max || latitude < _bounding_box.y_min)
+                    {
+                        _stations.at(index) = nullptr;
+                        ++skipped;
+                        continue;
+                    }
+
+
+
+                    if(missing_z())
+                        z = -9999; // estimate this later
+                    else
+                        z = (*e)[y][x];
+
+
+                    std::shared_ptr<station> s = std::make_shared<station>(station_name,
+                        longitude, latitude, z, _variables);
+
+                    //holds the corresponding x,y grid cell of the netcdf file
+                    s->_nc_x = x;
+                    s->_nc_y = y;
+
+                    //index this linear array as if it were 2D to make the lazy load in the main run() loop easier.
+                    //it will allow us to pull out the station for a specific x,y more easily.
+                    _stations.at(index) = s;
+
+                    _dD_tree.insert( boost::make_tuple(Kernel::Point_2(s->x(),s->y()),s) );
+
                 }
-
-
-                double elevation = z;
-
-                std::shared_ptr<station> s = std::make_shared<station>(station_name,
-                    longitude, latitude, elevation, _variables);
-
-                s->_nc_x = x;
-                s->_nc_y = y;
-
-                //index this linear array as if it were 2D to make the lazy load in the main run() loop easier.
-                //it will allow us to pull out the station for a specific x,y more easily.
-                _stations.at(index) = s;
-
-                _dD_tree.insert( boost::make_tuple(Kernel::Point_2(s->x(),s->y()),s) );
             }
-        }
 
+            if(_nstations-skipped >= at_least)
+                done = true;
+            else
+            {
+
+                SPDLOG_DEBUG("Expanding station search bounding box by 25\%");
+
+                double x_expansion = (_bounding_box.x_max - _bounding_box.x_min) * 0.25;
+                double y_expansion = (_bounding_box.y_max - _bounding_box.y_min) * 0.25;
+
+                // Expand in all directions
+                _bounding_box.x_min -= x_expansion;
+                _bounding_box.x_max += x_expansion;
+                _bounding_box.y_min -= y_expansion;
+                _bounding_box.y_max += y_expansion;
+
+                tries++;
+            }
+
+            // give up
+            if(tries > 3)
+                done = true;
+
+
+        }while(!done);
+
+        SPDLOG_DEBUG("Done initializing datastructure");
+
+        boost::mpi::communicator local;
+        boost::filesystem::path nc_path(path);
+
+        boost::filesystem::create_directories(_output_dir / "forcing" / nc_path.stem());
+        auto forcing_point_path = _output_dir / "forcing" / nc_path.stem() / std::format("stations_{}.", local.rank());
+
+        // SPDLOG_DEBUG("Forcing points: {}", forcing_point_path.string());
+        write_stations_to_ptv(forcing_point_path.string() + "vtp");
+        write_stations_to_shp(forcing_point_path.string() + "geojson");
+
+        // Give all the ranks a chance to expand the bbox and find the stations.
+        // The output diagnostic forcing points and bbox need to be written before we bail if there were any mistakes
+        local.barrier();
+
+        SPDLOG_DEBUG("This rank is using # grid cells = {}", _stations.size() - skipped);
         if( skipped == _nstations)
         {
             CHM_THROW_EXCEPTION(forcing_error,
                                 "All forcing grid cells were skipped due to being NaN values. Elevation and lat/lon,"
                                 " regardless of the timestep the model is started from, are defined from timestep = 0 "
                                 ". Ensure it is defined then. Also, could be a bounding box issue.");
+        }
+
+        if( _nstations-skipped < at_least)
+        {
+            CHM_THROW_EXCEPTION(forcing_error,
+                    "Couldn't fullfill station number requirement after 3 25% search area expansions. "
+                    "This means that there are not enough stations within the mesh's bounding box.");
         }
 
     } catch(netCDF::exceptions::NcException& e)
@@ -201,7 +417,8 @@ void metdata::load_from_netcdf(const std::string& path, const triangulation::bou
     OGRCoordinateTransformation::DestroyCT(coordTrans);
     _dt = _nc->get_dt();
 
-    _current_ts = _start_time;
+    if(!preserve_current_ts)
+        _current_ts = _file_start_time;
 }
 
 void metdata::load_from_ascii(std::vector<ascii_metdata> stations, int utc_offset)
@@ -317,7 +534,13 @@ void metdata::load_from_ascii(std::vector<ascii_metdata> stations, int utc_offse
     std::tie(_start_time,_end_time) = find_unified_start_end();
     subset(_start_time,_end_time); //subset assumes we have a valid dt
 
-    _current_ts = _start_time;
+    // even though multi-part ascii text files are not supported, various pieces of code assumes that both start_times
+    // are valid
+
+    _current_ts = _file_start_time = _start_time;
+    _file_end_time = _end_time;
+
+    SPDLOG_DEBUG(boost::posix_time::to_simple_string(_current_ts));
     _n_timesteps = _ascii_stations.begin()->second->_obs.get_date_timeseries().size(); //grab the first timeseries, they are all the same period now
     _nstations = _ascii_stations.size();
 
@@ -406,12 +629,15 @@ void metdata::subset(boost::posix_time::ptime start, boost::posix_time::ptime en
     _start_time = start;
     _end_time = end;
     _current_ts = _start_time;
+
     _n_timesteps = ( (_end_time+_dt) - _start_time).total_seconds() / _dt.total_seconds(); // need to add +dt so that we are inclusive of the last timestep
 }
+
 std::pair<boost::posix_time::ptime,boost::posix_time::ptime> metdata::start_end_time()
 {
     return std::make_pair(_start_time,_end_time);
 }
+
 std::pair<boost::posix_time::ptime,boost::posix_time::ptime> metdata::find_unified_start_end()
 {
     if(!_use_netcdf)
@@ -487,7 +713,7 @@ bool metdata::next()
     bool has_next = false;
 
     // allows for doing first timestep loading without incrementing the timestep
-    if(!is_first_timestep)
+     if(!is_first_timestep)
         _current_ts = _current_ts + _dt;
 
     if(_use_netcdf)
@@ -505,7 +731,7 @@ bool metdata::next()
 
 bool metdata::next_ascii()
 {
-
+    SPDLOG_DEBUG(boost::posix_time::to_simple_string(_current_ts));
     for(size_t i = 0; i < nstations();i++)
     {
         auto s = _stations.at(i);
@@ -549,31 +775,114 @@ bool metdata::next_ascii()
 
     return true;
 }
+
+bool metdata::nc_just_loaded()
+{
+    return _just_loaded_nc;
+}
+
 bool metdata::next_nc()
 {
-    if(_current_ts > _end_time) //_current_ts is already ++ from the next() call
+
+    // assume we won't have to load a netcdf
+    _just_loaded_nc = false;
+
+    //_current_ts is already ++ from the next() call
+    if(_current_ts > _end_time)
     {
-        return false; // we've run out of data, we done
+        return false;
     }
 
+    if(_is_multipart_nc && (_current_ts > _file_end_time))
+    {
 
-    //The call to netCDF isn't thread safe. It is protected by a critical section but it's costly, and not running this
+        // we have no extra nc to process and we are at the end
+        if(_nc_list.empty() )
+        {
+            return false; // we've run out of data, we done
+        }
+
+        // we might be trying to start from a time that isn't in the first loaded netcdf file
+        // so find the right file. Otherwise, we are just loading the next file
+        std::string file_name;
+        while(!_nc_list.empty())
+        {
+            auto [start_time, end_time, mp_fname] = _nc_list.front();
+            _nc_list.pop();
+            if (_current_ts <= end_time)
+            {
+                file_name = mp_fname;
+                break;
+            }
+        }
+
+        // edge case:
+        // IF we are the first timestep AND we have a user/chkpt supplied start
+        // the nc file load will overwrite the current_ts time, which currently holds this custom time.
+        // we can't hit this on the first time step AND have (_current_ts > _file_end_time) without having to
+        // load extra files
+
+        // we already have the filters cached, so don't pass it in again
+        load_from_netcdf(file_name,
+            {}, // these will be cached
+            is_first_timestep);
+
+
+    }
+
+    //The call to netCDF isn't thread safe. It is protected by a critical section, but it's costly, and not running this
     // in parallel is about 2x faster  #pragma omp parallel for
     for(size_t i = 0; i < nstations();i++)
     {
         auto s = _stations.at(i);
 
-        // we might have a NaN point, so so a nullptr station, just keep going
+        // we might have a NaN point (a nullptr station), just keep going
         if(!s)
             continue;
 
         s->set_posix(_current_ts);
 
-        // don't use the stations variable map as it'll contain anything inserted by a filter which won't exist in the nc file
+        // don't use the stations variable map as it'll contain anything inserted by a
+        // filter which won't exist in the nc file
+        // note: this iterates over the netcdf variables names, which we might need to shim to be the currently
+        // excepted CHM names
         for (auto &v: _nc->get_variable_names() )
         {
+            if(_nc_ignored_variables.contains(v))
+            {
+                // SPDLOG_DEBUG("ignoring variable {}", v);
+                continue;
+            }
+
+
             double d = _nc->get_var(v, _current_ts, s->_nc_x, s->_nc_y);
-            (*s)[v] = d;
+
+            auto stdname = _nc->get_var_standard_name(v);
+            auto chm_var = CF_name_mapping::standard_names.right.find(stdname)->second;
+
+            auto unit = _nc->get_unit(v);
+
+            if(stdname == "precipitation_amount" && unit == "m")
+            {
+                // auto ud = d * si::metre;
+                // d = ud.numerical_value_in(si::unit_symbols::mm);
+                d = d * 1000.0;
+            }
+
+            if(stdname == "air_temperature" && unit == "K")
+            {
+                //auto ud = d * si::kelvin;
+                //d = ud.numerical_value_in(si::degree_Celsius);
+                d = d + 273.15;
+            }
+
+            if(stdname == "relative_humidity" && unit == "1")
+            {
+                d = d * 100.;
+            }
+
+            // SPDLOG_DEBUG("nc var:{} chm_var: {}", v, chm_var);
+            (*s)[chm_var] = d;
 
         }
 
@@ -638,4 +947,30 @@ void metdata::prune_stations(std::unordered_set<std::string>& station_ids)
 std::vector< std::shared_ptr<station>>& metdata::stations()
 {
     return _stations;
+}
+
+bool metdata::is_multipart_nc()
+{
+    return _is_multipart_nc;
+}
+
+void metdata::write_stations_to_shp(const std::string& fname)
+{
+    std::vector<std::tuple<float, float>> xy;
+    for(auto itr: _stations)
+    {
+        if(itr)
+            xy.emplace_back(itr->x(), itr->y());
+    }
+    gis::xy2geojson(xy, fname, _mesh_proj4);
+}
+
+bool metdata::missing_z()
+{
+    return _missing_z;
+}
+
+void metdata::set_working_output_dir(boost::filesystem::path working_dir)
+{
+    _output_dir = working_dir;
 }

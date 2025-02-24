@@ -271,14 +271,11 @@ protected:
     // then we need to affix every file IO (excep the log ?) with this path.
     boost::filesystem::path cwd_dir;
 
-
-    bool _output_station_ptv; //should we output the station ptv file? if we have no output section, then don't do this.
-
     //this is called via system call when the model is done to notify the user
     std::string _notification_script;
 
     //main mesh object
-    boost::shared_ptr< triangulation > _mesh;
+    mesh _mesh;
 
     // these are saved here so-as to be used elsewhere
     std::string _mesh_path;
@@ -533,6 +530,9 @@ protected:
         boost::optional<size_t> frequency; // frequency of checkpoints
 
 
+        boost::optional<boost::posix_time::ptime> specific_datetime; // at a specific date-time
+        boost::optional<boost::posix_time::ptime> specific_time; // at a specific time
+
         // used to stop the simulation when we checkpoint when we are outta time
         bool checkpoint_request_terminate;
 
@@ -542,7 +542,11 @@ protected:
          * @param is_last_ts
          * @return
          */
-        bool should_checkpoint(size_t current_ts, bool is_last_ts, hpc_scheduler_info& scheduler_info, boost::mpi::communicator& comm_world)
+        bool should_checkpoint(size_t current_ts,
+            bool is_last_ts,
+            hpc_scheduler_info& scheduler_info,
+            boost::mpi::communicator& comm_world,
+            const boost::posix_time::ptime& _current_date)
         {
             if(!do_checkpoint)
                 return false;
@@ -576,16 +580,26 @@ protected:
 
             }
 
+            if(specific_time)
+            {
+                if( (_current_date.time_of_day().hours() == specific_time->time_of_day().hours()) &&
+                    (_current_date.time_of_day().minutes() == specific_time->time_of_day().minutes()) )
+                    return true;
+            }
+
+            if(specific_datetime)
+            {
+                if(_current_date == *specific_datetime)
+                    return true;
+            }
+
             return false;
         }
 
 
     } _checkpoint_opts;
 
-
-
     //command line argument options we need to keep track of
-
     struct
     {
         bool tmp;  // empty until we use this more
@@ -593,10 +607,9 @@ protected:
     } cli_options;
 
 
-#ifdef USE_MPI
     boost::mpi::environment _mpi_env;
     boost::mpi::communicator _comm_world;
-#endif
+
 
 };
 
