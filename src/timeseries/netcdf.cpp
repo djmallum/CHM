@@ -28,6 +28,8 @@
 netcdf::netcdf()
 {
     _is_open = false;
+    _datetime_field="";
+    _missing_z = false;
 }
 netcdf::~netcdf()
 {
@@ -100,27 +102,84 @@ void netcdf::open(const std::string &file)
 {
     _data.open(file.c_str(), netCDF::NcFile::read);
 }
+
+std::string netcdf::find_coord_by_standard_name(const std::string& standard_name) const
+{
+    for (auto& itr : _data.getCoordVars())
+    {
+        auto var = _data.getVar(itr.first);
+        auto standardNameAtt = var.getAtt("standard_name");
+        if(standardNameAtt.isNull())
+            continue;
+
+        std::string std_name;
+        standardNameAtt.getValues(std_name);
+        if(std_name == standard_name)
+        {
+            return itr.first;
+        }
+    }
+
+    // if we get here, we didn't find what we were looking for
+    CHM_THROW_EXCEPTION(forcing_error, "Could not find coordinate variable for " + standard_name);
+
+}
+
+std::string netcdf::find_dim_by_standard_name(const std::string& standard_name) const
+{
+    for (auto& itr : _data.getDims())
+    {
+        auto var = _data.getVar(itr.first);
+        netCDF::NcVarAtt standardNameAtt;
+        try
+        {
+            standardNameAtt = var.getAtt("standard_name");
+
+            if(standardNameAtt.isNull())
+                continue;
+        }
+        catch(netCDF::exceptions::NcException& e)
+        {
+            // this doesn't even have a standard_name attr
+            continue;
+        }
+
+        std::string std_name;
+        standardNameAtt.getValues(std_name);
+        if(std_name == standard_name)
+        {
+            return itr.first;
+        }
+    }
+
+    // if we get here, we didn't find what we were looking for
+    CHM_THROW_EXCEPTION(forcing_error, "Could not find coordinate variable for " + standard_name);
+
+}
+
 void netcdf::open_GEM(const std::string &file)
 {
     _data.open(file.c_str(), netCDF::NcFile::read);
 
     // gem netcdf files have 1 coordinate, datetime
 
-//    for (auto& itr : _data.getVars())
-//    {
-//        LOG_DEBUG << itr.first;
-//    }
-//
-//    SPDLOG_DEBUG("-----");
-//    for (auto& itr : _data.getCoordVars())
-//    {
-//        LOG_DEBUG << itr.first;
-//    }
-//    SPDLOG_DEBUG("-----");
-//    for (auto& itr : _data.getDims())
-//    {
-//        LOG_DEBUG << itr.first;
-//    }
+    SPDLOG_DEBUG("NC getVars:");
+    for (auto& itr : _data.getVars())
+    {
+        SPDLOG_DEBUG("\t"+itr.first);
+    }
+
+    SPDLOG_DEBUG("NC getCoordVars");
+    for (auto& itr : _data.getCoordVars())
+    {
+        SPDLOG_DEBUG("\t"+itr.first);
+    }
+    SPDLOG_DEBUG("Nc getDims");
+    for (auto& itr : _data.getDims())
+    {
+        SPDLOG_DEBUG("\t"+itr.first);
+    }
+
     auto coord_vars = _data.getCoordVars();
 
     // a few NC have time as a variable and not a coordinate variable so look for time/datetime there
@@ -128,7 +187,9 @@ void netcdf::open_GEM(const std::string &file)
     {
         CHM_THROW_EXCEPTION(forcing_error,"Netcdf file does not have a coordinate variable defined.");
     }
-    _datetime_field = "datetime";
+
+    _datetime_field = find_coord_by_standard_name("time");
+    SPDLOG_DEBUG("Found time coordinate variable: " + _datetime_field);
 
     try
     {
@@ -136,24 +197,10 @@ void netcdf::open_GEM(const std::string &file)
     }
     catch (netCDF::exceptions::NcNullGrp& e)
     {
-        _datetime_field = "time";
-        try {
-            _datetime_length = coord_vars[_datetime_field].getDim(_datetime_field).getSize();
-        }
-        catch (netCDF::exceptions::NcNullGrp& e)
-        {
-            SPDLOG_ERROR("Tried datetime and time, coord not found");
-            throw e;
-        }
-
+        SPDLOG_ERROR("Could not find datetime coordinate");
+        throw;
     }
 
-
-    // if we don't have at least two timesteps, we can't figure out the model internal timestep length (dt)
-    if(_datetime_length == 1)
-    {
-        CHM_THROW_EXCEPTION(forcing_error,"There needs to be at least 2 timesteps in order to determine model dt.");
-    }
 //
 //    if(coord_vars.size() > 1)
 //    {
@@ -168,45 +215,72 @@ void netcdf::open_GEM(const std::string &file)
 
     netCDF::NcVar times = _data.getVar(_datetime_field);
 
-    if(times.getType().getName() != "int64")
-    {
-        CHM_THROW_EXCEPTION(forcing_error,"Datetime dimension not in int64 format");
-    }
-
-
     //load in the time offsets
-    int64_t* dt = new int64_t[_datetime_length];
-    times.getVar(dt);
+    auto* dt = new int64_t[_datetime_length];
+
+    if(times.getType().getName() == "int64")
+    {
+        times.getVar(dt);
+    }
+    else  if(times.getType().getName() == "double")
+    {
+        auto* tmp_dt = new double[_datetime_length];
+        times.getVar(tmp_dt);
+
+        for(int i = 0; i < _datetime_length; i++)
+        {
+            dt[i] = static_cast<int64_t>(tmp_dt[i]);
+        }
+
+        delete[] tmp_dt;
+    }
+    else
+    {
+        CHM_THROW_EXCEPTION(forcing_error, "Datetime dimension not in int64 or double type. Type is: " + times.getType().getName());
+    }
 
     //figure out what the epoch is
     // we are expecting the units attribute data to look like
     // hours since 2018-01-05 01:00:00
     std::string epoch;
     auto a = times.getAtt("units");
-    a.getValues(epoch);
+
+    try
+    {
+        // SPDLOG_DEBUG(times.getAtt("units").getType().getName());
+        a.getValues(epoch);
+    }
+    catch(...)
+    {
+        SPDLOG_ERROR("Datetime attributes are likely string attributes. Did you write this netcdf with xarray with engine=h5netcdf? Try engine=netcdf4");
+        CHM_THROW_EXCEPTION(forcing_error, "Datetime string attributes not supported");
+    }
+
 
 
     if( epoch.find("hours") != std::string::npos )
     {
         SPDLOG_DEBUG("Found epoch offset = hours");
-        _timestep = boost::posix_time::hours(1);
-        dt_unit = "hours";
+        _epoch_offset_unit = boost::posix_time::hours(1);
+    }
+    else if( epoch.find("days") != std::string::npos )
+    {
+        SPDLOG_DEBUG("Found epoch offset = days");
+        _epoch_offset_unit = boost::posix_time::hours(24);
     }
     else if( epoch.find("minutes") != std::string::npos )
     {
         SPDLOG_DEBUG("Found epoch offset = minutes");
-        _timestep = boost::posix_time::minutes(1);
-        dt_unit = "minutes";
+        _epoch_offset_unit = boost::posix_time::minutes(1);
     }
     else if(( epoch.find("seconds") != std::string::npos ))
     {
         SPDLOG_DEBUG("Found epoch offset = seconds");
-        _timestep = boost::posix_time::seconds(1);
-        dt_unit = "seconds";
+        _epoch_offset_unit = boost::posix_time::seconds(1);
 
     } else
     {
-        CHM_THROW_EXCEPTION(forcing_error, "Unknown datetime epoch offset unit.");
+        CHM_THROW_EXCEPTION(forcing_error, "Unknown datetime epoch offset unit: " + epoch);
     }
 
     std::vector<std::string> strs;
@@ -214,7 +288,6 @@ void netcdf::open_GEM(const std::string &file)
 
     if(strs.size() != 4)
     {
-
         //might be in iso format (2017-08-13T01:00:00)
         if(strs.size() != 3)
         {
@@ -224,17 +297,26 @@ void netcdf::open_GEM(const std::string &file)
         //If it's 3, means there is a T b/w date and time, remove it.
         std::string s = strs[2];
         auto tpos = s.find("T");
+        bool removed_a_t = false; // keep track if we remove a T
         if (tpos != std::string::npos)
         {
             s.replace(s.find("T"),1," ");
+            removed_a_t = true;
         }
 
-        // midnight times can be reported without the 00:00 suffix. If we get this far and don't have : in the epoch
-        // then we need to add it
+
         tpos = s.find(":");
         if (tpos == std::string::npos)
         {
-            s = s + " 00:00:00";
+            // if we removed a T above, BUT there is no :, it is probably something funny like
+            // 1950-01-01T01
+            // which is then 1950-01-01 01
+            if(removed_a_t)
+                s = s + ":00:00";
+            else
+                // midnight times can be reported without the 00:00 suffix. If we get this far and don't have : in the epoch
+                // then we need to add it
+                s = s + " 00:00:00";
         }
 
         try
@@ -245,67 +327,143 @@ void netcdf::open_GEM(const std::string &file)
         {
             CHM_THROW_EXCEPTION(forcing_error, "Unable to parse netcdf epoch time " + s);
         }
-
-
     }
     else
     {
         _epoch = boost::posix_time::time_from_string(strs[2]+" "+strs[3]);
     }
 
+    //get our dt, expectation is that it is a constant dt throughout the nc file
+    try
+    {
+        auto attr = coord_vars[_datetime_field];
+
+        size_t dt = 0;
+        // has to be from the variable not the coord to get access to the attr
+        _data.getVar(_datetime_field).getAtt("delta_t").getValues(&dt);
+
+        std::string dt_units;
+        // this getValues is different than the rest
+        // https://docs.unidata.ucar.edu/netcdf-cxx/current/classnetCDF_1_1NcAtt.html#a07ba5f59a1d9a1e1d0eca6adf133796c
+        _data.getVar(_datetime_field).getAtt("delta_t_units").getValues(dt_units);
+
+        if( dt_units != "s")
+        {
+            CHM_THROW_EXCEPTION(forcing_error, "time:delta_t_units must be s");
+        }
+
+        _delta_t = boost::posix_time::seconds(dt);
+
+    }
+    catch(forcing_error& e)
+    {
+        CHM_THROW_EXCEPTION(forcing_error, e.what());
+    }
+    catch(...)
+    {
+        // no attribute, try to compute it manually
+        // if we don't have at least two timesteps, we can't figure out the model internal timestep length (dt)
+        if(_datetime_length == 1)
+        {
+            CHM_THROW_EXCEPTION(forcing_error,"There needs to be at least 2 timesteps in order to determine model dt or the time coordinate needs to have the attribute 'delta_t:<step in seconds'.");
+        }
+        // e.g., dt = [0 1 2] hours since epoch
+        // 1-0 * hour(1) -> total_seconds
+        _delta_t = boost::posix_time::seconds( (_epoch_offset_unit*(dt[1]-dt[0])).total_seconds());
+    }
+
     //need to handle a start that is different from our epoch
     // e.g., the epoch might be 'hours since 2021-01-01 00:00:00',
     // but timestep 1 is "5 hours" making the start 2021-01-01 05:00:00
-    _start = _epoch + _timestep * dt[0];
+    _start = _epoch + _epoch_offset_unit * dt[0];
 
     //figure out what the end of the timeseries is
-    _end = _epoch + _timestep * dt[_datetime_length-1];
+    _end = _epoch + _epoch_offset_unit * dt[_datetime_length-1];
 
-
-    //get our dt, assuming constant dt throughout the nc file
-    _timestep *= dt[1]-dt[0];
 
     // go through all the timesteps and ensure a consistent timesteping
     // best to spend the time up front for this check than to get 90% into a sim and have it die
-    size_t pred_timestep = dt[0];
-    for(size_t i=1;  // intentional
-         i<_datetime_length; i++)
+    if(_datetime_length > 2)
     {
-        pred_timestep += (dt[1]-dt[0]);
+        auto timestep_dtdiff = dt[1] - dt[0];
 
-        if( dt[i] != pred_timestep)
+        for(size_t i=2;  // intentional
+             i < _datetime_length; i++)
         {
-            std::stringstream expected;
-            expected << _epoch + _timestep * pred_timestep;
-            std::stringstream got;
-            got << _epoch + _timestep * dt[i];
+            auto cur_diff =  dt[i] - dt[i-1];
 
+            if( cur_diff != timestep_dtdiff)
+            {
 
-            CHM_THROW_EXCEPTION(forcing_error, "The timesteps in the netcdf file are not constant. At timestep " +
-                                                   std::to_string(i) + " offset " + std::to_string(pred_timestep) + " was expected but found " +
-                                std::to_string(dt[i]) + ".\n Expected=" + expected.str() + "\n Got=" + got .str()
-                                );
+                CHM_THROW_EXCEPTION(forcing_error, "The timesteps in the netcdf file are not constant. At timestep " +
+                                                       std::to_string(i) + " dt " + std::to_string(timestep_dtdiff) + " was expected but found " +
+                                    std::to_string(cur_diff)
+                                    );
 
+            }
         }
     }
+
 
     SPDLOG_DEBUG("NetCDF epoch is {}", boost::posix_time::to_simple_string(_epoch));
     SPDLOG_DEBUG("NetCDF start is {}", boost::posix_time::to_simple_string(_start));
     SPDLOG_DEBUG("NetCDF end is {}",boost::posix_time::to_simple_string(_end));
-    SPDLOG_DEBUG("NetCDF timestep is {}", boost::posix_time::to_simple_string(_timestep));
+    SPDLOG_DEBUG("NetCDF timestep is {}", boost::posix_time::to_simple_string(_delta_t));
 
-    auto dims = _data.getDims();
-    for(auto itr : dims)
+    // CF convention assumes that dim and coord have the same name,
+    _lat_field = find_dim_by_standard_name("latitude");
+    _lon_field = find_dim_by_standard_name("longitude");
+
+    try
     {
-        if(itr.first == "xgrid_0")
-            xgrid = itr.second.getSize();
-        else if(itr.first == "ygrid_0")
-            ygrid = itr.second.getSize();
+        _elevation_field = find_var_by_attr("geopotential_height");
+        _missing_z = false;
+    }catch(...)
+    {
+        SPDLOG_WARN("No geopotential height field found. Using the height of nearest triangle. This is almost certainly NOT what you want");
+        _elevation_field="";
+        _missing_z = true;
     }
+
+
+    xgrid = _data.getDim(_lon_field).getSize();
+    ygrid = _data.getDim(_lat_field).getSize();
 
     SPDLOG_DEBUG("NetCDF grid is {} (x) by {} (y)", xgrid, ygrid);
 
+    auto lat_dim = _data.getVar(find_coord_by_standard_name("latitude")).getDimCount();
+    auto lon_dim = _data.getVar(find_coord_by_standard_name("longitude")).getDimCount();
 
+    if(lat_dim != lon_dim)
+    {
+        CHM_THROW_EXCEPTION(forcing_error, "Latitude and longitude dimensionality do not match");
+    }
+
+    _spatial_coord_dim = lat_dim;
+    SPDLOG_DEBUG("Coord dimensionality is {}D",_spatial_coord_dim);
+
+    if(_spatial_coord_dim > 2)
+    {
+        CHM_THROW_EXCEPTION(forcing_error, "Latitude and longitude dimensionality exceeds 2D");
+    }
+
+
+}
+
+bool netcdf::missing_z()
+{
+    return _missing_z;
+}
+
+std::string netcdf::get_unit(const std::string& var)
+{
+    auto v = _data.getVar(var);
+    auto unitAtt = v.getAtt("units");
+
+    std::string unit;
+    unitAtt.getValues(unit);
+
+    return unit;
 }
 
 size_t netcdf::get_ntimesteps()
@@ -315,7 +473,7 @@ size_t netcdf::get_ntimesteps()
 
 boost::posix_time::time_duration netcdf::get_dt()
 {
-    return _timestep;
+    return _delta_t;
 }
 
 boost::posix_time::ptime netcdf::get_start()
@@ -329,7 +487,64 @@ boost::posix_time::ptime netcdf::get_end()
 
 netcdf::data netcdf::get_z()
 {
-    return get_var("HGT_P0_L1_GST",0);
+    return get_var(_elevation_field, 0);
+}
+
+
+std::string netcdf::find_var_by_attr(const std::string& search, const std::vector<std::string>& attrs_to_search) const
+{
+    // even though we only return 1 value, we need to make sure we didn't match multiple
+    std::vector<std::string> result;
+
+    if(attrs_to_search.empty())
+    {
+        CHM_THROW_EXCEPTION(forcing_error, "Empty attribute list provided");
+    }
+
+    for (auto& [fst, snd] : _data.getVars())
+    {
+        auto var = _data.getVar(fst);
+
+        // check all requested attributes
+        for(const auto& jtr:attrs_to_search)
+        {
+            netCDF::NcVarAtt search_att;
+            try
+            {
+                // no standard_name, ignore it
+                search_att = var.getAtt(jtr);
+                if(search_att.isNull())
+                    continue;
+            }
+            catch(netCDF::exceptions::NcException& e)
+            {
+                // no standard_name, ignore it
+                continue;
+            }
+
+
+            std::string std_name;
+            search_att.getValues(std_name);
+            if(std_name == search)
+            {
+                result.push_back(fst);
+            }
+        }
+    }
+
+    if (result.empty())
+    {
+        // we didn't find what we were looking for
+        CHM_THROW_EXCEPTION(forcing_error, "Could not find variable by searching attrs for " + search);
+    }
+    else if(result.size() > 1)
+    {
+        CHM_THROW_EXCEPTION(forcing_error, "Multiple variables found for attr " + search);
+    }
+
+    return result.at(0);
+
+
 }
 
 std::set<std::string> netcdf::get_variable_names()
@@ -338,7 +553,7 @@ std::set<std::string> netcdf::get_variable_names()
     {
         auto vars = _data.getVars();
 
-        std::vector<std::string> exclude = {"datetime","leadtime", "reftime", "HGT_P0_L1_GST", "gridlat_0", "gridlon_0", "xgrid_0", "ygrid_0"};
+        std::vector<std::string> exclude = {"datetime","leadtime", "reftime", "HGT_P0_L1_GST", _lat_field, _lon_field};
 
         for (auto itr: vars)
         {
@@ -419,18 +634,18 @@ netcdf::data netcdf::get_var2D(std::string var)
 
     auto vars = _data.getVars();
 
-    netcdf::data array(boost::extents[ygrid][xgrid]);
+    netcdf::data array = std::make_shared<_ma_data>(_ma_data(boost::extents[ygrid][xgrid]));
     auto itr = vars.find(var);
-    itr->second.getVar(startp,countp, array.data());
+    itr->second.getVar(startp,countp, array->data());
 
     double fill_value = get_fillvalue(itr->second);
 
-    for(size_t i =0; i< array.shape()[0]; i++)
+    for(size_t i =0; i< array->shape()[0]; i++)
     {
-        for(size_t j =0; j< array.shape()[1]; j++)
+        for(size_t j =0; j< array->shape()[1]; j++)
         {
-            if (array[i][j] == fill_value)
-                array[i][j] = std::nan("nan");
+            if ((*array)[i][j] == fill_value)
+                (*array)[i][j] = std::nan("nan");
         }
     }
 
@@ -462,36 +677,92 @@ double netcdf::get_var2D(std::string var, size_t x, size_t y)
     return val;
 }
 
-netcdf::data netcdf::get_lat()
+std::string netcdf::get_var_standard_name(const std::string& variable) const
 {
-    return get_var2D("gridlat_0");
-}
-netcdf::data netcdf::get_lon()
-{
-    return get_var2D("gridlon_0");
+    auto var = _data.getVar(variable);
+    auto standardNameAtt = var.getAtt("standard_name");
+    if(standardNameAtt.isNull())
+        return "";
+
+    std::string std_name;
+    standardNameAtt.getValues(std_name);
+
+    return std_name;
 }
 
-size_t netcdf::get_xsize()
+netcdf::data netcdf::get_lat2D()
+{
+    return get_var2D(_lat_field);
+}
+
+netcdf::data netcdf::get_lon2D()
+{
+    return get_var2D(_lon_field);
+}
+
+netcdf::vec netcdf::get_lat()
+{
+    auto vars = _data.getVars();
+    auto itr = vars.find(_lat_field);
+    netcdf::vec array = std::make_shared<_ma_vec>(_ma_vec(boost::extents[ygrid]));
+    itr->second.getVar({0},{ygrid}, array->data());
+
+    double fill_value = get_fillvalue(itr->second);
+
+    std::transform(array->begin(), array->end(), array->begin(),
+                   [fill_value](double val)
+                   {
+                       return (val == fill_value) ? std::nan("") : val;
+                   });
+
+
+    return array;
+}
+netcdf::vec netcdf::get_lon()
+{
+    auto vars = _data.getVars();
+    auto itr = vars.find(_lon_field);
+    netcdf::vec array = std::make_shared<_ma_vec>(_ma_vec(boost::extents[xgrid]));
+    itr->second.getVar({0},{xgrid}, array->data());
+
+    double fill_value = get_fillvalue(itr->second);
+
+    std::transform(array->begin(), array->end(), array->begin(),
+                   [fill_value](double val)
+                   {
+                       return (val == fill_value) ? std::nan("") : val;
+                   });
+
+
+    return array;
+}
+
+size_t netcdf::get_xsize() const
 {
     return xgrid;
 }
-size_t netcdf::get_ysize()
+size_t netcdf::get_ysize() const
 {
     return ygrid;
 }
 
 double netcdf::get_lat(size_t x, size_t y)
 {
-    return get_var2D("gridlat_0",x,y);
+    return get_var2D(_lat_field,x,y);
 }
 double netcdf::get_lon(size_t x, size_t y)
 {
-    return get_var2D("gridlon_0",x,y);
+    return get_var2D(_lon_field,x,y);
 }
 
 double netcdf::get_z(size_t x, size_t y)
 {
-    return get_var("HGT_P0_L1_GST", 0, x, y);
+    return get_var(_elevation_field, 0, x, y);
+}
+
+int netcdf::get_coord_dimensionality() const
+{
+    return _spatial_coord_dim;
 }
 
 
@@ -543,20 +814,19 @@ netcdf::data netcdf::get_var(std::string var, size_t timestep)
     auto vars = _data.getVars();
 
 
-    netcdf::data array(boost::extents[ygrid][xgrid]);
+    netcdf::data array = std::make_shared<_ma_data>(boost::extents[ygrid][xgrid]);
 
     auto itr = vars.find(var);
-    itr->second.getVar(startp,countp, array.data());
+    itr->second.getVar(startp,countp, array->data());
 
     double fill_value = get_fillvalue(itr->second);
 
-
-    for(size_t i =0; i< array.shape()[0]; i++)
+    for(size_t i =0; i< array->shape()[0]; i++)
     {
-        for(size_t j =0; j< array.shape()[1]; j++)
+        for(size_t j =0; j< array->shape()[1]; j++)
         {
-            if (array[i][j] == fill_value)
-                array[i][j] = std::nan("nan");
+            if ((*array)[i][j] == fill_value)
+                (*array)[i][j] = std::nan("nan");
         }
     }
 
@@ -568,7 +838,7 @@ double netcdf::get_var(std::string var, boost::posix_time::ptime timestep, size_
 {
     auto diff = timestep - _start; // a duration
 
-    auto offset = diff.total_seconds() / _timestep.total_seconds();
+    auto offset = diff.total_seconds() / _epoch_offset_unit.total_seconds();
 
     return get_var(var, offset,x,y);
 }
@@ -576,7 +846,7 @@ netcdf::data netcdf::get_var(std::string var, boost::posix_time::ptime timestep)
 {
     auto diff = timestep - _start; // a duration
 
-    auto offset = diff.total_seconds() / _timestep.total_seconds();
+    auto offset = diff.total_seconds() / _epoch_offset_unit.total_seconds();
 
     return get_var(var, offset);
 }

@@ -38,10 +38,15 @@
 #include <set>
 #include <unordered_set>
 #include <vector>
+#include <queue>
+#include <format>
+#include <any>
 
 //boost includes
 #include <boost/function.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp> // for boost::posix
+#include <boost/filesystem.hpp>
+#include <boost/mpi.hpp>
 
 //Gdal includes
 #include <ogr_spatialref.h>
@@ -62,6 +67,12 @@
 #include "timeseries.hpp"
 #include "triangulation.hpp"
 #include "filter_base.hpp"
+#include "utility/gis.hpp"
+#include "CF_names.hpp"
+
+// #include <mp-units/systems/si.h>
+// using namespace mp_units;
+
 /**
  * Main meteorological data coordinator. Opens from a variety of sources and ensures that each virtual station has this timestep's information
  * regardless of the source data type.
@@ -93,17 +104,30 @@ class metdata
         std::vector<boost::shared_ptr<filter_base>> filters;
     };
 
-
-//    metdata() = delete;
-
-    metdata(std::string mesh_proj4);
+    /**
+     *
+     * @param mesh
+     * @param output_dir
+     * @param num_stations_to_use OPtionally the number of statons we require which might require a bbox expansion to
+     * search
+     */
+metdata(const mesh& mesh, boost::filesystem::path output_dir, boost::optional<int> num_stations_to_use);
 
     ~metdata();
 
     /// Loads a netcdf file. Must be a 2D structured grid of stations. Expects times to be in UTC+0
     /// @param path
     /// @param filters
-    void load_from_netcdf(const std::string& path,  const triangulation::bounding_box* box = nullptr, std::map<std::string, boost::shared_ptr<filter_base> > filters = {});
+    /// @param preserve_current_ts Do not update the current time_step when we load the netcdf. This is reequired if the current timestep is a custom timestpe, from chkpoint or user
+    void load_from_netcdf(const std::string& path,  std::map<std::string, boost::shared_ptr<filter_base> > filters = {}, bool preserve_current_ts = false);
+
+    /**
+     * Loads from a list of netcdf files. Expects the list to be ordered
+     * @param path
+     * @param box
+     * @param filters
+     */
+    void load_from_listof_netcdf(const std::string& path,  std::map<std::string, boost::shared_ptr<filter_base> > filters = {});
 
     /// Loads the standard ascii timeseries. Needs to be in UTC+0
     /// @param path
@@ -153,10 +177,26 @@ class metdata
     std::string end_time_str();
 
     /**
+     * Returns true if a netcdf was just loaded.
+     * Calling next() without having to load a multipart will cause this to begin to return false
+     **/
+    bool nc_just_loaded();
+
+    ///
+    /// @return
+    bool is_multipart_nc();
+
+    /**
      * True if a netcdf was loaded
      * @return
      */
     bool is_netcdf();
+
+    /**
+     * Writes the lat and lon of the subsetted forcing poitns to shape file
+     */
+    void write_stations_to_shp(const std::string& fname);
+
 
     /// Subsets all timeseries to begin at [start, end]. For ascii, the underlying timeseries is modified.
     /// For nc, internal offsets are computed to start, end.
@@ -193,6 +233,18 @@ class metdata
     std::set<std::string> list_variables();
 
     std::vector< std::shared_ptr<station>>& stations();
+
+    /**
+     * Netcdf was missing a geopotential height and we need to estimate it
+     * @return
+     */
+  bool missing_z();
+
+    /**
+     * Set the output dir so metdata can write its output
+     * @param working_dir
+     */
+  void set_working_output_dir(boost::filesystem::path working_dir);
 
   private:
 
@@ -234,6 +286,13 @@ class metdata
         // if false, we are using ascii files
         bool _use_netcdf;
 
+        // variables that we ignored during the load because they
+        // a) don't map to CHM var ors b) don't have standard_name
+        std::set<std::string> _nc_ignored_variables;
+
+        // holds the mapping from netcdf to CHM variable name mapping
+        std::map<std::string, std::string> nc_to_CHM_var_mapping;
+
     // -----------------------------------
     // ASCII met data specific variables
 
@@ -241,6 +300,7 @@ class metdata
         // Holds all the met data to init that stations + the underlying timeseries data
         // Mapped w/ stations ID -> metdata
         std::map<std::string, std::unique_ptr<ascii_data>> _ascii_stations;
+
 
     // -----------------------------------
 
@@ -253,17 +313,38 @@ class metdata
     // Total number of stations
     size_t _nstations;
 
+    // metdata needs to know about the output working dir so it can output diagnostic files
+    boost::filesystem::path _output_dir;
     bool is_first_timestep;
 
     //number of timesteps
     size_t _n_timesteps;
 
+    bool _is_multipart_nc;
+    bool _just_loaded_nc; // if a nc file was just loaded
+
+    // These two are the start and end time of the simulation. If we have loaded from a single file
+    // these will be equal to file_*. However, if we are loading from a multi-part file then the file_*
+    // tracks each file's start/end times
+    // _start_time, _end_time are what are used externally to manage the sim run, and the file_* are used to determine
+    // if another file needs to be loaded to get us to end_time, i.e., _file_end_time > _end_time
     boost::posix_time::ptime _start_time, _end_time;
+    boost::posix_time::ptime _file_start_time, _file_end_time;
     boost::posix_time::ptime _current_ts;
     boost::posix_time::time_duration _dt;
 
-    // computes the dt
-    void compute_dt();
+    // holds a reference to the bounding box of the mesh, if it was passed in
+    // we need this to repeatedly standup new netcdf files being loaded
+    // this is a copy because we might need to modify it (expand it) to fullfill the station search criteria
+    triangulation::bounding_box _bounding_box;
+
+    // start_time, end_time, file_name
+    std::queue<std::tuple<boost::posix_time::ptime, boost::posix_time::ptime, std::string>> _nc_list;
+
+    // The number of stations metdata needs to provide access to. In MPI mode, a ranks mesh bbox might not
+    // actually contain any points and the bbox will need to be expanded to include _num_stations_to_use forcing
+    // cells. This really only happens as a problem in MPI mode with gridded netcdf inputs
+    boost::optional<int> _num_stations_to_use;
 
     //all variables provided by met + filter
     std::set<std::string> _variables;
@@ -271,6 +352,8 @@ class metdata
     //holds the proj4 string of the mesh. we need this to be able to reproject input data to the mesh
     std::string _mesh_proj4;
     bool _is_geographic; // geographic mesh that requires further reprojection?
+
+    bool _missing_z; // missing a geopotential and need to estimate it from the triangles
 
     // spatial searching data structure
     typedef CGAL::Simple_cartesian<double> Kernel;
