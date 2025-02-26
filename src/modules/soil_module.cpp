@@ -173,26 +173,6 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
 
     }
 
-    
-    (*face)["soil_storage_max"_s] = d.soil_storage_max;
-    (*face)["soil_rechr_max"_s] = d.soil_rechr_max;
-    (*face)["detention_snow_max"_s] = d.detention_snow_max;
-    (*face)["detention_organic_max"_s] = d.detention_organic_max;
-    (*face)["depression_max"_s] = d.depression_max;
-    (*face)["ground_water_max"_s] = d.ground_water_max;
-
-    // parameters 
-    (*face)["local_slope"_s] = d.local_slope;
-    (*face)["pore_size_dist"_s] = d.pore_size_dist;
-    (*face)["pore_size_dist_organic"_s] = d.pore_size_dist_organic;
-    (*face)["soil_index"_s] = d.soil_index;
-    (*face)["snow_grain_diameter"_s] = d.snow_grain_diameter;
-
-    (*face)["Ksaturated_rechr"_s] = d.Ksaturated_rechr;
-    (*face)["Ksaturated_lower"_s] = d.Ksaturated_lower;
-    (*face)["Ksaturated_ground_water"_s] = d.Ksaturated_ground_water;
-    (*face)["Ksaturated_organic"_s] = d.Ksaturated_organic;
-
 };
 
 
