@@ -39,7 +39,7 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
     depends("soil_storage");                      // but is how albedo is used in CHM as of Sept, 2024
 
     provides("ET");
-
+    provides("rc");
 
 }
 
@@ -123,7 +123,7 @@ void Evapotranspiration_All::run(mesh_elem& face)
     
     // TODO total_ET, as well as PT ET and PM ET as separate. 
     (*face)["ET"_s] = output.ET;
-    
+    (*face)["rc"_s] = output.rc; 
 }
 
 Evapotranspiration_All::~Evapotranspiration_All()

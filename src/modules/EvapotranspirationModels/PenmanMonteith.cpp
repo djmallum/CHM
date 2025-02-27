@@ -90,6 +90,7 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
 
     double aero_resistance = CalcAeroResistance(var);
     double stomatal_resistance = CalcStomatalResistance(var);
+    output.rc = stomatal_resistance;
     
     output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * heat_capacity_air / (lambda(var.t)*1e3) * ( var.saturated_vapour_pressure - var.vapour_pressure )/ aero_resistance )
        / ( delta(var.t) + gamma(var.P_atm, var.t) * (1 + stomatal_resistance / aero_resistance ) );

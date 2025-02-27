@@ -11,6 +11,7 @@ struct var_base
 struct model_output
 {
     double ET;
+    double rc;
 };
 
 class evapT_base
