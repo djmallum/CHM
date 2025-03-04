@@ -8,6 +8,7 @@ PenmanMonteith::PenmanMonteith(double& LAI, double& LAImax, double& veg_Ht, doub
         has_vegetation = false;
     else
         has_vegetation = true;
+     
 
     // TODO other checks on values might be good
 }
@@ -43,6 +44,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     // In CRHM, the below calculation is an option, for now just use the minimum option.
     if (has_vegetation)
     {
+
         double LAI = Veg_height/2.0*leaf_area_index_max; //TODO ad hoc for test
         rcstar = stomatal_resistance_min * leaf_area_index_max / LAI;
         // rcstar = stomatal_resistance_min * leaf_area_index_max / leaf_area_index; TODO commented for test
@@ -50,7 +52,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     // TODO check units. for example, short_wave_in - 1.5 is suspect
     double f1 = 1.0;
     if (var.short_wave_in > 0.0)
-       f1 = std::max(1.0, 500.0/(var.short_wave_in - 1.5));  
+       f1 = std::max(1.0, 500.0/var.short_wave_in - 1.5);  
 //max <double> (1.0, 500.0/(var.short_wave_in - 1.5));  
     
     double f2 = std::max(1.0, 2.0 * (var.saturated_vapour_pressure - var.vapour_pressure) );
@@ -62,6 +64,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
     double f4 = 1.0;
     if (var.t < 5.0 || var.t > 40.0)
         f4 = 5000/50;
+    
 
     if (var.short_wave_in <= 0)
         return 5000;
@@ -74,6 +77,7 @@ double PenmanMonteith::CalcStomatalResistance(const PM_vars& var)
 
 void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
 {
+
     const PM_vars & var = static_cast<const PM_vars&>(basevar);
     
     double Q =  var.all_wave_net * (1 - Frac_to_ground);
