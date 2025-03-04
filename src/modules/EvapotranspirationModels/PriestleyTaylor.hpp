@@ -17,7 +17,7 @@ class PriestleyTaylor : public evapT_base
 {
 public:
 
-    PriestleyTaylor(const double& alpha_const); 
+    PriestleyTaylor(const double& alpha_const, const double& Cp); 
                      
     ~PriestleyTaylor(void) override; // Deconstructor
                      
@@ -26,7 +26,7 @@ public:
 
     double Frac_to_ground;
     const double& alpha; 
-    
+    const double heat_capacity_air;    
 private:
 
 

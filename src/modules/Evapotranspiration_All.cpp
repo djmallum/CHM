@@ -133,7 +133,7 @@ Evapotranspiration_All::~Evapotranspiration_All()
 
 void Evapotranspiration_All::init_PriestleyTaylor(Evapotranspiration_All::data& d,double& alpha)
 {
-    d.MyPriestleyTaylor = std::make_unique<PriestleyTaylor>(alpha);
+    d.MyPriestleyTaylor = std::make_unique<PriestleyTaylor>(alpha,Atmosphere::Cp);
 }
 
 void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d,mesh_elem& face, double& wind_height, double& stomatal_resistance_min, double& Frac_to_ground)
