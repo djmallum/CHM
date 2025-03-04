@@ -60,6 +60,8 @@ private:
     double d;
     bool has_vegetation;
     bool IsFirstRun = true;
+    static constexpr double water_density = 1000; //kg/m^3
+    static constexpr long m_per_s_to_mm_per_day = 1000 * 86400; 
 };
 
 
