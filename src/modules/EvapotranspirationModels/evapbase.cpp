@@ -8,7 +8,7 @@ double evapT_base::delta(double& t) // Slope of sat vap p vs t, kPa/DEGREE_CELSI
     return(3549.0*exp( 21.88 * t/(t+265.5)) / pow(t+265.5,2));
 }
 
-double evapT_base::lambda(double& t) // Latent heat of vaporization (mJ/(kg DEGREE_CELSIUS))
+double evapT_base::lambda(double& t) // Latent heat of vaporization (MJ/(kg DEGREE_CELSIUS))
 {
    return( 2.501 - 0.002361 * t );
 }
