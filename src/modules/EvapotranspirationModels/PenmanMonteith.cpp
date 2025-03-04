@@ -81,7 +81,7 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
     const PM_vars & var = static_cast<const PM_vars&>(basevar);
     
     double Q =  var.all_wave_net * (1 - Frac_to_ground);
-
+    
     if (IsFirstRun)
     {
         CalcHeights();
@@ -91,9 +91,17 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
     double aero_resistance = CalcAeroResistance(var);
     double stomatal_resistance = CalcStomatalResistance(var);
     output.rc = stomatal_resistance;
-    
-    output.ET = ( delta(var.t) * Q + AirDensity(var.t,var.vapour_pressure,var.P_atm) * heat_capacity_air / (lambda(var.t)*1e3) * ( var.saturated_vapour_pressure - var.vapour_pressure )/ aero_resistance )
-       / ( delta(var.t) + gamma(var.P_atm, var.t) * (1 + stomatal_resistance / aero_resistance ) );
+
+    double radiation = delta(var.t) * Q * 24; //24 --> hours/day, should be generalized or encoded in Q in a future version
+                                              // Actual units are mm/day
+
+    double mass = AirDensity(var.t,var.vapour_pressure,var.P_atm) * heat_capacity_air * 
+        (var.saturated_vapour_pressure - var.vapour_pressure)/ ( aero_resistance * lambda(var.t) * water_density );
+    mass *= m_per_s_to_mm_per_day;
+
+    output.ET = (radiation + mass) / ( delta(var.t) + gamma(var.P_atm, var.t, heat_capacity_air) * ( 1 + stomatal_resistance / aero_resistance ));
+
+    output.ET *= 1.0 / 24.0; // As with the radiation variable, assumed the timestep is hours here. TODO for the future.
 }
 
 // TODO make delta, gamma, density fucntions
