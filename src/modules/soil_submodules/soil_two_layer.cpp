@@ -5,6 +5,9 @@ void soil_two_layer::run()
 
     DTO.routing_residual = 0.0; // TODO zero'd because routing doesn't exist yet.
                                 // also would need to remove or use face_area
+
+    k_estimator.run();
+
     initialize_single_step_vars(); 
 
     //set_K_values();
@@ -23,7 +26,6 @@ void soil_two_layer::run()
 
     manage_subsurface_runoff();
     
-    k_estimator.run();
 };
 
 void soil_two_layer::initialize_single_step_vars()
