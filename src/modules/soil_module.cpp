@@ -115,14 +115,6 @@ void soil_module::set_K_values(mesh_elem& face, soil_module::data& d)
     d.K_soil_to_gw = (*face)["K_soil_to_gw"_s];
     d.K_depression_to_gw = (*face)["K_depression_to_gw"_s];
 
-    SPDLOG_DEBUG(d.K_rechr_to_ssr);
-    SPDLOG_DEBUG(d.K_lower_to_ssr);
-    SPDLOG_DEBUG(d.K_detention_to_runoff);
-    SPDLOG_DEBUG(d.K_depression_to_ssr);
-    SPDLOG_DEBUG(d.K_depression_to_gw);
-    SPDLOG_DEBUG(d.K_ground_water_out);
-    SPDLOG_DEBUG(d.K_soil_to_gw);
-
 };
 
 void soil_module::get_soil_inputs(mesh_elem& face,soil_module::data& d)
@@ -150,13 +142,6 @@ void soil_module::set_soil_outputs(mesh_elem& face,soil_module::data& d)
     (*face)["depression_storage"_s] = d.depression_storage;
     (*face)["ground_water_storage"_s] = d.ground_water_storage;
     (*face)["detention_storage"_s] = d.detention_storage;
-    (*face)["K_rechr_to_ssr"_s] = d.K_rechr_to_ssr;
-    (*face)["K_lower_to_ssr"_s] = d.K_lower_to_ssr;
-    (*face)["K_detention_to_runoff"_s] = d.K_detention_to_runoff;
-    (*face)["K_depression_to_ssr"_s] = d.K_depression_to_ssr;
-    (*face)["K_depression_to_gw"_s] = d.K_depression_to_gw;
-    (*face)["K_ground_water_out"_s] = d.K_ground_water_out;
-    (*face)["K_soil_to_gw"_s] = d.K_soil_to_gw;
 };
 
 void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
