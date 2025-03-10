@@ -109,6 +109,8 @@ public:
 
 
 private:
+    
+    std::unique_ptr<Soil::_soils_base> SoilDataObj;
 
     void get_soil_inputs(mesh_elem& face, data& d);
     void set_soil_outputs(mesh_elem& face, data& d);
