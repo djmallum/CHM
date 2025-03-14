@@ -63,7 +63,8 @@ void soil_two_layer::set_layer_thaw_fraction()
     }
     
 
-    if (DTO.thaw_front_depth == 0.0 && DTO.freeze_front_depth == 0.0)
+    if (DTO.allow_runoff_from_infiltration || 
+            (DTO.thaw_front_depth == 0.0 && DTO.freeze_front_depth == 0.0))
     {
         DTO.thaw_fraction_rechr = 1.0;
         DTO.thaw_fraction_lower = 1.0;
@@ -74,7 +75,8 @@ void soil_two_layer::set_layer_thaw_fraction()
         DTO.thaw_fraction_lower = 0.0;
     }
 
-    if (DTO.soil_storage_max > 0.0 && (DTO.thaw_front_depth > 0.0 || DTO.freeze_front_depth > 0.0)) 
+    if (DTO.soil_storage_max > 0.0 && DTO.allow_runoff_from_infiltration  &&
+             (DTO.thaw_front_depth > 0.0 || DTO.freeze_front_depth > 0.0)) 
     {
 
         // TODO Verify this calculation
@@ -116,7 +118,7 @@ void soil_two_layer::organize_soil_layers()
         double potential = DTO.infil + DTO.condensation;
 
         double possible = DTO.thaw_fraction_rechr * (DTO.soil_rechr_max - DTO.soil_rechr_storage);
-        if (possible > potential)
+        if (possible > potential || !DTO.allow_runoff_from_infiltration)
             possible = potential;
         else
             DTO.soil_excess_to_runoff = potential - possible;

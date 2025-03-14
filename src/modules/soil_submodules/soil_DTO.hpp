@@ -40,7 +40,7 @@ struct two_layer_DTO : virtual shared_DTO
     double rechr_to_ssr = 0.0;
     double excess = 0.0;
     
-
+    bool allow_runoff_from_infiltration;
 			// All K_ stuff are in
     double K_soil_to_gw = 0.0; // All these K's could be swapped to held from previous and could be global/system wide
     double K_rechr_to_ssr = 0.0;
