@@ -55,9 +55,12 @@ void soil_two_layer::set_layer_thaw_fraction()
         // depth = storage / porosity, because porosity = storage / depth;
     if (DTO.porosity > 0.0)  
     {    
+        SPDLOG_DEBUG("Porosity, success");
     // TODO, porosity in rechr is the same as lower    
         rechr_depth = DTO.soil_rechr_max / DTO.porosity / 1000.0;
         soil_depth = DTO.soil_storage_max / DTO.porosity / 1000.0;
+        SPDLOG_DEBUG("rechr_depth: {}",rechr_depth);
+        SPDLOG_DEBUG("soil_depth: {}", soil_depth);
     }
     
 
@@ -67,14 +70,19 @@ void soil_two_layer::set_layer_thaw_fraction()
         DTO.thaw_fraction_lower = 1.0;
     }
     else
-    {  
+    { 
+        SPDLOG_DEBUG("one is positive"); 
         DTO.thaw_fraction_rechr = 0.0;
         DTO.thaw_fraction_lower = 0.0;
     }
-
+    SPDLOG_DEBUG("thaw fraction calc");
+    SPDLOG_DEBUG("soil storage max: {}", DTO.soil_storage_max);
+    SPDLOG_DEBUG("thaw depth: {}", DTO.thaw_front_depth);
+    SPDLOG_DEBUG("freeze depth: {}", DTO.freeze_front_depth);
     if (DTO.soil_storage_max > 0.0 && (DTO.thaw_front_depth > 0.0 || DTO.freeze_front_depth > 0.0)) 
     {
-
+        SPDLOG_DEBUG("Success!");
+        SPDLOG_DEBUG("rechr_depth: {}", rechr_depth);
         // TODO Verify this calculation
         if (DTO.thaw_front_depth < rechr_depth)
         {
@@ -93,7 +101,9 @@ void soil_two_layer::set_layer_thaw_fraction()
         }
            
     }
-    
+
+    SPDLOG_DEBUG("thaw_fraction_rechr: {}",DTO.thaw_fraction_rechr);
+    SPDLOG_DEBUG("thaw_fraction_lower: {}",DTO.thaw_fraction_lower);
 };
 
 void soil_two_layer::set_condensation()
@@ -107,6 +117,7 @@ void soil_two_layer::set_condensation()
 
 void soil_two_layer::organize_soil_layers()
 {
+    SPDLOG_DEBUG("start: {}",DTO.soil_to_ssr);
     if (DTO.soil_storage_max > 0.0)
     {
         double soil_lower_storage = DTO.soil_storage - DTO.soil_rechr_storage;
@@ -118,7 +129,12 @@ void soil_two_layer::organize_soil_layers()
             possible = potential;
         else
             DTO.soil_excess_to_runoff = potential - possible;
-
+        SPDLOG_DEBUG("potential: {}",potential);
+        SPDLOG_DEBUG("possible: {}", possible);
+        SPDLOG_DEBUG("max recharge: {}", DTO.soil_rechr_max);
+        SPDLOG_DEBUG("actual storage recharge: {}", DTO.soil_rechr_storage);
+        SPDLOG_DEBUG("recharge thaw fraction: {}", DTO.thaw_fraction_rechr);
+        SPDLOG_DEBUG("too much infil: {}",DTO.soil_excess_to_runoff);
         DTO.soil_rechr_storage += possible;
 
         if (DTO.soil_rechr_storage > DTO.soil_rechr_max)
@@ -128,7 +144,7 @@ void soil_two_layer::organize_soil_layers()
 
         if (DTO.soil_storage > DTO.soil_storage_max)
             _push_excess_down(DTO.soil_storage,DTO.soil_storage_max,DTO.soil_excess_to_gw);
-        
+        SPDLOG_DEBUG("Some excess to gw: {}", DTO.soil_excess_to_gw); 
         if (DTO.swe == 0.0) // if there is no snowcover
         {
             DTO.rechr_to_ssr = DTO.soil_rechr_storage / DTO.soil_rechr_max * DTO.K_rechr_to_ssr * DTO.thaw_fraction_rechr;
@@ -138,13 +154,17 @@ void soil_two_layer::organize_soil_layers()
 
             DTO.soil_storage -= DTO.rechr_to_ssr;
             DTO.soil_to_ssr = DTO.rechr_to_ssr;
-
+            
+            SPDLOG_DEBUG("Reached rechr_to_ssr: {}", DTO.rechr_to_ssr);
+            SPDLOG_DEBUG("K for recharge layer to ssr: {}", DTO.K_rechr_to_ssr);
+            SPDLOG_DEBUG("Thaw fraction for recharge layer: {}", DTO.thaw_fraction_rechr); 
         }
 
         if (DTO.soil_excess_to_gw > DTO.K_soil_to_gw * DTO.thaw_fraction_lower)
         {
             double excess_to_gw_max = DTO.K_soil_to_gw * DTO.thaw_fraction_lower;
             _push_excess_down(DTO.soil_excess_to_gw,excess_to_gw_max,DTO.excess);
+            SPDLOG_DEBUG("Losing some excess to gw to excess: {}", DTO.soil_excess_to_gw);
         }
 
         // Line 607 of SoilX crhmcommetns branch, comment says upper layer but code says lower-layer, ask logan about this.
@@ -152,6 +172,7 @@ void soil_two_layer::organize_soil_layers()
         {
             double excess_to_ssr_max = DTO.excess * (1.0 - DTO.thaw_fraction_lower);
             _push_excess_down(DTO.excess,excess_to_ssr_max,DTO.soil_to_ssr);
+            SPDLOG_DEBUG("excess to ssr: {}",DTO.soil_to_ssr);
         }
 
         
@@ -169,7 +190,7 @@ void soil_two_layer::manage_detention()
 {
     double face_area = 1.0; // Later will be pulled from face, but since routine_residual is always zero, ignoring it here.
     DTO.soil_excess_to_runoff += DTO.runoff + DTO.excess + DTO.routing_residual / face_area; // routing_residual comes from the crhm varaible redirected_residual which has units of mm*km^2/int (not sure why), so face_area is there for now for consistency.
-    
+    SPDLOG_DEBUG("Runoff + excess: {}",DTO.soil_excess_to_runoff);
     if (DTO.soil_excess_to_runoff > 0.0)
     {
         if (DTO.swe == 0.0)
@@ -178,25 +199,30 @@ void soil_two_layer::manage_detention()
             DTO.detention_max = DTO.detention_organic_max;
 
         double detention_space = DTO.detention_max - DTO.detention_storage;
-        
+        SPDLOG_DEBUG("space in detention: {}",detention_space);
         if (detention_space > 0.0)
         {
             if (DTO.soil_excess_to_runoff > detention_space)
             {
                 DTO.soil_excess_to_runoff = std::max(0.0,DTO.soil_excess_to_runoff - detention_space); 
                 DTO.detention_storage += detention_space;
+                SPDLOG_DEBUG("more than space: {}", DTO.soil_excess_to_runoff);
             }
             else
             {
+                SPDLOG_DEBUG("Less than space");
                 DTO.detention_storage += DTO.soil_excess_to_runoff;
                 DTO.soil_excess_to_runoff = 0.0;
             }
         }
     }
 
+    SPDLOG_DEBUG("detnetion storage: {}", DTO.detention_storage);
+    SPDLOG_DEBUG("K_detention_to_runoff: {}", DTO.K_detention_to_runoff);
     if (DTO.detention_storage > 0.0 && DTO.K_detention_to_runoff > 0.0)
     {
         double transfer = std::min(DTO.detention_storage,DTO.K_detention_to_runoff);
+        SPDLOG_DEBUG("Amount to move from detention: {}", transfer);
         DTO.soil_excess_to_runoff += transfer;
         DTO.detention_storage -= transfer;
 
@@ -207,36 +233,45 @@ void soil_two_layer::manage_detention()
 
 void soil_two_layer::manage_depression()
 {
+    SPDLOG_DEBUG("to runoff, after detention: {}", DTO.soil_excess_to_runoff);
+    SPDLOG_DEBUG("depression storage: {}", DTO.depression_storage);
     if (DTO.soil_excess_to_runoff > 0.0 && DTO.depression_max > 0.0)
     {
         double exponent = -1.0 * std::min(12.0,DTO.soil_excess_to_runoff / DTO.depression_max);
-
+        SPDLOG_DEBUG("exponent: {}",exponent);
         double depression_space = (DTO.depression_max - DTO.depression_storage) * (1 - exp(exponent));        
-
+        SPDLOG_DEBUG("space: {}", depression_space);
         if (DTO.soil_storage_max == 0.0)
             depression_space = DTO.depression_max - DTO.depression_storage;
 
         if (depression_space > 0.0)
         {
+
             if (DTO.soil_excess_to_runoff > depression_space)
             {
                 DTO.soil_excess_to_runoff = std::max(0.0,DTO.soil_excess_to_runoff - depression_space);
                 DTO.depression_storage += depression_space;
                 // TODO add total tracker
+                SPDLOG_DEBUG("more than space: {}",DTO.soil_excess_to_runoff);
             }
             else
             {
                 DTO.depression_storage += DTO.soil_excess_to_runoff;
                 // TODO add total tracker
+                SPDLOG_DEBUG("less than space: {}",DTO.soil_excess_to_runoff);
+                SPDLOG_DEBUG("New depression storage: {}",DTO.depression_storage);
                 DTO.soil_excess_to_runoff = 0.0;
             }
 
         }
     }
+    SPDLOG_DEBUG("K for depression to gw: {}",DTO.K_depression_to_gw);
+    SPDLOG_DEBUG("Depression storage: {}",DTO.depression_storage);
 
     if (DTO.depression_storage > 0.0 && DTO.K_depression_to_gw > 0.0)
     {
         double value = transfer_min(DTO.depression_storage,DTO.K_depression_to_gw);
+        SPDLOG_DEBUG("Value to be transfered: {}",value);
         DTO.depression_to_gw += value;
         DTO.depression_storage -= value;
         if (DTO.depression_storage < 0.0) // floatig point error safety?
@@ -251,6 +286,8 @@ void soil_two_layer::manage_depression()
 void soil_two_layer::manage_groundwater()
 {
     DTO.soil_excess_to_gw += DTO.depression_to_gw;
+    SPDLOG_DEBUG("To gw from depression: {}",DTO.soil_excess_to_gw);
+    SPDLOG_DEBUG("Depression to gw: {}", DTO.depression_to_gw);
     DTO.depression_to_gw = 0.0;
     DTO.ground_water_storage += DTO.soil_excess_to_gw;
 
@@ -279,6 +316,8 @@ void soil_two_layer::manage_subsurface_runoff()
         DTO.depression_storage -= value;
         if (DTO.depression_storage < 0.0)
             DTO.depression_storage = 0.0;
+
+        SPDLOG_DEBUG("depression to ssr: {}",DTO.soil_to_ssr);
     }
 
     if (DTO.K_lower_to_ssr > 0.0)
@@ -288,6 +327,8 @@ void soil_two_layer::manage_subsurface_runoff()
         double value = transfer_min(lower_unfrozen,available);
         DTO.soil_storage -= value;
         DTO.soil_to_ssr += value;
+
+        SPDLOG_DEBUG("lower to ssr: {}",DTO.soil_to_ssr);
     }
 
 };
