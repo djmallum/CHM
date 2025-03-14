@@ -108,6 +108,13 @@ point_mode::point_mode(config_file cfg)
         depends_from_met("Dts_organic_runoff_K_V");
         depends_from_met("Dts_snow_runoff_K_V");
         provides("K_detention_to_runoff");
+        
+        depends_from_met("Zdt");
+        provides("thaw_front_depth");
+
+        depends_from_met("Zdf");
+        provides("freeze_front_depth");
+
     }    
     if(t)
     {
@@ -254,6 +261,11 @@ void point_mode::run(mesh_elem &face)
         (*face)["K_soil_to_gw"_s] = K/24;
         SPDLOG_DEBUG(K/24);
 
+        double Zdt = (*face->nearest_station())["Zdt"_s];
+        (*face)["thaw_front_depth"_s] = Zdt;
+
+        double Zdf = (*face->nearest_station())["Zdf"_s];
+        (*face)["freeze_front_depth"_s] = Zdf;
 
     }
     if(t)
