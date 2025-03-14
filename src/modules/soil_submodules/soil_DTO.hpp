@@ -28,6 +28,7 @@ struct two_layer_DTO : virtual shared_DTO
 {
     double thaw_front_depth = 0.0; //in - XG
     double freeze_front_depth = 0.0; //in - XG
+    double freeze_thaw_first_front = 0.0; //in - XG
     double infil = 0.0; //in - infil_all
     double runoff = 0.0; //in - infil_all 
     double routing_residual = 0.0; //in - NetRoute
