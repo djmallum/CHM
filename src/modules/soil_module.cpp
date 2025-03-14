@@ -5,8 +5,8 @@ REGISTER_MODULE_CPP(soil_module);
 soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel::data, cfg)
 {
     depends("swe");
-//    depends("thaw_front_depth"); 
-//    depends("freeze_front_depth");
+    depends("thaw_front_depth"); 
+    depends("freeze_front_depth");
     depends("ET");
     depends("inf");
     depends("runoff");
@@ -120,8 +120,8 @@ void soil_module::set_K_values(mesh_elem& face, soil_module::data& d)
 void soil_module::get_soil_inputs(mesh_elem& face,soil_module::data& d)
 {
     d.swe = (*face)["swe"_s];
-    d.thaw_front_depth = 0.0; //(*face)["thaw_front_depth"_s];
-    d.freeze_front_depth = 0.0; //(*face)["freeze_front_depth"_s];
+    d.thaw_front_depth = (*face)["thaw_front_depth"_s];
+    d.freeze_front_depth = (*face)["freeze_front_depth"_s];
     d.potential_ET = (*face)["ET"_s];
     d.infil = (*face)["inf"_s];
     d.runoff = (*face)["runoff"_s];
