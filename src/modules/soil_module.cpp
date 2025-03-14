@@ -154,7 +154,8 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         d.Ksaturated_ground_water = face->soil_attribute<double>("Ksaturated_ground_water");
         d.Ksaturated_organic = face->soil_attribute<double>("Ksaturated_organic"); 
         // Note: Ksaturated_snow is computed in K_estimate   
-         
+        
+        d.allow_runoff_from_infiltration = face->soil_attribute<bool>("allow_runoff_from_infiltration"_s);    
     }
     else
     {
