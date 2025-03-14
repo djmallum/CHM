@@ -63,8 +63,7 @@ void soil_two_layer::set_layer_thaw_fraction()
     }
     
 
-    if (DTO.allow_runoff_from_infiltration || 
-            (DTO.thaw_front_depth == 0.0 && DTO.freeze_front_depth == 0.0))
+    if (DTO.allow_runoff_from_infiltration || DTO.freeze_thaw_first_front == 0.0)
     {
         DTO.thaw_fraction_rechr = 1.0;
         DTO.thaw_fraction_lower = 1.0;
@@ -76,7 +75,7 @@ void soil_two_layer::set_layer_thaw_fraction()
     }
 
     if (DTO.soil_storage_max > 0.0 && DTO.allow_runoff_from_infiltration  &&
-             (DTO.thaw_front_depth > 0.0 || DTO.freeze_front_depth > 0.0)) 
+             DTO.freeze_thaw_first_front > 0.0) 
     {
 
         // TODO Verify this calculation
