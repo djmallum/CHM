@@ -86,6 +86,13 @@ point_mode::point_mode(config_file cfg)
 
         depends_from_met("hru_u");
         provides("U_2m_above_srf");
+        
+        depends_from_met("Zdt");
+        provides("thaw_front_depth");
+
+        depends_from_met("Zdf");
+        provides("freeze_front_depth");
+
     }    
     if(t)
     {
@@ -199,6 +206,12 @@ void point_mode::run(mesh_elem &face)
         
         double u = (*face->nearest_station())["hru_u"_s];
         (*face)["U_2m_above_srf"_s] = u;
+
+        double Zdt = (*face->nearest_station())["Zdt"_s];
+        (*face)["thaw_front_depth"_s] = Zdt;
+
+        double Zdf = (*face->nearest_station())["Zdf"_s];
+        (*face)["freeze_front_depth"_s] = Zdf;
 
     }
     if(t)
