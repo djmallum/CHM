@@ -125,7 +125,9 @@ point_mode::point_mode(config_file cfg)
 
         depends_from_met("Zdf");
         provides("freeze_front_depth");
-
+        
+        depends_from_met("Zd_front.0");
+        provides("first_front_depth");
     }    
     if(t)
     {
@@ -282,6 +284,10 @@ void point_mode::run(mesh_elem &face)
 
         double Zdf = (*face->nearest_station())["Zdf"_s];
         (*face)["freeze_front_depth"_s] = Zdf;
+    
+
+        double Zd_front0 = (*face->nearest_station())["Zd_front.0"_s];
+        (*face)["first_front_depth"] = Zd_front0;
 
     }
     if(t)
