@@ -56,8 +56,8 @@ void soil_two_layer::set_layer_thaw_fraction()
     if (DTO.porosity > 0.0)  
     {    
     // TODO, porosity in rechr is the same as lower    
-        rechr_depth = DTO.soil_rechr_max / DTO.porosity;
-        soil_depth = DTO.soil_storage_max / DTO.porosity;
+        rechr_depth = DTO.soil_rechr_max / DTO.porosity / 1000.0;
+        soil_depth = DTO.soil_storage_max / DTO.porosity / 1000.0;
     }
     
 
