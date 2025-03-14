@@ -163,8 +163,9 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         
         d.pore_size_dist = face->soil_attribute<double>("PSD_K_estimator");
         d.pore_size_dist_organic = face->soil_attribute<double>("PSD_K_organic");
-        const std::string soil_type = face->soil_attribute<std::string>("soil_type"_s,"soils");
-        d.porosity = SoilDataObj->porosity(soil_type); 
+        //const std::string soil_type = face->soil_attribute<std::string>("soil_type"_s,"soils");
+        d.porosity = 0.5; //SoilDataObj->porosity(soil_type);
+                          //TODO CRHM uses a fixed value for porosity, rather than searching in the SoilDataObj 
         d.soil_index = face->soil_attribute<double>("soil_index");
         d.snow_grain_diameter = face->soil_attribute<double>("snow_grain_diameter");
 
