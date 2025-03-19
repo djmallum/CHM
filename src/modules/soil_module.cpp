@@ -12,6 +12,14 @@ soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel:
     depends("inf");
     depends("runoff");
 //    depends("routing_residual");
+    depends("K_rechr_to_ssr");
+    depends("K_lower_to_ssr");
+    depends("K_detention_to_runoff");
+    depends("K_depression_to_ssr");
+    depends("K_ground_water_out");
+    depends("K_soil_to_gw");
+    depends("K_depression_to_gw");
+
 
     provides("condensation");
     provides("actual_soil_ET");
@@ -25,13 +33,6 @@ soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel:
     provides("depression_storage");
     provides("ground_water_storage");
     provides("detention_storage");
-    provides("K_rechr_to_ssr");
-    provides("K_lower_to_ssr");
-    provides("K_detention_to_runoff");
-    provides("K_depression_to_ssr");
-    provides("K_depression_to_gw");
-    provides("K_ground_water_out");
-    provides("K_soil_to_gw");
 };
 
 soil_module::~soil_module()
@@ -68,6 +69,8 @@ void soil_module::init(mesh& domain)
     
         set_soil_outputs(face,d);
 
+        init_K(d);
+
     }
 };
 
@@ -91,6 +94,30 @@ void soil_module::run(mesh_elem& face)
 
     set_soil_outputs(face,d);
 
+    set_K_values(face,d);
+};
+
+void soil_module::init_K(soil_module::data& d)
+{
+    d.K_rechr_to_ssr = 0.0;
+    d.K_lower_to_ssr = 0.0;
+    d.K_detention_to_runoff = 0.0;
+    d.K_depression_to_ssr = 0.0;
+    d.K_depression_to_gw = 0.0;
+    d.K_ground_water_out = 0.0;
+    d.K_soil_to_gw = 0.0; 
+};
+
+void soil_module::set_K_values(mesh_elem& face, soil_module::data& d)
+{
+    d.K_rechr_to_ssr = (*face)["K_rechr_to_ssr"_s];
+    d.K_lower_to_ssr = (*face)["K_lower_to_ssr"_s];
+    d.K_detention_to_runoff = (*face)["K_detention_to_runoff"_s];
+    d.K_depression_to_ssr = (*face)["K_depression_to_ssr"_s];
+    d.K_depression_to_gw = (*face)["K_depression_to_gw"_s];
+    d.K_ground_water_out = (*face)["K_ground_water_out"_s];
+    d.K_soil_to_gw = (*face)["K_soil_to_gw"_s];
+    d.K_depression_to_gw = (*face)["K_depression_to_gw"_s];
 
 };
 
@@ -120,13 +147,6 @@ void soil_module::set_soil_outputs(mesh_elem& face,soil_module::data& d)
     (*face)["depression_storage"_s] = d.depression_storage;
     (*face)["ground_water_storage"_s] = d.ground_water_storage;
     (*face)["detention_storage"_s] = d.detention_storage;
-    (*face)["K_rechr_to_ssr"_s] = d.K_rechr_to_ssr;
-    (*face)["K_lower_to_ssr"_s] = d.K_lower_to_ssr;
-    (*face)["K_detention_to_runoff"_s] = d.K_detention_to_runoff;
-    (*face)["K_depression_to_ssr"_s] = d.K_depression_to_ssr;
-    (*face)["K_depression_to_gw"_s] = d.K_depression_to_gw;
-    (*face)["K_ground_water_out"_s] = d.K_ground_water_out;
-    (*face)["K_soil_to_gw"_s] = d.K_soil_to_gw;
 };
 
 void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
