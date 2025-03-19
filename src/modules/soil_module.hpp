@@ -121,6 +121,8 @@ private:
     void set_soil_params(mesh_elem& face, soil_module::data& d);
     void set_ET_params(mesh_elem& face, soil_module::data& d);
     void initial_soil_conditions(mesh_elem& face, soil_module::data& d);
+    void set_K_values(mesh_elem& face, soil_module::data& d);
+    void init_K(soil_module::data& d);
 
     int compare_substring(std::string& type, std::string sub);
 
