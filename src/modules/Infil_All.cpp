@@ -31,6 +31,7 @@ Infil_All::Infil_All(config_file cfg) : module_base("Infil_All", parallel::data,
     depends("snowmelt_int");
     depends("rainfall_int"); // NEW
     depends("soil_storage_at_freeze"); // NEW, depends on Volumetric model, equivalent to fallstat in crhm
+    depends("soil_storage");
     depends("t");
 
     provides("inf");
@@ -131,6 +132,9 @@ void Infil_All::run(mesh_elem &face)
     double swe = (*face)["swe"_s]; 
     double soil_storage_at_freeze = (*face)["soil_storage_at_freeze"_s];
     double airtemp = (*face)["t"_s];
+	
+    if (thaw_type == GREENAMPT)
+        d.soil_storage = (*face)["soil_storage"_s];
 
     if (swe > min_swe_to_freeze && !d.frozen)
     {
@@ -333,6 +337,9 @@ void Infil_All::run(mesh_elem &face)
     (*face)["melt_runoff"_s]=melt_runoff;
     (*face)["frozen"_s]=static_cast<int>(d.frozen);
     (*face)["major_melt_count"_s]=d.major_melt_count;
+
+    if (thaw_type == GREENAMPT)
+        (*face)["soil_storage"_s]=d.soil_storage;
 }
 
 //General Functions
