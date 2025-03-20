@@ -86,29 +86,6 @@ point_mode::point_mode(config_file cfg)
 
         depends_from_met("hru_u");
         provides("U_2m_above_srf");
-
-        depends_from_met("rechr_ssr_K_V");
-        provides("K_rechr_to_ssr");
-
-        depends_from_met("lower_ssr_K_V");
-        provides("K_lower_to_ssr");
-
-        depends_from_met("soil_gw_K_V");
-        provides("K_soil_to_gw");
-
-        depends_from_met("Sd_ssr_K_V");
-        provides("K_depression_to_ssr");
-
-        depends_from_met("gw_K_V");
-        provides("K_ground_water_out");
-
-        depends_from_met("Sd_gw_K_V");
-        provides("K_depression_to_gw");
-
-        depends_from_met("Dts_organic_runoff_K_V");
-        depends_from_met("Dts_snow_runoff_K_V");
-        provides("K_detention_to_runoff");
-
         depends_from_met("meltrunoff");
         depends_from_met("runoff");
         provides("runoff");
@@ -241,32 +218,6 @@ void point_mode::run(mesh_elem &face)
         
         double u = (*face->nearest_station())["hru_u"_s];
         (*face)["U_2m_above_srf"_s] = u;
-
-        double K = (*face->nearest_station())["rechr_ssr_K_V"];
-        (*face)["K_rechr_to_ssr"_s] = K/24;
-        
-        K = (*face->nearest_station())["lower_ssr_K_V"];
-        (*face)["K_lower_to_ssr"_s] = K/24;
-
-        K = (*face->nearest_station())["Dts_organic_runoff_K_V"];
-        double Ksnow = (*face->nearest_station())["Dts_snow_runoff_K_V"];
-        
-        if (swe > 0.0 && rho > 100)
-            K = Ksnow;
-
-        (*face)["K_detention_to_runoff"_s] = K/24;
-
-        K = (*face->nearest_station())["Sd_ssr_K_V"];
-        (*face)["K_depression_to_ssr"_s] = K/24;
-
-        K = (*face->nearest_station())["Sd_gw_K_V"];
-        (*face)["K_depression_to_gw"_s] = K/24;
-
-        K = (*face->nearest_station())["gw_K_V"];
-        (*face)["K_ground_water_out"_s] = K/24;
-
-        K = (*face->nearest_station())["soil_gw_K_V"];
-        (*face)["K_soil_to_gw"_s] = K/24;
 
         double melt = (*face->nearest_station())["meltrunoff"_s];
         double rainrunoff = (*face->nearest_station())["runoff"_s];
