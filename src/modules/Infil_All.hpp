@@ -29,6 +29,7 @@
 #include "TPSpline.hpp"
 #include <cmath>
 #include "Soil.h"
+#include "Crack.hpp"
 
 /**
  * \ingroup modules infil soils exp
@@ -102,16 +103,8 @@ public:
         std::string soil_type;
         
         // Crack
-        bool frozen;
-        double index;
-        double max_major_per_melt;
-        double init_SWE;
-        double daily_melt_total;
-        unsigned int major_melt_count;
-        bool current_day_is_major; 
+        Crack::info crack_model_status;
         int last_day;
-        double tmax;
-
         // Ayers
         std::string texture;
         std::string ground_cover;
@@ -135,6 +128,7 @@ private:
     unsigned int infDays;
     bool AllowPriorInf;   
     double lenstemp;
+    
 
     // General, thawed soil
     enum ThawOptions { AYERS, GREENAMPT};
