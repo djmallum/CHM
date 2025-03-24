@@ -433,7 +433,7 @@ if (BUILD_TESTS)
             tests/main.cpp
             tests/submoduletests/test_crack.cpp
 			tests/submoduletests/test_ayers.cpp
-	)
+)
 
 
 	set( GTEST_LINK
