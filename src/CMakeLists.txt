@@ -84,7 +84,8 @@ set(MODEL_SRCS
     
         modules/soil_submodules/I_K_estimate.hpp
         modules/soil_submodules/K_estimate.cpp
-
+    
+        modules/infil_submodules/Crack.cpp
         CACHE INTERNAL "" FORCE )
 
 set(CHM_SRCS
@@ -129,6 +130,7 @@ set (HEADER_FILES
 		modules/testing
         modules/EvapotranspirationModels/
         modules/soil_submodules/
+        modules/infil_submodules/
         math
         libmaw
         interpolation
@@ -420,17 +422,18 @@ if (BUILD_TESTS)
 
 	set(TEST_SRCS
         #tests/test_station.cpp
-        #tests/test_interpolation.cpp
-        #tests/test_timeseries.cpp
-        #tests/test_core.cpp
-        #tests/test_variablestorage.cpp
-        #tests/test_metdata.cpp
-        #tests/test_netcdf.cpp
+            #tests/test_interpolation.cpp
+            #tests/test_timeseries.cpp
+            #tests/test_core.cpp
+            #tests/test_variablestorage.cpp
+            #tests/test_metdata.cpp
+            #tests/test_netcdf.cpp
 			#    test_mesh.cpp
-            #	tests/test_regexptokenizer.cpp
+            #tests/test_regexptokenizer.cpp
 			#    test_daily.cpp
             #tests/test_triangulation.cpp
-            tests/main.cpp
+            #tests/main.cpp
+>>>>>>> a1ab415 (Modified src/CMakeLists for googletests)
             tests/submoduletests/test_crack.cpp
 			tests/submoduletests/test_ayers.cpp
 )
@@ -508,11 +511,11 @@ if (BUILD_TESTS)
 	endif()
 
 	#copy the data files from test_data to the dir that holds the test binary
-	add_custom_command(TARGET runUnitTests PRE_BUILD
-			COMMAND ${CMAKE_COMMAND} -E copy_directory
-			${CMAKE_SOURCE_DIR}/test_data
-			$<TARGET_FILE_DIR:runUnitTests>
-			COMMENT "Copying files to $<TARGET_FILE_DIR:runUnitTests> from ${CMAKE_SOURCE_DIR}/test_data/")
+    #add_custom_command(TARGET runUnitTests PRE_BUILD
+	#		COMMAND ${CMAKE_COMMAND} -E copy_directory
+	#		${CMAKE_SOURCE_DIR}/test_data
+	#		$<TARGET_FILE_DIR:runUnitTests>
+	#		COMMENT "Copying files to $<TARGET_FILE_DIR:runUnitTests> from ${CMAKE_SOURCE_DIR}/test_data/")
 
 
 
