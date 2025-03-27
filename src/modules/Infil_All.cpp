@@ -146,6 +146,7 @@ void Infil_All::run(mesh_elem &face)
         crack.init_inputs(snowmelt, rainfall, swe, soil_storage_at_freeze,
                 airtemp, is_new_day()); 
         d.crack_model_status.daily_melt_total = snowmelt * steps_per_day;
+        crack.is_CRHM_compare_test = true;
         crack.run();
 
         runoff = crack.get_runoff() / steps_per_day;
