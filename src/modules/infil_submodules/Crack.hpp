@@ -28,14 +28,15 @@ public:
     double soil_storage_at_freeze;
     double airtemp;
     bool is_newday;
-         
+    bool is_CRHM_compare_test = false;
+        
     const double& major;
     const double& min_swe_to_freeze;
     const unsigned int& infDays;
     const bool& AllowPriorInf;
     const double& lenstemp;
     const double& steps_per_day;
-
+    
     struct info
     {
         bool frozen;

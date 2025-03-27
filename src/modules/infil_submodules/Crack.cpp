@@ -113,8 +113,9 @@ void Crack::run()
         }
         
     }
-         
-    d.increment_daily_melt(snowmelt);
+    
+    if (!is_CRHM_compare_test)    
+        d.increment_daily_melt(snowmelt);
     d.increment_daily_rain(rainfall);
     update_t_max();
 };
