@@ -165,24 +165,16 @@ void Infil_All::run(mesh_elem &face)
     else if (thaw_type == AYERS) // if not frozen, do Ayers
     {
         if (rainfall > 0.0)
-        {
-            // TODO set maxinfil at the beginning
-            double maxinfil = SoilDataObj->ayers_texture(d.texture,d.ground_cover); 
-            if (maxinfil > rainfall)
-            {
-                inf = rainfall;
-            }
-            else
-            {
-                inf = maxinfil;
-                runoff = rainfall - maxinfil;
-            }
+        { 
+            Ayers<Soil::soils_na,&Soil::soils_na::ayers_texture> ayers(rainfall, snowmelt, d.texture, d.ground_cover, SoilDataObj);
+       
+            ayers.run();
+
+            inf = ayers.get_inf();
+            runoff = ayers.get_runoff();
         }
-        
-        melt_to_infil(inf,snowinf,snowmelt);
-        
+
         // Increment totals
-        
         Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
     }
     else if (thaw_type == GREENAMPT) // if not frozen, do GreenAmpt

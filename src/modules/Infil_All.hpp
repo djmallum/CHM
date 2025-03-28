@@ -30,6 +30,7 @@
 #include <cmath>
 #include "Soil.h"
 #include "Crack.hpp"
+#include "Ayers.hpp"
 
 /**
  * \ingroup modules infil soils exp
