@@ -82,7 +82,7 @@ void Infil_All::init(mesh& domain)
         AllowPriorInf = cfg.get("AllowPriorInf",true);
         thaw_type = cfg.get("thaw_type",0); // Default is Ayers
 
-        SoilDataObj = std::make_unique<Soil::soils_na>();
+        //SoilDataObj = std::make_unique<Soil::soils_na>();
         if (thaw_type == AYERS)
         {    
             d.texture = face->soil_attribute<std::string>("soil_texture","soils");
@@ -91,7 +91,7 @@ void Infil_All::init(mesh& domain)
         else if (thaw_type == GREENAMPT)
         {
             d.soil_type = face->soil_attribute<std::string>("soil_type","soils");
-            d.ksaturated = SoilDataObj->saturated_conductivity(d.soil_type);
+            d.ksaturated = SoilDataObj.saturated_conductivity(d.soil_type);
         }
         lenstemp = cfg.get("temperature_ice_lens",-10.0);
 
@@ -340,7 +340,7 @@ void Infil_All::Initialize_GA_Variables(Infil_All::data &d) {
     GA->initial_storage = d.soil_storage;
     GA->final_storage = GA->initial_storage;
     GA->final_rate = GA->initial_rate;
-    GA->capillary_suction = SoilDataObj->capillary_suction(d.soil_type)
+    GA->capillary_suction = SoilDataObj.capillary_suction(d.soil_type)
         * GA->soil_storage_deficit;
 }
 

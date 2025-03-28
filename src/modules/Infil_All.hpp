@@ -119,8 +119,8 @@ public:
 
 private:
     
-    // Soil Data
-    std::unique_ptr<Soil::_soils_base> SoilDataObj;
+    Soil::soils_na& SoilDataObj = Soil::get_soil_obj<Soil::soils_na>();
+    //std::unique_ptr<Soil::_soils_base> SoilDataObj;
 
     // Crack
     double major;
