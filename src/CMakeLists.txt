@@ -86,6 +86,7 @@ set(MODEL_SRCS
         modules/soil_submodules/K_estimate.cpp
     
         modules/infil_submodules/Crack.cpp
+		modules/infil_submodules/Ayers.hpp
         CACHE INTERNAL "" FORCE )
 
 set(CHM_SRCS
@@ -433,10 +434,9 @@ if (BUILD_TESTS)
 			#    test_daily.cpp
             #tests/test_triangulation.cpp
             #tests/main.cpp
->>>>>>> a1ab415 (Modified src/CMakeLists for googletests)
             tests/submoduletests/test_crack.cpp
 			tests/submoduletests/test_ayers.cpp
-)
+	)
 
 
 	set( GTEST_LINK
