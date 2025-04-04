@@ -1,15 +1,12 @@
 #include "I_freeze_thaw_depths.hpp"
 #include <cmath>
 
-class XG_algorithm
+class XG_algorithm : public I_freeze_thaw_depths
 {
 public:
     ~XG_algorithm() {};
-    XG_algorithm(two_layer_DTO& _DTO) : DTO(_DTO) {};
+    XG_algorithm() {};
 
-    void run() override;
-
-private:
-    two_layer_DTO& DTO;
+    virtual void run() override;
 
 };
