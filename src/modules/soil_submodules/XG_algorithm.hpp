@@ -4,13 +4,12 @@
 class XG_algorithm : public I_freeze_thaw_depths
 {
 public:
-    ~XG_algorithm(double& t, double& _SWE, state& _S, param& _P) : surface_temp(t), SWE(_SWE), S(_S), P(_P) {};
+    ~XG_algorithm(double& t, state& _S, param& _P) : surface_temp(t), S(_S), P(_P) {};
     XG_algorithm() {};
 
     virtual void run() override;
 
     double& surface_temp;
-    double& SWE;
     class state;
     class param;
     state& S;
@@ -62,10 +61,48 @@ public:
         std::vector<double> rechr_fract;   // fraction of layer (soil_rechr_max)  
         std::vector<double> moist_fract;   // fraction of layer (soil_moist_max)  
         std::vector<double> default_fract; // fraction of layer (theta_default)  
+        // Constructor that initializes vector sizes
+        explicit state(params& P) :
+            Zd_front(P.N_Soil_layers,0.0),
+            pf(P.N_Soil_layers),
+            pt(P.N_Soil_layers),
+            ttc(P.N_Soil_layers),
+            ftc(P.N_Soil_layers),
+            tc_composite(P.N_Soil_layers,0),
+            tc_composite2(P.N_Soil_layers,0),
+            theta(P.N_Soil_layers),
+            layer_h2o(P.N_Soil_layers),
+            XG_max(P.N_Soil_layers),
+            XG_moist(P.N_Soil_layers),
+            ttc_contents(P.N_Soil_layers),
+            ftc_contents(P.N_Soil_layers),
+            rechr_fract(P.N_Soil_layers),
+            moist_fract(P.N_Soil_layers),
+            default_fract(P.N_Soil_layers)
+        {
+            // Initialize other members
+            Zdf = 0.0;
+            Zdt = 0.0;
+            Th_low = 1;
+            Fz_low = 1;
+            nfront = 0;
+            Bfr = 0.0;
+            Bth = 0.0;
+            XG_moist_d = 0.0;
+            XG_rechr_d = 0.0;
+            check_XG_moist = 0.0;
+            B = 0.0;
+            TrigAcc = 0.0;
+            TrigState = 0;
+            t_trend = 0.0;
+        }
 
-    // Variation #1 only  
-    //int n_factor_T;            // days after start of thaw  
-    //double n_factor;           // calculated n_factor value
+        void set_XG_max(params& P);
+        void set_theta(params& P);
+        void distriute_moisture(params& P);
+        void set_thermal_conductivities(params& P);
+        void set_freezethaw_ratios(params& P);
+
     };
 
     class params
@@ -76,7 +113,7 @@ public:
         const std::vector<double> depths;  // (m) soil layer thicknesses  
         const std::vector<double> por;     // soil porosity  
         const int N_Soil_layers;           // number of soil layers (≤ nlay)  
-        const double theta_default;        // (m³/m³) default theta  
+        const std::vector<double> theta_default;        // (m³/m³) default theta  
         const double theta_min;            // (m³/m³) minimum theta  
         const std::vector<double> soil_solid_km;        // (W/(m*K)) dry soil conductivity  
         const std::vector<double> soil_solid_km_ki;     // (W/(m*K)) saturated frozen conductivity  
@@ -93,9 +130,117 @@ public:
         const double soil_moist_max;       // (mm) max rooting zone capacity  
         const bool is_newday;
         const double time_step_per_day;
+
+        Param(
+            const double& t, const std::vector<double>& d, const std::vector<double>& p,
+            const int& n, const double& td, const double& tm, const double& skm,
+            const double& ski, const double& skw, const double& swk, const double& zdi,
+            const double& zti, const double& zpi, const int& fku, const int& tku,
+            const int& ku, const double& srm, const double& smm,
+        ) : 
+            Trigthrhld(t), depths(d), por(p), N_Soil_layers(n), theta_default(td),
+            theta_min(tm), soil_solid_km(skm), soil_solid_km_ki(ski),
+            soil_solid_km_kw(skw), SWE_k(swk), freeze_kw_ki_update(fku), 
+            thaw_ki_kw_update(tku), k_update(ku), soil_rechr_max(srm), 
+            soil_moist_max(smm), 
+        {}
     };
     // Variation #1 parameters  
     //const double& n_factor_a;           // surface-to-air temp ratio  
     //const double& n_factor_b;           // surface-to-air temp ratio  
     //const double& n_factor_c;           // surface-to-air temp ratio  
+};
+
+class StateBuilder {
+public:
+    explicit StateBuilder(int num_layers) {
+        state_ = std::make_unique<state>();
+        initialize_vectors(num_layers);
+    }
+
+    StateBuilder& size_check(const XG_algorithm::params& P) 
+    {
+        //check sizes
+    };
+
+    StateBuilder& set_XG_max(const XG_algorithm::params& P) {
+
+        for (auto&& [m,p,d] : std::views::zip(state_->XG_max,P.por,P.depths))
+            m = p * d * 1000.0;
+
+        return *this;
+    }
+
+    StateBuilder& set_theta(const XG_algorithm::params& P) {
+        state_->theta = P.theta_default;
+
+        return *this;
+    }
+
+    StateBuilder& distribute_moisture(const XG_algorithm::params& P) {
+        state_->tc_composite.assign(P.N_Soil_layers,0.0);
+        state_->tc_composite2.assign(P.N_Soil_layers,0.0);
+
+        std::vector<double> profile_depth;
+        profile_depth.reserve(P.N_Soil_layers);
+
+        double sum = 0.0;
+        for (double val : P.depths)
+        {
+            sum += val;
+            profile_depth.push_back(sum);
+        }
+
+        double rechrmax = P.soil_rechr_max;
+        double soilmax = P.soil_moist_max;
+
+        for (int layer; layer < P.N_Soil_layers; ++layer)
+        {
+            state_->XG_max[layer] = P.por[layer] * P.depths[layer] * 1000.0;
+            state_->theta[layer] = P.theta_default[layer];
+
+            if (rechrmax > 0.0)
+                if (rechrmax > state_->XG_max[layer])
+                {
+                    state_->XG_rechr_d += P.depths[layer];
+                    state_->rechr_fract[layer] = 1.0;
+                    rechrmax -= state_->XG_max[layer];
+                }
+                else
+                {
+                    const double amount = rechrmax / state_->XG_max[layer];
+                    state_->rechr_fract[layer]
+
+//consider doing this function in state class, then making this a friend class? so I can write it easier.
+
+
+
+        if (rechrmax > 0.0)
+        {
+            if (rechrmax > state_->XG_max
+        return *this;
+    }
+
+    StateBuilder& set_thermal_conductivities(const XG_algorithm::params& P) {
+        // Implementation details
+        return *this;
+    }
+
+    StateBuilder& set_freezethaw_ratios(const XG_algorithm::params& P) {
+        // Implementation details
+        return *this;
+    }
+
+    std::unique_ptr<state> build() {
+        return std::move(state_);
+    }
+
+private:
+    void initialize_vectors(int num_layers) {
+        state_->theta.resize(num_layers);
+        state_->XG_max.resize(num_layers);
+        // ... resize all other vectors ...
+    }
+
+    std::unique_ptr<XG_algorithm::state> state_;
 };

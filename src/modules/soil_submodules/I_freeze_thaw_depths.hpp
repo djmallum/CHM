@@ -7,8 +7,11 @@ public:
 
     double thaw_front_depth = 0.0;
     double freeze_front_depth = 0.0;
+    double first_front_depth = 0.0;
 
     double get_freeze_front() { return freeze_front_depth;};
 
     double get_thaw_depth() { return thaw_front_depth; };
+
+    double get_first_front_depth() { return first_front_depth; };
 };
