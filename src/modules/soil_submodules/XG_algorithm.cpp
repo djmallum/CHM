@@ -256,6 +256,75 @@ void XG_algorithm::run()
     }
 };
 
+void XG_algorithm::state::set_thermal_conductivities(const XG_algorithm::param& P)
+{
+    state_->Th_low = 1;
+    state_->Fz_low = 1;
+    state_->check_XG_moist = 0.0;
+
+    // Process each soil layer
+    for (int layer = 0; layer < P.N_Soil_layers; ++layer) {
+        // Calculate moisture content
+        if (P.soil_moist_max > 0.0) {  // handle soil_moist_max = 0.0 (slough case)
+            state_->XG_moist[layer] = 
+                state_->rechr_fract[layer] * state_->XG_max[layer] * (state_->soil_rechr / P.soil_rechr_max) +
+                state_->moist_fract[layer] * state_->XG_max[layer] * 
+                ((state_->soil_moist - state_->soil_rechr) / (P.soil_moist_max - P.soil_rechr_max));
+        }
+        else
+        {
+            state_->XG_moist[layer] = 0.0;
+        }
+
+        // Update moisture checks and adjustments
+        state_->check_XG_moist += state_->XG_moist[layer];
+        state_->XG_moist[layer] += 
+            state_->default_fract[layer] * state_->XG_max[layer] * state_->theta_default[layer];
+
+        // Calculate and validate theta
+        state_->theta[layer] = state_->XG_moist[layer] / state_->XG_max[layer];
+        if (state_->theta[layer] <= P.theta_min) {
+            state_->theta[layer] = P.theta_min;  // enforce minimum value
+        }
+
+        // Convert to water content (kg/m³)
+        state_->layer_h2o[layer] = state_->theta[layer] * P.por[layer] * 1000.0;
+
+        // Update thermal conductivities
+        if (P.k_update) {  // dynamic update mode
+            state_->ftc[layer] = (state_->ftc_contents[layer] == 1) 
+                ? state_->get_ttc(layer) 
+                : state_->get_ftc(layer);
+            
+            state_->ttc[layer] = (state_->ttc_contents[layer] == 1) 
+                ? state_->get_ftc(layer) 
+                : state_->get_ttc(layer);
+        } 
+        else 
+        {
+            state_->ftc[layer] = state_->get_ftc(layer);
+            state_->ttc[layer] = state_->get_ttc(layer);
+            state_->ftc_contents[layer] = 0;
+            state_->ttc_contents[layer] = 0;
+        }
+    }
+};
+
+void XG_algorithm::state::set_freezethaw_ratios(const XG:algorithm::param& P)
+{
+    for (int layer = 1; layer < P.N_Soil_layers; ++layer)
+    {
+        state_->pf[layer] = std::sqrt(
+                (state_->ftc[layer-1] / state_->layer_h2o[layer-1]) /
+                (state_->ftc[layer] / state_->layer_h2o[layer])
+                );
+
+        state_->pt[layer] = std::sqrt(
+                (state_->ttc[layer-1] / state_->layer_h2o[layer-1]) /
+                (state_->ttc[layer] / state_->layer_h2o[layer])
+                );
+    };
+};
 //void XG_algorithm::run()
 //{
 //

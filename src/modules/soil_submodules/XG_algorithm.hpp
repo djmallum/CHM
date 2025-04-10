@@ -62,23 +62,23 @@ public:
         std::vector<double> moist_fract;   // fraction of layer (soil_moist_max)  
         std::vector<double> default_fract; // fraction of layer (theta_default)  
         // Constructor that initializes vector sizes
-        explicit state(params& P) :
-            Zd_front(P.N_Soil_layers,0.0),
-            pf(P.N_Soil_layers),
-            pt(P.N_Soil_layers),
-            ttc(P.N_Soil_layers),
-            ftc(P.N_Soil_layers),
-            tc_composite(P.N_Soil_layers,0),
-            tc_composite2(P.N_Soil_layers,0),
-            theta(P.N_Soil_layers),
-            layer_h2o(P.N_Soil_layers),
-            XG_max(P.N_Soil_layers),
-            XG_moist(P.N_Soil_layers),
-            ttc_contents(P.N_Soil_layers),
-            ftc_contents(P.N_Soil_layers),
-            rechr_fract(P.N_Soil_layers),
-            moist_fract(P.N_Soil_layers),
-            default_fract(P.N_Soil_layers)
+        explicit state(int N) :
+            Zd_front(N),
+            pf(N),
+            pt(N),
+            ttc(N),
+            ftc(N),
+            tc_composite(N),
+            tc_composite2(N),
+            theta(N),
+            layer_h2o(N),
+            XG_max(N),
+            XG_moist(N),
+            ttc_contents(N),
+            ftc_contents(N),
+            rechr_fract(N),
+            moist_fract(N),
+            default_fract(N)
         {
             // Initialize other members
             Zdf = 0.0;
@@ -158,39 +158,43 @@ public:
         initialize_vectors(num_layers);
     }
 
-    StateBuilder& size_check(const XG_algorithm::params& P) 
+    StateBuilder& size_check() 
     {
         //check sizes
     };
 
-    StateBuilder& set_XG_max(const XG_algorithm::params& P) {
+    StateBuilder& set_initial_freezethaw_depths(const double Zdf, const double Zdt)
+    {
+        state_->Zdf = Zdf;
+        state_->Zdt = Zdt;
 
-        for (auto&& [m,p,d] : std::views::zip(state_->XG_max,P.por,P.depths))
+        return *this;
+    };
+
+    StateBuilder& set_XG_max(std::vector<double> por,std::vector<double> depths) {
+
+        for (auto&& [m,p,d] : std::views::zip(state_->XG_max,por,depths))
             m = p * d * 1000.0;
 
         return *this;
-    }
+    };
 
-    StateBuilder& set_theta(const XG_algorithm::params& P) {
+    StateBuilder& set_theta(std::vector<double> theta_default) {
         state_->theta = P.theta_default;
 
         return *this;
-    }
+    };
 
-    StateBuilder& distribute_moisture(const XG_algorithm::params& P) {
-        state_->tc_composite.assign(P.N_Soil_layers,0.0);
-        state_->tc_composite2.assign(P.N_Soil_layers,0.0);
-
-        std::vector<double> profile_depth;
-        profile_depth.reserve(P.N_Soil_layers);
-
+    StateBuilder& set_layer_moisture_maximums() {
         double sum = 0.0;
         for (double val : P.depths)
         {
             sum += val;
-            profile_depth.push_back(sum);
         }
-
+        if (sum < state_->Zdf || sum < state_->Zdt)
+        {
+            //TODO Add A CHM exception to say that the total soil depth is less than initial Zdt,Zdf
+        } 
         double rechrmax = P.soil_rechr_max;
         double soilmax = P.soil_moist_max;
 
@@ -200,6 +204,7 @@ public:
             state_->theta[layer] = P.theta_default[layer];
 
             if (rechrmax > 0.0)
+            {
                 if (rechrmax > state_->XG_max[layer])
                 {
                     state_->XG_rechr_d += P.depths[layer];
@@ -209,37 +214,78 @@ public:
                 else
                 {
                     const double amount = rechrmax / state_->XG_max[layer];
-                    state_->rechr_fract[layer]
+                    state_->rechr_fract[layer] = rechrmax / state_->XG_max[layer];
 
-//consider doing this function in state class, then making this a friend class? so I can write it easier.
+                    state_->XG_rechr_d += P.depths[layer] * amount;
+                    const double amount_remaining = 1.0 - amount;
+                    if (soilmax >= state_->XG_max[layer]*amount_remaining)
+                    {
+                        state_->moist_fract[layer] = amount_remaining;
+                        soilmax -= state_->XG_max[layer] * amount_remaining;
+                        state_->XG_moist_d[layer] += P.depths[layer];
+                    }
+                    else
+                    {
+                        state_->moist_fract[layer] = (soilmax -  rechrmax) / state_->XG_max[layer];
+                        const double used = state_->rechr_fract[layer] + state_->moist_fract[layer];
+                        state_->default_fract[layer] = 1.0 - used;
+                        state_->XG_moist_d += state_->XG_rechr_d[layer] + P.depths[layer] * used;
+                        soilmax = 0.0;
+                    }
+                    rechrmax = 0.0;
+                }
+            }
+            else if (soilmax > 0.0)
+            {
+                if (soilmax >= state_->XG_max[layer]) {
+                    state_->XG_moist_d += P.depths[layer];
+                    state_->moist_fract[layer] = 1.0;
+                    soilmax -= state_->XG_max[layer];
+                }
+                else
+                {
+                    const double amount = soilmax / state_->XG_max[layer];
+                    state_->XG_moist_d[layer] += P.depths[layer] * amount;
+                    state_->moist_fract[layer] = amount;
+                    state_->default_fract[layer] = 1.0 - amount;
+                    soilmax = 0.0;
+                }
+            }
+            else
+            {
+                state_->default_fract[layer] = 1.0;
+            }
+        }
 
-
-
-        if (rechrmax > 0.0)
+        if (rechrmax != 0.0 || soilmax != 0.0)
         {
-            if (rechrmax > state_->XG_max
+            // put CHM exception here
+        }
         return *this;
-    }
+    };
+
 
     StateBuilder& set_thermal_conductivities(const XG_algorithm::params& P) {
-        // Implementation details
+        state_->set_thetmal_conductivities(P);
         return *this;
-    }
+    };
 
     StateBuilder& set_freezethaw_ratios(const XG_algorithm::params& P) {
-        // Implementation details
+        state_->set_freezethaw_ratios(P); 
         return *this;
-    }
+    };
 
     std::unique_ptr<state> build() {
         return std::move(state_);
-    }
+    };
 
 private:
     void initialize_vectors(int num_layers) {
         state_->theta.resize(num_layers);
         state_->XG_max.resize(num_layers);
-        // ... resize all other vectors ...
+        state_->tc_composite.assign(num_layers,0.0);
+        state_->tc_composite2.assign(num_layers,0.0);
+       // ... resize all other vectors ...
     }
 
     std::unique_ptr<XG_algorithm::state> state_;
