@@ -433,7 +433,7 @@ if (BUILD_TESTS)
             #tests/test_regexptokenizer.cpp
 			#    test_daily.cpp
             #tests/test_triangulation.cpp
-            #tests/main.cpp
+            tests/main.cpp
             tests/submoduletests/test_crack.cpp
 			tests/submoduletests/test_ayers.cpp
 	)
