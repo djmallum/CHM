@@ -53,6 +53,7 @@ public:
         double current_runoff;
         double current_melt_runoff;
         double yesterday_melt;
+        bool end_freeze_tomorrow; 
         
         void init()
         {
@@ -62,6 +63,7 @@ public:
             max_major_per_melt = 0.0;
             init_SWE = 0.0;
             daily_melt_total = 0.0;
+            daily_rain_total = 0.0;
             current_day_is_major = false;
             tmax = 0.0;
             current_inf = 0.0;
@@ -69,6 +71,7 @@ public:
             current_runoff = 0.0;
             current_melt_runoff = 0.0;
             yesterday_melt = 0.0;
+            end_freeze_tomorrow = false;
         };
 
         void begin_freeze()
@@ -80,6 +83,7 @@ public:
             current_inf = 0.0;
             current_runoff = 0.0;
             yesterday_melt = 0.0;
+            end_freeze_tomorrow = false;
         };
 
         void end_freeze()
@@ -87,9 +91,6 @@ public:
             frozen = false;
             major_melt_count = 0;
         };
-
-        void increment_daily_melt(const double& snowmelt);
-        void increment_daily_rain(const double& rain);
 
     };
     info& d;
