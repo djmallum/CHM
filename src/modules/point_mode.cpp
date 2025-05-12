@@ -97,14 +97,8 @@ point_mode::point_mode(config_file cfg)
         depends_from_met("hru_evap");
         provides("ET");
         
-        depends_from_met("Zdt");
-        provides("thaw_front_depth");
-
-        depends_from_met("Zdf");
-        provides("freeze_front_depth");
-        
-        depends_from_met("Zd_front.0");
-        provides("first_front_depth");
+        depends_from_met("hru_tsf");
+        provides("surface_temperature");        
     }    
     if(t)
     {
@@ -230,16 +224,8 @@ void point_mode::run(mesh_elem &face)
         double ET = (*face->nearest_station())["hru_evap"_s];
         (*face)["ET"_s] = ET;
  
-        double Zdt = (*face->nearest_station())["Zdt"_s];
-        (*face)["thaw_front_depth"_s] = Zdt;
-
-        double Zdf = (*face->nearest_station())["Zdf"_s];
-        (*face)["freeze_front_depth"_s] = Zdf;
-    
-
-        double Zd_front0 = (*face->nearest_station())["Zd_front.0"_s];
-        (*face)["first_front_depth"] = Zd_front0;
-
+        double temp = (*face->nearest_station())["hru_tsf"_s];
+        (*face)["surface_temperature"_s] = temp;
     }
     if(t)
     {
