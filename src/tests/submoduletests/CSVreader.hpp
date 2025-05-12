@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -161,3 +162,5 @@ public:
         //throw std::runtime_error("Row " + std::to_string(rowNumber) + " not found in the CSV file.");
     //}
 };
+
+inline CSVReader reader;
