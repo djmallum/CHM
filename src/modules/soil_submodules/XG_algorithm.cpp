@@ -27,7 +27,7 @@ void XG_algorithm::run()
         S.set_thermal_conductivities(P,soil_moist,soil_rechr)
             .set_freezethaw_ratios(P);
         
-        if(S.freezing()) // handle freezing
+		if(S.freezing()) // handle freezing
         {
             if(S.net_negative_degree_days())
             {
@@ -103,7 +103,7 @@ void XG_algorithm::freeze(void)
 
     S.Zdf = 0.0;
     
-    double ftc;
+	double ftc;
     if (P.k_update == 2)
         ftc = Interpolated_ftc(S.Zdf, layer);
     else
@@ -130,7 +130,6 @@ void XG_algorithm::freeze(void)
     S.Zdf += Za;
 
     S.Zdf = std::min(S.Zdf,P.Zpf_init);
-    
 };
 
 void XG_algorithm::thaw(void)
@@ -180,7 +179,6 @@ double XG_algorithm::stefan_equation(double& surface_index, double& thermal_cond
     assert(S.layer_h2o[layer-1] != 0 && "About to trip divide by zero in stefan equation!");
     return std::sqrt(2.0*86400.0*thermal_conductivity * surface_index / 
             (S.layer_h2o[layer-1]*L));
-
 };
 
 double XG_algorithm::Interpolated_ttc(double Za, size_t layer)
@@ -238,7 +236,6 @@ void XG_algorithm::find_thaw_D(double dt) { // XG-Algorithm - Thawing - used by 
             low = mid;
 
     } while (high - low > tolerance);
-    
   //TODO Throw CHM exception here, indicates that Zdt is too large
 };
 

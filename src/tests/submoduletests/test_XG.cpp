@@ -46,6 +46,7 @@ protected:
     double soil_rechr_max = 350.0;
     double soil_moist_max = 625.0;
     int time_step_per_day = 24;
+    double permafrost_depth = 2.0;
     bool calc_conductivity = false; 
 
     void init_vectors()
@@ -519,12 +520,6 @@ TEST_F(XGStateTest,DetermineFreezeThawIdle)
     EXPECT_EQ(S->Zdf,0.0);
 };
 
-
-    
-    
-    
-
-
 // TODO Mock state and param and move this to another file
 class XGTest : public XGStateTest
 {
@@ -543,31 +538,31 @@ protected:
             .set_freezethaw_ratios(*P);
     }
 
-    struct CRHM
-    {
-        double TrigAcc;
-        double TrigState;
-        double t_trend;
-        double Zdf;
-        double Zdt;
-        double B;
-        double Bth;
-        double Bfr;
-        double hru_tsf;
-
-        CRHM(const int& i,CSVReader& reader)
-        {
-            TrigAcc = reader.getValue<double>("TrigAcc",i);
-            TrigState = reader.getValue<double>("TrigState",i);
-            t_trend = reader.getValue<double>("t_trend",i);
-            Zdf = reader.getValue<double>("Zdf",i);
-            Zdt = reader.getValue<double>("Zdt",i);
-            B = reader.getValue<double>("B",i);
-            Bth = reader.getValue<double>("Bth",i);
-            Bfr = reader.getValue<double>("Bfr",i);
-            hru_tsf = reader.getValue<double>("hru_tsf",i);
-        };
-    };
+//    struct CRHM
+//    {
+//        double TrigAcc;
+//        double TrigState;
+//        double t_trend;
+//        double Zdf;
+//        double Zdt;
+//        double B;
+//        double Bth;
+//        double Bfr;
+//        double hru_tsf;
+//
+//        CRHM(const int& i,CSVReader& reader)
+//        {
+//            TrigAcc = reader.getValue<double>("TrigAcc",i);
+//            TrigState = reader.getValue<double>("TrigState",i);
+//            t_trend = reader.getValue<double>("t_trend",i);
+//            Zdf = reader.getValue<double>("Zdf",i);
+//            Zdt = reader.getValue<double>("Zdt",i);
+//            B = reader.getValue<double>("B",i);
+//            Bth = reader.getValue<double>("Bth",i);
+//            Bfr = reader.getValue<double>("Bfr",i);
+//            hru_tsf = reader.getValue<double>("hru_tsf",i);
+//        };
+//    };
 };
 
 
