@@ -11,6 +11,7 @@
  * Initialization of CrackTest assumes that the frozen period has just begun. 
  * 
  */
+
 class CrackTest : public testing::Test
 {
 protected:
@@ -334,7 +335,7 @@ protected:
     {
         status.init();
     };
-    CSVReader reader;
+    //reader comes from CSVReader.hpp as inline
     Crack::info status;
     static constexpr double seconds_per_hour = 3600.0;
     double steps_per_day = 24;
