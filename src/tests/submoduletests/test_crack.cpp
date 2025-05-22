@@ -389,7 +389,7 @@ TEST_F(CrackImplTest,FullImplementTest)
         double rainfall = reader.getValue<double>("net_rain",i);
         double snowmelt = reader.getValue<double>("snowmeltD",i) / 24;
         double swe = reader.getValue<double>("SWE",i);
-        double soil_storage_at_freeze = 50;
+        double soil_storage_at_freeze = reader.getValue<double>("fallstat_V",i);
         double airtemp = reader.getValue<double>("hru_t",i);
         bool crackon = reader.getValue<bool>("crackon",i);
         std::string datetime = reader.getValue<std::string>("datetime",i);
