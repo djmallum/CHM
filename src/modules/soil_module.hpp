@@ -96,12 +96,14 @@ public:
         std::unique_ptr<soil_base> soil_layers;
         std::unique_ptr<soil_base> ET;
         // custom deletor that does nothing to make sure it doesn't try to delete the mesh_elem it points to
-        mesh_elem* my_face;//(nullptr, [](mesh_elem* ptr) {});
+        // REMOVED same reason as is_lake below, may 2025
+		//mesh_elem* my_face;//(nullptr, [](mesh_elem* ptr) {});
         std::unique_ptr<I_K_estimate> K_estimator;
         // overridden
-        bool is_lake(soil_ET_DTO& DTO) override;
-        int get_dt(two_layer_DTO& DTO) override;
-
+        // REMOVED is_lake as a function and is now a variable storing the result of is_water (May 2025)
+		//bool is_lake(soil_ET_DTO& DTO) override;
+        int get_dt() override;
+        bool get_new_day() override;
         // custom deletor that does nothing to make sure it doesn't try to delete the mesh_elem it points to
         soil_module* local_module;//(nullptr, [](soil_module*) {});
     
@@ -135,7 +137,7 @@ private:
         size_t freeze_kw_ki_update;
         size_t thaw_ki_kw_update;
         size_t k_update;
-        bool time_step_per_day;
+        size_t time_step_per_day;
         bool calc_conductivity;
     };
     XG_shared_const C;

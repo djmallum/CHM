@@ -11,19 +11,26 @@ XG_algorithm::XG_algorithm(const double& t, const double& _moist,
 
 void XG_algorithm::run()
 {
+    if (S.last_step_new_day)
+    {   
+        S.reset_degree_day_counter();
+    }
+
+    
     S.accumulate_degree_days(surface_temp);
+    
+        
     if (S.is_newday)
     {
         S.determine_freeze_thaw_idle();
 
         S.set_thermal_conductivities(P,soil_moist,soil_rechr)
             .set_freezethaw_ratios(P);
-
+        
         if(S.freezing()) // handle freezing
         {
             if(S.net_negative_degree_days())
             {
-                
                 freeze(); // XG-Algorithm - Freezing
 
                 // check for thaw front
@@ -81,10 +88,12 @@ void XG_algorithm::run()
             S.Zd_front[0] = S.Zdt;
         } // thawing handled
         
-        S.reset_degree_day_counter();
-
+        S.last_step_new_day = true;
     }
-    
+    else
+    {
+        //nothing
+    } 
     thaw_front_depth = S.Zdt;
     freeze_front_depth = S.Zdf;
     first_front_depth = S.Zd_front[0];
@@ -97,7 +106,7 @@ void XG_algorithm::freeze(void)
     double L = 335000;
 
     S.Zdf = 0.0;
-
+    
     double ftc;
     if (P.k_update == 2)
         ftc = Interpolated_ftc(S.Zdf, layer);
@@ -125,8 +134,7 @@ void XG_algorithm::freeze(void)
     S.Zdf += Za;
 
     S.Zdf = std::min(S.Zdf,P.Zpf_init);
-
-
+    
 };
 
 void XG_algorithm::thaw(void)
@@ -173,8 +181,10 @@ double XG_algorithm::stefan_equation(double& surface_index, double& thermal_cond
     // TODO Don't know where the 211 and 8640011 comes from. 
     // Examining the original equation from (Xie and Gough, 2013)
     // A factor of 86400 is needed
+    assert(S.layer_h2o[layer-1] != 0 && "About to trip divide by zero in stefan equation!");
     return std::sqrt(2.0*86400.0*thermal_conductivity * surface_index / 
             (S.layer_h2o[layer-1]*L));
+
 };
 
 double XG_algorithm::Interpolated_ttc(double Za, size_t layer)
@@ -421,6 +431,7 @@ bool XG_algorithm::state::net_negative_degree_days()
 
 void XG_algorithm::state::reset_degree_day_counter()
 {
+    last_step_new_day = false;
     B = 0.0;
 };
 
@@ -696,7 +707,6 @@ XG_algorithm::state& XG_algorithm::state::set_freezethaw_ratios(const XG_algorit
 void XG_algorithm::state::accumulate_degree_days(const double& surface_temp)
 {
     B += surface_temp / P.time_step_per_day;
-
     TrigAcc += B;
 
     t_trend -= t_trend / 192;
