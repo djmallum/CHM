@@ -15,6 +15,7 @@ soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel:
     provides("actual_soil_ET");
     provides("soil_excess_to_runoff");
     provides("soil_excess_to_gw");
+	provides("runoff_to_depression");
     provides("ground_water_out");
     provides("soil_to_ssr");
     provides("rechr_to_ssr");
@@ -33,6 +34,8 @@ soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel:
     provides("thaw_front_depth"); 
     provides("freeze_front_depth");
     provides("first_front_depth");
+    provides("thaw_fraction_rechr");
+    provides("thaw_fraction_lower");
 };
 
 soil_module::~soil_module()
@@ -49,10 +52,12 @@ void soil_module::init(mesh& domain)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<soil_module::data>(ID);
+        SPDLOG_DEBUG("Top front var: {}",d.freeze_thaw_first_front);
         // I do some evil things here to allow for the submodules to access module_base functions like is_water
         // A pointer to face is put in d, likewise a pointer to this instance of this class is also added, see the overridden functions
         // get_dt and is_lake below.
-        d.my_face = &face;
+        // Changed is_lake to a variable from a function, so it stores the result of is_water rather than requiring a copy of face.
+		//d.my_face = &face;
         set_local_module(d);
         set_soil_params(face,d);
    
@@ -79,9 +84,10 @@ void soil_module::init(mesh& domain)
 
 void soil_module::run(mesh_elem& face)
 {
-
+    
     auto& d = face->make_module_data<soil_module::data>(ID);
    
+    // TODO new newday stuff and is last day new and is crhm test
     XG_algorithm XG = get_XG(face,d); 
     XG.run();
     get_soil_inputs(face,d,XG);
@@ -127,6 +133,7 @@ void soil_module::get_soil_inputs(mesh_elem& face,soil_module::data& d,XG_algori
     d.infil = (*face)["inf"_s];
     d.runoff = (*face)["runoff"_s];
     d.routing_residual = 0.0; //(*face)["routine_residual"_s];
+	d.is_lake = is_water(face);
 };
 
 void soil_module::set_soil_outputs(mesh_elem& face,soil_module::data& d)
@@ -135,7 +142,8 @@ void soil_module::set_soil_outputs(mesh_elem& face,soil_module::data& d)
     (*face)["actual_soil_ET"_s] = d.actual_soil_ET; 
     (*face)["soil_excess_to_runoff"_s] = d.soil_excess_to_runoff; 
     (*face)["soil_excess_to_gw"_s] = d.soil_excess_to_gw; 
-    (*face)["ground_water_out"_s] = d.ground_water_out; 
+    (*face)["runoff_to_depression"_s] = d.runoff_to_depression;
+	(*face)["ground_water_out"_s] = d.ground_water_out; 
     (*face)["soil_to_ssr"_s] = d.soil_to_ssr;
     (*face)["rechr_to_ssr"_s] = d.rechr_to_ssr;
     (*face)["soil_storage"_s] = d.soil_storage;
@@ -150,11 +158,13 @@ void soil_module::set_soil_outputs(mesh_elem& face,soil_module::data& d)
     (*face)["K_depression_to_gw"_s] = d.K_depression_to_gw;
     (*face)["K_ground_water_out"_s] = d.K_ground_water_out;
     (*face)["K_soil_to_gw"_s] = d.K_soil_to_gw;
-
+    
+    (*face)["thaw_fraction_rechr"_s] = d.thaw_fraction_rechr;
+    (*face)["thaw_fraction_lower"_s] = d.thaw_fraction_lower;
     // XG out
     (*face)["thaw_front_depth"_s] = d.thaw_front_depth;
     (*face)["freeze_front_depth"_s] = d.freeze_front_depth;
-    (*face)["freeze_thaw_first_front"_s] = d.freeze_thaw_first_front;
+    (*face)["first_front_depth"_s] = d.freeze_thaw_first_front;
 };
 
 void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
@@ -174,7 +184,7 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         d.pore_size_dist = face->soil_attribute<double>("PSD_K_estimator");
         d.pore_size_dist_organic = face->soil_attribute<double>("PSD_K_organic");
         const std::string soil_type = face->soil_attribute<std::string>("soil_type"_s,"soils");
-        d.porosity = SoilDataObj->porosity(soil_type);
+        d.porosity = 0.5;//SoilDataObj->porosity(soil_type);
         d.soil_index = face->soil_attribute<double>("soil_index");
         d.snow_grain_diameter = face->soil_attribute<double>("snow_grain_diameter");
 
@@ -299,26 +309,35 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
 
 };
 
-bool soil_module::data::is_lake(soil_ET_DTO& DTO)
+//bool soil_module::data::is_lake(soil_ET_DTO& DTO)
+//{
+//    try 
+//    {
+//        // TODO resolve this bug
+//        soil_module::data& d = dynamic_cast<soil_module::data&>(DTO);
+//        //bool temp = d.local_module->is_water(*d.my_face);
+//        return false;//d.local_module->is_water(*d.my_face);
+//    } catch (const std::bad_cast& e) {
+//        SPDLOG_DEBUG("bad cast");
+//        return false;
+//    }
+//};
+
+int soil_module::data::get_dt()
 {
-    try 
-    {
-        // TODO resolve this bug
-        soil_module::data& d = dynamic_cast<soil_module::data&>(DTO);
-        //bool temp = d.local_module->is_water(*d.my_face);
-        return false;//d.local_module->is_water(*d.my_face);
-    } catch (const std::bad_cast& e) {
-        SPDLOG_DEBUG("bad cast");
-        return false;
-    }
+    if (this->local_module)
+        return this->local_module->global_param->dt();
+    
+    CHM_THROW_EXCEPTION(module_error,"local_module not set in soil_module::data");
+    
 };
 
-int soil_module::data::get_dt(two_layer_DTO& DTO)
+bool soil_module::data::get_new_day()
 {
-    soil_module::data& d = static_cast<soil_module::data&>(DTO);
-
-    return d.local_module->global_param->dt();
-
+    if (this->local_module)
+        return this->local_module->is_new_day();
+        
+    CHM_THROW_EXCEPTION(module_error,"local_module not set in soil_module::data");
 };
 
 void soil_module::set_local_module(soil_module::data& d)
@@ -371,12 +390,15 @@ void soil_module::init_param_state_XG(mesh_elem& face, soil_module::data& d)
         std::vector<double> por(C.num_layers,d.porosity);
         std::vector<double> theta_default_vec(C.num_layers,theta_default);
         C.theta_min = cfg.get("moisture_content_min_per_layer",0.001);
-        double perma_frost_depth = face->soil_attribute<double>("perma_front_depth"_s);
+        double perma_frost_depth = face->soil_attribute<double>("perma_frost_depth"_s);
         C.freeze_kw_ki_update = cfg.get("update_k_behind_front_freeze",true);
         C.thaw_ki_kw_update = cfg.get("update_k_behind_front_thaw",true);
         C.k_update = cfg.get("k_update",1);
         C.time_step_per_day = 86400.0/global_param->dt();
         C.calc_conductivity = cfg.get("Johansen_conductivity",false);
+
+        sat_soil_frozen_k_vec.at(0) = 1.55;
+        sat_soil_thaw_k_vec.at(0) = 0.8;
         
         d.P = std::make_unique<XG_algorithm::params>(depth_vec,
                 C.Trigthrhld,
@@ -396,7 +418,8 @@ void soil_module::init_param_state_XG(mesh_elem& face, soil_module::data& d)
                 d.soil_storage_max,
                 C.time_step_per_day,
                 C.calc_conductivity);
-
+        
+        d.P->is_crhm_test = true;
         d.S = std::make_unique<XG_algorithm::state>(d.P->N_Soil_layers,*(d.P));
 
         d.S->set_layer_moisture_maximums(*(d.P))
@@ -418,6 +441,8 @@ void soil_module::init_param_state_XG(mesh_elem& face, soil_module::data& d)
 XG_algorithm soil_module::get_XG(mesh_elem& face,soil_module::data& d)
 {
     d.S->is_newday = is_new_day();
+    
+
     XG_algorithm XG((*face)["surface_temperature"_s],d.soil_storage,d.soil_rechr_storage,*(d.S),*(d.P));
 
     return XG;
