@@ -189,7 +189,7 @@ public:
         double soil_moist_max;       // (mm) max rooting zone capacity  
         double time_step_per_day;
         bool calc_conductivity;
-
+        bool is_crhm_test = false;
         ~params() {}; 
         params(
             const std::vector<double> d, const double& t, const std::vector<double> p,
