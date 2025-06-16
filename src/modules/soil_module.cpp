@@ -181,7 +181,7 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         d.pore_size_dist = face->soil_attribute<double>("PSD_K_estimator");
         d.pore_size_dist_organic = face->soil_attribute<double>("PSD_K_organic");
         const std::string soil_type = face->soil_attribute<std::string>("soil_type"_s,"soils");
-        d.porosity = SoilDataObj->porosity(soil_type);
+        d.porosity = 0.5;//SoilDataObj->porosity(soil_type);
         d.soil_index = face->soil_attribute<double>("soil_index");
         d.snow_grain_diameter = face->soil_attribute<double>("snow_grain_diameter");
 
@@ -393,6 +393,9 @@ void soil_module::init_param_state_XG(mesh_elem& face, soil_module::data& d)
         C.k_update = cfg.get("k_update",1);
         C.time_step_per_day = 86400.0/global_param->dt();
         C.calc_conductivity = cfg.get("Johansen_conductivity",false);
+
+        sat_soil_frozen_k_vec.at(0) = 1.55;
+        sat_soil_thaw_k_vec.at(0) = 0.8;
         
         d.P = std::make_unique<XG_algorithm::params>(depth_vec,
                 C.Trigthrhld,
@@ -412,7 +415,8 @@ void soil_module::init_param_state_XG(mesh_elem& face, soil_module::data& d)
                 d.soil_storage_max,
                 C.time_step_per_day,
                 C.calc_conductivity);
-
+        
+        d.P->is_crhm_test = true;
         d.S = std::make_unique<XG_algorithm::state>(d.P->N_Soil_layers,*(d.P));
 
         d.S->set_layer_moisture_maximums(*(d.P))
