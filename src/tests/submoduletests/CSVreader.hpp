@@ -67,7 +67,7 @@ private:
 public:
 
     // Constructor with hardcoded Mac path
-    CSVReader() : filePath("/Users/hin601/Documents/TestBuild/CRHM_Compare/PythonScripts/unittestscripts/Cleaned_data.csv") {
+    CSVReader() : filePath("/Users/hin601/Documents/TestBuild/CRHM_Compare/combined.csv") {
         if (!std::filesystem::exists(filePath)) {
             throw std::runtime_error("File not found: " + filePath);
         }

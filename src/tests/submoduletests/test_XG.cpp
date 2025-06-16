@@ -2,7 +2,7 @@
 #include <vector>
 #include <memory>
 #include "gtest/gtest.h"
-
+#include "CSVreader.hpp"
 /*
  * XGStateTest: Wrapper class for tests
  * XGStateTest is effectively a mock of Infil_All module but done indirectly. Due to the complexity of the module classes, it was easier to write this.  
@@ -47,7 +47,6 @@ protected:
     double soil_rechr_max = 350.0;
     double soil_moist_max = 625.0;
     int time_step_per_day = 24;
-    double permafrost_depth = 2.0;
     bool calc_conductivity = false; 
 
     void init_vectors()
@@ -385,6 +384,148 @@ TEST_F(XGStateTest,SetFreezeThawRatiosTest)
 
 };
 
+TEST_F(XGStateTest,PushFrontFunction)
+{
+    P = set_default_P();
+    S = set_default_S(P->N_Soil_layers);
+    
+    S->nfront=0;
+    double input = 15.222;
+    S->push_front(input);
+
+    std::string message = "nfront 0";
+    EXPECT_EQ(S->nfront,1) << message;
+    EXPECT_EQ(S->Zd_front[2],input) << message;
+
+    S->nfront=0;
+    std::vector<double> Zd{10.0,3.0};
+    S->Zd_front[0] = Zd[0];
+    S->Zd_front[1] = Zd[1];
+    S->push_front(input);
+
+    message = "nonzero ZdFront, nfront 0";
+    EXPECT_EQ(S->nfront,1) << message;
+    EXPECT_EQ(S->Zd_front[0], Zd[0]) << message;
+    EXPECT_EQ(S->Zd_front[1], Zd[1]) << message;
+    EXPECT_EQ(S->Zd_front[2],input) << message;
+    for (int i = 3; i < S->Zd_front.size(); ++i)
+        EXPECT_EQ(S->Zd_front[i],0.0) << message;
+    
+    S->nfront = 2;
+    Zd.push_back(1.3);
+    Zd.push_back(4.9);
+
+    for (int i = 0; i < S->Zd_front.size(); ++i)
+        S->Zd_front[i] = Zd[i];
+
+    S->push_front(input);
+
+    message = "Nonzero Zd_front, nfront 2";
+    for (int i = 0; i < S->Zd_front.size(); ++i)
+    {
+        if (i == 2)
+            EXPECT_EQ(S->Zd_front[i],input) << message << " Loop: " << i;
+        else if (i == 3 || i == 4)
+            EXPECT_EQ(S->Zd_front[i],Zd[i-1]) << message << " Loop: " << i;
+        else
+            EXPECT_EQ(S->Zd_front[i],Zd[i]) << message << " Loop: " << i;
+    }
+    EXPECT_EQ(S->nfront,3) << message;
+};
+
+TEST_F(XGStateTest,AccumulateDegreeDays)
+{
+    P = set_default_P();
+    S = set_default_S(P->N_Soil_layers);
+    
+    std::vector<double> t{13.5,2.3,-1.0,3.9,-4.6};
+    double my_B = 0.0, my_TrigAcc = 0.0, myt_trend = 0.0;
+
+    for (int i = 0; i < t.size(); ++i)
+    {
+        S->accumulate_degree_days(t[i]);
+        my_B += t[i]/24;
+        my_TrigAcc += my_B;
+        myt_trend -= myt_trend/192;
+        myt_trend += my_B/192;
+        EXPECT_EQ(S->B,my_B);
+        EXPECT_EQ(S->t_trend,myt_trend);
+        EXPECT_EQ(S->TrigAcc,my_TrigAcc);
+    }
+};
+
+TEST_F(XGStateTest,DetermineFreezeThawIdle)
+{
+    num_layers = 6;
+    init_vectors();
+    P = set_default_P();
+    S = set_default_S(P->N_Soil_layers);
+    
+    S->TrigAcc = P->Trigthrhld+100.0;
+    S->TrigState = 0;
+    
+    S->determine_freeze_thaw_idle();
+
+    EXPECT_EQ(S->TrigAcc,P->Trigthrhld);
+
+    S->TrigAcc = -P->Trigthrhld - 100.0;
+    S->t_trend = 999.9;
+    
+    S->determine_freeze_thaw_idle();
+
+    EXPECT_EQ(S->TrigAcc,-P->Trigthrhld);
+    EXPECT_EQ(S->TrigState,-1);
+    EXPECT_EQ(S->t_trend,0.0);
+
+    S->TrigAcc = P->Trigthrhld;
+    S->t_trend = 100.0;
+    double Zdt = 1.2;
+    double Zdf = 0.75;
+    S->Zdf = Zdf;
+    S->Zdt = Zdt;
+    std::vector<double> Zd_init{-Zdf,Zdt,1.4,-1.5,0.0,0.0};
+    S->Zd_front = Zd_init;
+    S->nfront = 2;
+    S->determine_freeze_thaw_idle();
+
+    EXPECT_EQ(S->TrigState,0);
+
+    EXPECT_EQ(S->Zd_front[0],0.0);
+    EXPECT_EQ(S->Zd_front[1],-Zdf);
+    EXPECT_EQ(S->Zd_front[2],Zdt);
+    EXPECT_EQ(S->Zd_front[3],Zd_init[2]);
+    EXPECT_EQ(S->Zd_front[4],Zd_init[3]);
+    EXPECT_EQ(S->Zdt,0.0);
+
+    S->TrigAcc = -P->Trigthrhld;
+    S->TrigState = 1;
+    S->t_trend = -100.0;
+
+    Zdt = 0.75;
+    Zdf = 1.2;
+    S->Zdf = Zdf;
+    S->Zdt = Zdt;
+    Zd_init = {Zdt,-Zdf,-1.5,1.6,-1.8,0.0};
+    S->Zd_front = Zd_init;
+    S->nfront = 3;
+    S->determine_freeze_thaw_idle();
+
+    EXPECT_EQ(S->TrigState,0);
+
+    EXPECT_EQ(S->Zd_front[0],0.0);
+    EXPECT_EQ(S->Zd_front[1],Zdt);
+    EXPECT_EQ(S->Zd_front[2],-Zdf);
+    EXPECT_EQ(S->Zd_front[3],Zd_init[2]);
+    EXPECT_EQ(S->Zd_front[4],Zd_init[3]);
+    EXPECT_EQ(S->Zdf,0.0);
+};
+
+
+    
+    
+    
+
+
 // TODO Mock state and param and move this to another file
 class XGTest : public XGStateTest
 {
@@ -403,6 +544,36 @@ protected:
             .set_freezethaw_ratios(*P);
     }
 
+    double get_B(XG_algorithm& XG)
+    {
+        return XG.S.B;
+    };
+
+    struct CRHM
+    {
+        double TrigAcc;
+        double TrigState;
+        double t_trend;
+        double Zdf;
+        double Zdt;
+        double B;
+        double Bth;
+        double Bfr;
+        double hru_tsf;
+
+        CRHM(const int& i,CSVReader& reader)
+        {
+            TrigAcc = reader.getValue<double>("TrigAcc",i);
+            TrigState = reader.getValue<double>("TrigState",i);
+            t_trend = reader.getValue<double>("t_trend",i);
+            Zdf = reader.getValue<double>("Zdf",i);
+            Zdt = reader.getValue<double>("Zdt",i);
+            B = reader.getValue<double>("B",i);
+            Bth = reader.getValue<double>("Bth",i);
+            Bfr = reader.getValue<double>("Bfr",i);
+            hru_tsf = reader.getValue<double>("hru_tsf",i);
+        };
+    };
 };
 
 
@@ -578,8 +749,73 @@ TEST_F(XGTest,FullZdFrontOrganizeTest)
 
 };
 
-
+#define diff4 0.0001
+#define diff3 0.001
+#define diff5 0.00001
+TEST_F(XGTest,LongTimeTest)
+{
+//#ifdef NDEBUG
+//    std::cout << "NDEBUG is defined (asserts are disabled)\n";
+//#else
+//    std::cout << "NDEBUG is NOT defined (asserts work)\n";
+//#endif
+    soil_rechr_max = 250.0;
+    soil_moist_max = 750.0; 
+    num_layers = 10;
     
+    init_vectors();
+    
+    double soil_storage = 375.0;
+    double soil_rechr_storage = 125.0;
 
+    P = set_default_P();
+    P->is_crhm_test = true;
+    S = set_default_S(P->N_Soil_layers);
+    S->set_layer_moisture_maximums(*P)
+        .set_thermal_conductivities(*P,soil_storage,soil_rechr_storage)
+        .set_freezethaw_ratios(*P);
+    { 
+    XG_algorithm XG(0.0,0.0,0.0,*S,*P);
 
+    double Zdf_init = 0.0;
+    double Zdt_init = 0.0;
+    XG.init_freezethaw_degreedays(Zdf_init,Zdt_init,P->Zpf_init);
+    }
 
+    int start = 0;
+    int end = 140000;
+
+    for (int i = start; i < end; ++i)
+    {
+        CRHM crhm(i,reader);
+        
+        XG_algorithm XG(crhm.hru_tsf,soil_storage,soil_rechr_storage,
+               *S,*P);
+
+        S->is_newday = i % 24 == 23;
+        //S->last_step_new_day = i % 24 == 0;
+        XG.run();
+        
+        //std::cout << " " << std::endl;
+        //std::cout << "Loop: " << i << std::endl;
+        //std::cout << "Zdf: " << XG.get_freeze_depth() << std::endl;
+        //std::cout << "CRHM Zdf: " << crhm.Zdf << std::endl;
+        //std::cout << "Zdt: " << XG.get_thaw_depth() << std::endl;
+        //std::cout << "CRHM Zdt: " << crhm.Zdt << std::endl;
+        //std::cout << "TrigAcc: " << S->TrigAcc << std::endl;
+        //std::cout << "CRHM TrigAcc: " << crhm.TrigAcc << std::endl;
+        //std::cout << "TrigState: " << S->TrigState << std::endl;
+        //std::cout << "CRHM TrigState: " << crhm.TrigState << std::endl;
+        //std::cout << "t_trend: " << S->t_trend << std::endl;
+        //std::cout << "CRHM t_trend: " << crhm.t_trend << std::endl;
+        //std::cout << "B: " << S->B << std::endl;
+        //std::cout << "CRHM B: " << crhm.B << std::endl;
+        EXPECT_NEAR(XG.get_thaw_depth(),crhm.Zdt,diff3) << "Loop: " << i;
+        EXPECT_NEAR(XG.get_freeze_depth(),crhm.Zdf,diff3) << "Loop: " << i;
+        EXPECT_NEAR(get_B(XG),crhm.B,diff4) << "Loop: " << i;
+        EXPECT_NEAR(S->TrigAcc,crhm.TrigAcc,diff3) << "Loop : " << i;
+        EXPECT_EQ(S->TrigState,crhm.TrigState) << "Loop :" << i;
+        soil_storage = reader.getValue<double>("soil_moist",i);
+        soil_rechr_storage = reader.getValue<double>("soil_rechr",i);
+    }; 
+};
