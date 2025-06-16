@@ -422,8 +422,7 @@ endif()
 
 if (BUILD_TESTS)
 	message(STATUS "Tests enabled. Run with make check")
-	add_subdirectory (tests/googletest/googletest)
-
+	add_subdirectory (tests/googletest)
 	set(TEST_SRCS
         #tests/test_station.cpp
             #tests/test_interpolation.cpp
@@ -447,6 +446,7 @@ if (BUILD_TESTS)
 
 	set( GTEST_LINK
 			gtest
+            gmock
 			)
 
 
