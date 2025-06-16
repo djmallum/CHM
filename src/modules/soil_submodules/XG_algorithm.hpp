@@ -86,6 +86,7 @@ public:
         double t_trend;            // (°C) temperature long-term trend  
 
         bool is_newday = false;
+        bool last_step_new_day = false;
         
 		// Fractions  
         std::vector<double> rechr_fract;   // fraction of layer (soil_rechr_max)  
@@ -197,11 +198,24 @@ public:
             const size_t& fku, const size_t& tku, const size_t& ku, const double& srm, const double& smm, 
             const double& tspd, const bool& cc
         ) : 
-            depths(d), Trigthrhld(t), por(p), N_Soil_layers(n), theta_default(td),
-            theta_min(tm), soil_solid_km(skm), soil_solid_km_ki(ski),
-            soil_solid_km_kw(skw), SWE_k(swk), Zpf_init(zpf), freeze_kw_ki_update(fku), 
-            thaw_ki_kw_update(tku), k_update(ku), soil_rechr_max(srm), 
-            soil_moist_max(smm), time_step_per_day(tspd), calc_conductivity(cc)
+            depths(d), 
+            Trigthrhld(t), 
+            por(p), 
+            N_Soil_layers(n), 
+            theta_default(td),
+            theta_min(tm), 
+            soil_solid_km(skm), 
+            soil_solid_km_ki(ski),
+            soil_solid_km_kw(skw), 
+            SWE_k(swk), 
+            Zpf_init(zpf), 
+            freeze_kw_ki_update(fku), 
+            thaw_ki_kw_update(tku), 
+            k_update(ku), 
+            soil_rechr_max(srm), 
+            soil_moist_max(smm), 
+            time_step_per_day(tspd), 
+            calc_conductivity(cc)
         {
             //CHM
         };

@@ -81,7 +81,8 @@ set(MODEL_SRCS
         modules/soil_submodules/soil_two_layer.cpp
         modules/soil_submodules/soil_ET.cpp
         modules/soil_submodules/soil_DTO.hpp
-    
+        modules/soil_submodules/soil_classes.cpp
+
         modules/soil_submodules/I_K_estimate.hpp
         modules/soil_submodules/K_estimate.cpp
 
@@ -439,6 +440,7 @@ if (BUILD_TESTS)
             tests/submoduletests/test_crack.cpp
 			tests/submoduletests/test_ayers.cpp
             tests/submoduletests/test_XG.cpp
+            tests/submoduletests/test_soil.cpp
             tests/submoduletests/CSVreader.hpp
             tests/submoduletests/test_CSVreader.cpp
 	)
