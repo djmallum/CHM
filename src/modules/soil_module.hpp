@@ -109,6 +109,8 @@ public:
     
         std::unique_ptr<XG_algorithm::params> P;
         std::unique_ptr<XG_algorithm::state> S;
+
+        bool first_day = true;
     };
 
     void set_local_module(soil_module::data& d);
