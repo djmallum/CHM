@@ -14,10 +14,13 @@ class daily_accumulator : public base_step<data>
 {
 	const double* _target_var = nullptr;
 	double _accumulator = 0.0;
-	double mean_value = 0.0;
+	double _mean_value = 0.0;
 public:
+	// overloaded constructors
+	// normal construction is the first line
+	// second constructor if you want to initialize the mean_value (starting in the middle of a day).
 	explicit daily_accumulator(data& _d) : base_step<data>(_d) {};
-	explicit daily_accumulator(data& _d, double& value) : Base<data>(_d), mean_value(value) {};
+	explicit daily_accumulator(data& _d, const double value) : Base<data>(_d), _mean_value(value) {};
 
 	void bind_to_var(double& var)
 	{
@@ -26,18 +29,22 @@ public:
 
 	const double& get_last_mean() const
 	{
-		return mean_value;
+		return _mean_value;
 	};
 
 	void execute() override final
 	{
-		if (!_target_var) return;
+		if (!_target_var) 
+		{
+			THROW_NULL_POINTER_ERROR();
+			return;
+		};
 
 		_accumulator += *_target_var;
 
 		if (this->d.is_new_day())
 		{
-			mean_value = _accumulator / this->d.steps_per_day();
+			_mean_value = _accumulator / this->d.steps_per_day();
 			_accumulator = 0.0;
 		};
 	};

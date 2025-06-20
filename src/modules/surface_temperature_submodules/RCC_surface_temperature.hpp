@@ -1,22 +1,39 @@
 #pragma once
 #include "base_step.hpp"
 #include <cmath>
-struct Constants
+
+template<typename T>
+concept RCC_data = requires(T& t,const double& out)
 {
-	constexpr static double a = 0.77;
-	constexpr static double b = 0.02;
-	constexpr static double c = 7.0;
-	constexpr static double d = 0.03;
+	{ t.thaw_front_depth() } -> std::convertible_to<double>;
+
+	{ t.air_temperature() } -> std::convertible_to<double>;
+
+	{ t.net_radiation() } -> std::convertible_to<double>;
+	
+	{ t.thaw_front_depth_last } -> std::convertible_to<double>;
+
+	{ t.surface_temperature(out) } -> std::same_as<void>;
 };
 
-template<class data>
+
+template<RCC_data data>
 class RCC_surface_temperature : public base_step<data>
 {
 public:
-	RCC_surface_temperature(data& _d) : base_step(_d) {};
+	explicit RCC_surface_temperature(data& _d) : base_step(_d) {};
 	~RCC_surface_temperature() {};
 
 	void execute() override final;
+
+private:
+	struct Constants
+	{
+		constexpr static double a = 0.77;
+		constexpr static double b = 0.02;
+		constexpr static double c = 7.0;
+		constexpr static double d = 0.03;
+	};
 };
 
 void RCC_surface_temperature::execute()
