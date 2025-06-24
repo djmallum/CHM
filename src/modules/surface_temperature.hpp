@@ -19,6 +19,7 @@ public:
 	class data : public face_info
 	{
 	public:
+
 		double air_temperature();
 		
 		double snow_depth();
@@ -27,11 +28,9 @@ public:
 		void surface_temperature(const double& in);
 		void snow_thermal_conductivity(const double& in);
 		
-		void done_init()
-		{ is_inialized = true; };
 	private:
 		mesh_elem* face = nullptr;
-		std::unqiue_ptr<TempCache> Cache = nullptr;
+		cache_handler<TempCache> Cache;
 
 		struct TempCache
 		{
@@ -42,9 +41,6 @@ public:
 			double surface_temperature = 0.0;
 			double snow_thermal_conductivity = 0.0;
 		};
-
-
-		static bool is_initialized = false;
 	};
 
 };
