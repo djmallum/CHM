@@ -24,10 +24,10 @@ public:
         if (!cache_)
         {
 			cache_ = std::make_unique<CacheType>();
-			access(*cache_) = fetch();
+			access() = fetch();
         }
 
-        return access(*cache_);
+        return access();
 
     }
 
@@ -39,7 +39,7 @@ public:
 			cache_ = std::make_unique<CacheType>();
 		};
 	
-		access(*cache_) = value;
+		access() = value;
 	};
 
     void reset() { cache_.reset(); };
@@ -47,5 +47,5 @@ public:
 	CacheType& get_cache()
 	{ return *cache_; };
 
-	statis auto scoped_init() { return initializer_guard(); };
+	static auto scoped_init() { return initializer_guard(); };
 };
