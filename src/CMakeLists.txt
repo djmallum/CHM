@@ -132,6 +132,7 @@ set (HEADER_FILES
         modules/EvapotranspirationModels/
         modules/soil_submodules/
         modules/infil_submodules/
+        modules/submodules/
         math
         libmaw
         interpolation
@@ -438,6 +439,7 @@ if (BUILD_TESTS)
 			tests/submoduletests/test_ayers.cpp
             tests/submoduletests/CSVreader.hpp
             tests/submoduletests/test_CSVreader.cpp
+            tests/submoduletests/test_daily_accumulator.cpp
 	)
 
 
