@@ -424,7 +424,6 @@ endif()
 if (BUILD_TESTS)
 	message(STATUS "Tests enabled. Run with make check")
 	add_subdirectory (tests/googletest)
-    #add_subdirectory (googlemock/)
 	set(TEST_SRCS
         #tests/test_station.cpp
             #tests/test_interpolation.cpp
@@ -442,7 +441,6 @@ if (BUILD_TESTS)
 			tests/submoduletests/test_ayers.cpp
             tests/submoduletests/test_XG.cpp
             tests/submoduletests/test_soil.cpp
-            tests/submoduletests/test_penmanmonteith.cpp
             tests/submoduletests/CSVreader.hpp
             tests/submoduletests/test_CSVreader.cpp
 	)

@@ -107,7 +107,7 @@ void XG_algorithm::freeze(void)
 
     S.Zdf = 0.0;
     
-    double ftc;
+	double ftc;
     if (P.k_update == 2)
         ftc = Interpolated_ftc(S.Zdf, layer);
     else

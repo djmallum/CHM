@@ -1,7 +1,6 @@
 #include <gmock/gmock.h>
 #include "soil_DTO.hpp"
 #include "soil_classes.hpp"
-#include "mock_DTO.hpp"
 #include <gtest/gtest.h>
 #define diff 0.0001
 
@@ -285,7 +284,8 @@ TEST_F(SoilComponentsTest, ManageDetentionTest) {
     detention.manage();
     
     EXPECT_EQ(DTO.detention_max,DTO.detention_organic_max);
-    EXPECT_EQ(DTO.soil_excess_to_runoff,0.0 + DTO.K_detention_to_runoff);//DTO.runoff+DTO.excess - DTO.detention_max+DTO.K_detention_to_runoff);
+	// If these fail, likely caused by merge with upstream/develop, see unit-testing_soil_module_only
+	EXPECT_EQ(DTO.soil_excess_to_runoff,0.0 + DTO.K_detention_to_runoff);//DTO.runoff+DTO.excess - DTO.detention_max+DTO.K_detention_to_runoff);
     EXPECT_EQ(DTO.detention_storage,DTO.runoff + DTO.excess - DTO.K_detention_to_runoff);
    
 	// with snow
