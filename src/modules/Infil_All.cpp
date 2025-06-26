@@ -146,6 +146,7 @@ void Infil_All::run(mesh_elem &face)
         crack.init_inputs(snowmelt, rainfall, swe, soil_storage_at_freeze,
                 airtemp, is_new_day()); 
         d.crack_model_status.daily_melt_total = snowmelt * steps_per_day;
+        crack.is_CRHM_compare_test = true;
         crack.run();
 
         runoff = crack.get_runoff() / steps_per_day;
@@ -315,7 +316,7 @@ void Infil_All::melt_to_infil(double& inf,double& snowinf,double& snowmelt)
 
 bool Infil_All::is_new_day()
 {
-    // TODO This has hard coded elements, Chris suggested something different here: https://godbolt.org/z/3c51T1avT:Q
+    // TODO This has hard coded elements, Chris suggested something different here: https://godbolt.org/z/3c51T1avT
 	int td = global_param->posix_time().time_of_day().total_seconds();
     int time_to_midnight = 86400 - td;
     if (td >= 0 && td < global_param->dt()) //(time_to_midnight >= global_param->dt())
