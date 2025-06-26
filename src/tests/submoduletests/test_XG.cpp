@@ -544,7 +544,6 @@ protected:
             .set_freezethaw_ratios(*P);
     }
 
-
     struct CRHM
     {
         double TrigAcc;

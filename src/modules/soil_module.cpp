@@ -75,8 +75,7 @@ void soil_module::init(mesh& domain)
         init_param_state_XG(face,d);  
         
         set_soil_outputs(face,d);
-        
-        
+
     }
 };
 

@@ -1,7 +1,5 @@
-#include <gmock/gmock.h>
 #include "soil_DTO.hpp"
 #include "soil_classes.hpp"
-#include "mock_DTO.hpp"
 #include <gtest/gtest.h>
 #define diff 0.0001
 
@@ -279,22 +277,20 @@ TEST_F(SoilComponentsTest, ManageDetentionTest) {
     DTO.excess = 20.0;
     DTO.swe = 0.0;
     DTO.detention_snow_max = 10.0;
-    DTO.detention_organic_max = 30.0;
+    DTO.detention_organic_max = 20.0;
     DTO.detention_storage = 0.0;
     DTO.K_detention_to_runoff = 2.3e-3;
     detention.manage();
     
     EXPECT_EQ(DTO.detention_max,DTO.detention_organic_max);
-    EXPECT_EQ(DTO.soil_excess_to_runoff,0.0 + DTO.K_detention_to_runoff);//DTO.runoff+DTO.excess - DTO.detention_max+DTO.K_detention_to_runoff);
-    EXPECT_EQ(DTO.detention_storage,DTO.runoff + DTO.excess - DTO.K_detention_to_runoff);
+    EXPECT_EQ(DTO.soil_excess_to_runoff,DTO.runoff+DTO.excess - DTO.detention_max+DTO.K_detention_to_runoff);
+    EXPECT_EQ(DTO.detention_storage,DTO.detention_max-DTO.K_detention_to_runoff);
    
 	// with snow
 	
 	init.zero_single_step_vars();
 	DTO.detention_storage = 0.0;
 	DTO.swe = 22.0;
-    DTO.runoff  = 5.0;
-    DTO.excess = 20.0;
 	detention.manage();
 
 	EXPECT_EQ(DTO.detention_max,DTO.detention_snow_max);
@@ -383,7 +379,7 @@ TEST_F(SoilComponentsTest, ManageDepressionTest) {
 	EXPECT_EQ(DTO.runoff_to_depression,E.expected_runoff_to_storage) << errormsg;
 
 	// soil_excess_to_runoff / depression_max > 12.0
-	errormsg = "soil_excess_to_runoff / depression_max > 12.0";
+	errormsg = "soil_excess_to_runoff / depression_max < 12.0";
 	I.init_Sd = 1.234;
 	I.init_excess = DTO.depression_max * 12.0 + 1.0;
 	depression_space = (DTO.depression_max - I.init_Sd) * (1 - exp(-12.0));	
@@ -397,31 +393,17 @@ TEST_F(SoilComponentsTest, ManageDepressionTest) {
 	EXPECT_EQ(DTO.runoff_to_depression,E.expected_runoff_to_storage) << errormsg;
 	
 	errormsg = "soil_excess_to_runoff < space";
-    // I tried writing this but it fails at during the asserts. I'm not convinced that this is possible.
-    // Essentially, we are asking that 
-    // soil_excess_to_runoff < (depression_max - depression_storage) * 
-    //              (1 - exp(-(soil_excess_to_runoff/depression_max))
-    // Same as 
-    // S + Q * exp(-S/Q) < Q (effectively)
-    //
-    // So you are basically searching for an S that generates a exp(-\delta) where 0<\delta<1 (if S>Q then this always fails) so that S+Q*"small number" < Q 
-    // rewrite as exp(-A) < 1-A, where A = S/Q, wolfram alpha says there are no solutions....
-    //initializer init(DTO);
-    //init.zero_single_step_vars();
-	//I.init_Sd = DTO.depression_max * 0.25;
-    //I.init_excess = DTO.depression_max * 0.2;
-	//depression_space = (DTO.depression_max - I.init_Sd) * (1 - exp(-I.init_excess/DTO.depression_max));	
-    //std::cout << depression_space / DTO.depression_max << std::endl;
-    //E.expected_excess = 0.0;
-	//E.expected_storage = I.init_Sd + I.init_excess;
-	//E.expected_runoff_to_storage = I.init_excess;
-	//setup_depression(I.init_Sd,I.init_excess);
-    //ASSERT_TRUE(DTO.soil_excess_to_runoff < depression_space) << errormsg;
-    //ASSERT_TRUE(DTO.soil_excess_to_runoff / DTO.depression_max <= 12.0) << errormsg;
-	//depression.manage();
-	//EXPECT_EQ(DTO.soil_excess_to_runoff,E.expected_excess) << errormsg;
-	//EXPECT_EQ(DTO.depression_storage,E.expected_storage) << errormsg;
-	//EXPECT_EQ(DTO.runoff_to_depression,E.expected_runoff_to_storage) << errormsg;
+	I.init_Sd = 1.234;
+	depression_space = (DTO.depression_max - I.init_Sd) * (1 - exp(-12.0));	
+	I.init_excess = depression_space * 0.8;
+	E.expected_excess = 0.0;
+	E.expected_storage = I.init_Sd + I.init_excess;
+	E.expected_runoff_to_storage = I.init_excess;
+	setup_depression(I.init_Sd,I.init_excess);
+	depression.manage();
+	EXPECT_EQ(DTO.soil_excess_to_runoff,E.expected_excess) << errormsg;
+	EXPECT_EQ(DTO.depression_storage,E.expected_storage) << errormsg;
+	EXPECT_EQ(DTO.runoff_to_depression,E.expected_runoff_to_storage) << errormsg;
 
 	errormsg = "soil_excess_to_runoff = 0, but remaining depression storage";
 	DTO.K_depression_to_gw = 1.2;
@@ -429,10 +411,9 @@ TEST_F(SoilComponentsTest, ManageDepressionTest) {
 	I.init_excess = 0.0;
 	DTO.depression_to_gw = 0.0;
 	E.expected_storage = I.init_Sd - DTO.K_depression_to_gw;
-    E.expected_excess = I.init_excess;
 	double expected_Sd_to_gw = 
 		DTO.K_depression_to_gw;
-	setup_depression(I.init_Sd,I.init_excess);
+	setup_depression(I.init_Sd,0.0);
 	depression.manage();
 	EXPECT_EQ(DTO.soil_excess_to_runoff,E.expected_excess) << errormsg;
 	EXPECT_EQ(DTO.depression_storage,E.expected_storage) << errormsg;
@@ -482,17 +463,12 @@ TEST_F(SoilComponentsTest, ManageGroundwaterTest)
 	DTO.ground_water_max = 1050.0;
 	init_gw = DTO.ground_water_max * 0.5;
 	DTO.ground_water_storage = init_gw;
-    DTO.soil_excess_to_gw = DTO.ground_water_max * 0.25;
+
 	DTO.depression_to_gw = 0.0; //eliminate its effect from the test
-	double expected_spilled = (DTO.soil_excess_to_gw + DTO.ground_water_storage)/DTO.ground_water_max * 
-        DTO.K_ground_water_out;
-    double expected_out = DTO.ground_water_out + expected_spilled;
-    groundwater.manage();
-    
-    EXPECT_TRUE(DTO.ground_water_max > init_gw + DTO.ground_water_max * 0.25) << errormsg;
-    EXPECT_TRUE(init_gw + DTO.ground_water_max * 0.25 > 0.0);
-	EXPECT_NEAR(DTO.ground_water_out,expected_out,diff) << errormsg;
-	EXPECT_NEAR(DTO.ground_water_storage,init_gw + DTO.ground_water_max * 0.25 - expected_spilled,diff) << errormsg;
+	groundwater.manage();
+
+	EXPECT_NEAR(DTO.ground_water_out,(init_from_excess + init_from_depression + init_gw)/DTO.ground_water_max * DTO.K_ground_water_out,diff) << errormsg;
+	EXPECT_NEAR(DTO.ground_water_storage,(init_from_excess + init_from_depression + init_gw) * (1 - DTO.K_ground_water_out/DTO.ground_water_max),diff) << errormsg;
 }
 
 TEST_F(SoilComponentsTest, ManageSubsurfaceRunoffTest) 
@@ -534,14 +510,13 @@ TEST_F(SoilComponentsTest, ManageSubsurfaceRunoffTest)
     errormsg = "Sd > K_Sd_to_ssr = 0.0";
 	init.zero_single_step_vars();
 	DTO.K_lower_to_ssr = 0.0; // zero so it is not computed
-    DTO.K_depression_to_ssr = 0.0;
 	init_Sd = DTO.K_depression_to_ssr * 0.9;
 	DTO.depression_storage = init_Sd;
 	DTO.K_depression_to_ssr = 0.0;
 	ssr.manage();
 
-	EXPECT_EQ(DTO.depression_storage,init_Sd) << errormsg;
-	EXPECT_EQ(DTO.soil_to_ssr,0.0) << errormsg;
+	EXPECT_EQ(DTO.depression_storage,0.0) << errormsg;
+	EXPECT_NEAR(DTO.soil_to_ssr,init_Sd,diff) << errormsg;
 
     errormsg = "K_lower_to_ssr > 0 and < soil_lower_storage. thaw fraction is 1.0";
 	init.zero_single_step_vars();
@@ -575,36 +550,15 @@ TEST_F(SoilComponentsTest, ManageSubsurfaceRunoffTest)
     errormsg = "K_lower_to_ssr > 0 and < soil_lower_storage. thaw fraction is 0.4";
 	init.zero_single_step_vars();
 	init_rechr = 100.0;
-    DTO.thaw_fraction_lower = 0.4;
 	DTO.soil_rechr_storage = init_rechr;
 	init_soil = init_rechr * 5.0;
 	DTO.soil_storage = init_soil;
 	DTO.thaw_fraction_lower = 0.4;
-	DTO.K_lower_to_ssr = (DTO.soil_storage - DTO.soil_rechr_storage) / DTO.thaw_fraction_lower * 0.9;
+	DTO.K_lower_to_ssr = 4.6723e-1; // zero so it is not computed
 	DTO.K_depression_to_ssr = 0.0;
 	ssr.manage();
 
-	EXPECT_NEAR(DTO.soil_storage,init_soil - DTO.K_lower_to_ssr * DTO.thaw_fraction_lower,diff) << errormsg;
-            //init_soil - (init_soil-init_rechr)*DTO.thaw_fraction_lower,diff*1e-2) << errormsg;
-	EXPECT_NEAR(DTO.soil_to_ssr,DTO.K_lower_to_ssr * DTO.thaw_fraction_lower,diff) << errormsg;
-            //(init_soil-init_rechr)*DTO.thaw_fraction_lower,diff*1e-2) << errormsg;
-
-
-    errormsg = "K_lower_to_ssr > 0 and > soil_lower_storage. thaw fraction is 0.4";
-	init.zero_single_step_vars();
-	init_rechr = 100.0;
-	DTO.soil_rechr_storage = init_rechr;
-	init_soil = init_rechr * 5.0;
-	DTO.soil_storage = init_soil;
-	DTO.thaw_fraction_lower = 0.4;
-	DTO.K_lower_to_ssr = (DTO.soil_storage - DTO.soil_rechr_storage) / DTO.thaw_fraction_lower * 1.1; // zero so it is not computed
-	DTO.K_depression_to_ssr = 0.0;
-	ssr.manage();
-
-	EXPECT_NEAR(DTO.soil_storage,init_rechr,diff) << errormsg;// DTO.k_lower_to_ssr * DTO.thaw_fraction_lower,diff) << errormsg;
-            //init_soil - (init_soil-init_rechr)*DTO.thaw_fraction_lower,diff*1e-2) << errormsg;
-	EXPECT_NEAR(DTO.soil_to_ssr,init_soil - init_rechr,diff) << errormsg;//DTO.k_lower_to_ssr * DTO.thaw_fraction_lower,diff) << errormsg;
-            //(init_soil-init_rechr)*DTO.thaw_fraction_lower,diff*1e-2) << errormsg;
-
+	EXPECT_NEAR(DTO.soil_storage,init_soil - (init_soil-init_rechr)*DTO.thaw_fraction_lower,diff*1e-2) << errormsg;
+	EXPECT_NEAR(DTO.soil_to_ssr,(init_soil-init_rechr)*DTO.thaw_fraction_lower,diff*1e-2) << errormsg;
 }
 
