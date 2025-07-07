@@ -22,42 +22,39 @@ public:
     {
         mesh_elem face = nullptr;
         global* global_param = nullptr;
-
-    public:
-        struct TempCache
-        {
-            double air_temperature = 0.0;
-            double thaw_front_depth = 0.0;
-            double snow_depth = 0.0;
-            double snow_density = 0.0;
-            double ground_heat_flux = 0.0;
-            double net_radiation = 0.0;
-
-            double surface_temperature = 0.0;
-            double snow_thermal_conductivity = 0.0;
-        };
-    private:
-		cache_handler<TempCache> Cache_;
+	
+		// Inputs
+		mutable double air_temperature = std::numeric_limits<double>::quiet_nan();
+		mutable double thaw_front_depth = std::numeric_limits<double>::quiet_nan();
+		mutable double snow_depth = std::numeric_limits<double>::quiet_nan();
+		mutable double snow_density = std::numeric_limits<double>::quiet_nan();
+		mutable double ground_heat_flux = std::numeric_limits<double>::quiet_nan();
+		mutable double net_radiation = std::numeric_limits<double>::quiet_nan();
+		
+		// Outputs
+		double surface_temperature = 0.0; 
+		double snow_thermal_conductivity = 0.0;
     
     public:
         //inputs
-        double& air_temperature();
-	    double& thaw_front_depth();
-		double& snow_depth();
-	    double& snow_density();
-        double& ground_heat_flux();
-	    double& net_radiation();
+        double& air_temperature() const;
+	    double& thaw_front_depth() const;
+		double& snow_depth() const;
+	    double& snow_density() const;
+        double& ground_heat_flux() const;
+	    double& net_radiation() const;
 
         //outputs
 		void surface_temperature(const double& in);
 		void snow_thermal_conductivity(const double& in); // just if snow-covered
-        
+       
         // used by module    
         void set_outputs_to_face();   
         void set_face(mesh_elem& face_in)
         { face = *face_in; };
         void set_global(global* global_param_)
         { global_param = global_param_; };
+		void reset_cache();
 
         // daily accumulator
         bool is_new_day();
