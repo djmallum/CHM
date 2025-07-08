@@ -1,7 +1,23 @@
 #pragma once
 #include "base_step.hpp"
 
-template<class data>
+template <typename D>
+concept NetRadiationData = requires(D d) {
+    // Check required member functions
+	{ d.max_sun_hours() } -> std::convertible_to<double>;
+	{ d.air_temperature() } -> std::convertible_to<double>;
+    { d.vapour_pressure() } -> std::convertible_to<double>;
+    { d.bright_sun_ratio() } -> std::convertible_to<double>;
+    { d.actual_sun_hours() } -> std::convertible_to<double>;
+    { d.incident_short_wave_clear() } -> std::convertible_to<double>;
+    { d.diffuse_short_wave_clear() } -> std::convertible_to<double>;
+    { d.albedo() } -> std::convertible_to<double>;
+
+    // Check net_all_wave is callable with a double
+    { d.net_all_wave(std::declval<double>()) } -> std::same_as<void>;
+};
+
+template<NetRadiationData data>
 class net_radiation : public base_step
 {
 public:
@@ -70,7 +86,7 @@ void net_radiation::execute()
 {
 	Net net;
 
-	if (this->d.max_sun_hours > 0.0)
+	if (this->d.max_sun_hours() > 0.0)
 	{
 		net.long_wave = longwave::a + longwave::b * stefan_boltzmann * std::pow(this->d.air_temperature() + 273.0,4) * (brunt::a + brunt::b * std::sqrt(this->d.vapour_pressure()) * (cloud_cover_long::a + cloud_cover_long::b * (this->d.bright_sun_ratio()));
 	}
