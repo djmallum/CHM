@@ -1,4 +1,3 @@
-#include <gmock/gmock.h>
 #include <K_estimate.hpp>
 #include <gtest/gtest.h>
 

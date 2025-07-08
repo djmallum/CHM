@@ -168,9 +168,9 @@ void detention_layer::manage()
     if (d.soil_excess_to_runoff > 0.0)
     {
         if (d.swe == 0.0)
-            d.detention_max = d.detention_snow_max;
-        else
             d.detention_max = d.detention_organic_max;
+        else
+            d.detention_max = d.detention_snow_max;
 
         double detention_space = d.detention_max - d.detention_storage;
         

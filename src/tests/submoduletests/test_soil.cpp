@@ -1,4 +1,3 @@
-#include <gmock/gmock.h>
 #include "soil_DTO.hpp"
 #include "soil_classes.hpp"
 #include <gtest/gtest.h>
@@ -464,6 +463,7 @@ TEST_F(SoilComponentsTest, ManageGroundwaterTest)
 	DTO.ground_water_max = 1050.0;
 	init_gw = DTO.ground_water_max * 0.5;
 	DTO.ground_water_storage = init_gw;
+
 	DTO.depression_to_gw = 0.0; //eliminate its effect from the test
 	groundwater.manage();
 

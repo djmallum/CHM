@@ -544,11 +544,6 @@ protected:
             .set_freezethaw_ratios(*P);
     }
 
-    double get_B(XG_algorithm& XG)
-    {
-        return XG.S.B;
-    };
-
     struct CRHM
     {
         double TrigAcc;
@@ -812,7 +807,7 @@ TEST_F(XGTest,LongTimeTest)
         //std::cout << "CRHM B: " << crhm.B << std::endl;
         EXPECT_NEAR(XG.get_thaw_depth(),crhm.Zdt,diff3) << "Loop: " << i;
         EXPECT_NEAR(XG.get_freeze_depth(),crhm.Zdf,diff3) << "Loop: " << i;
-        EXPECT_NEAR(get_B(XG),crhm.B,diff4) << "Loop: " << i;
+        EXPECT_NEAR(S->B,crhm.B,diff4) << "Loop: " << i;
         EXPECT_NEAR(S->TrigAcc,crhm.TrigAcc,diff3) << "Loop : " << i;
         EXPECT_EQ(S->TrigState,crhm.TrigState) << "Loop :" << i;
         soil_storage = reader.getValue<double>("soil_moist",i);

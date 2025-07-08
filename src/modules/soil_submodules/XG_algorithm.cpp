@@ -26,7 +26,7 @@ void XG_algorithm::run()
 
         S.set_thermal_conductivities(P,soil_moist,soil_rechr)
             .set_freezethaw_ratios(P);
-
+        
         if(S.freezing()) // handle freezing
         {
             if(S.net_negative_degree_days())
@@ -102,6 +102,7 @@ void XG_algorithm::freeze(void)
     double L = 335000;
 
     S.Zdf = 0.0;
+    
     double ftc;
     if (P.k_update == 2)
         ftc = Interpolated_ftc(S.Zdf, layer);
@@ -129,8 +130,7 @@ void XG_algorithm::freeze(void)
     S.Zdf += Za;
 
     S.Zdf = std::min(S.Zdf,P.Zpf_init);
-
-
+    
 };
 
 void XG_algorithm::thaw(void)
@@ -283,7 +283,6 @@ void XG_algorithm::find_freeze_D(double df) { // XG-Algorithm - Thawing - used b
         for(size_t B = 1; B < 50000; ++B){
             S.Bfr = B;
             freeze();
-            std::cout << "Zdf in find_freeze: " << S.Zdf << std::endl;
             if(S.Zdf > df || S.Zdf >= P.Zpf_init)
             return;
         }
@@ -711,7 +710,6 @@ XG_algorithm::state& XG_algorithm::state::set_freezethaw_ratios(const XG_algorit
 void XG_algorithm::state::accumulate_degree_days(const double& surface_temp)
 {
     B += surface_temp / P.time_step_per_day;
-
     TrigAcc += B;
 
     t_trend -= t_trend / 192;

@@ -57,7 +57,7 @@ point_mode::point_mode(config_file cfg)
         depends_from_met("net_rain");
         provides("rainfall_int");  
         
-        //depends_from_met("soil_storage_at_freeze");
+        depends_from_met("fallstat_V");
         provides("soil_storage_at_freeze");
 
         // t is included in another section
@@ -175,7 +175,6 @@ void point_mode::init(mesh &domain)
     size_t i=0;
     auto face = domain->face(i);
     elevation = face->parameter("elevation"_s);
-    soil_storage_at_freeze = 50;
 };
 void point_mode::run(mesh_elem &face)
 {
@@ -193,6 +192,7 @@ void point_mode::run(mesh_elem &face)
         double rainfall_int = (*face->nearest_station())["net_rain"_s];
         (*face)["rainfall_int"_s] = rainfall_int;
 
+        double soil_storage_at_freeze = (*face->nearest_station())["fallstat_V"_s];
         (*face)["soil_storage_at_freeze"_s] = soil_storage_at_freeze;
 
         double netall = (*face->nearest_station())["Rn"_s];

@@ -52,6 +52,7 @@ void soil_module::init(mesh& domain)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<soil_module::data>(ID);
+        SPDLOG_DEBUG("Top front var: {}",d.freeze_thaw_first_front);
         // I do some evil things here to allow for the submodules to access module_base functions like is_water
         // A pointer to face is put in d, likewise a pointer to this instance of this class is also added, see the overridden functions
         // get_dt and is_lake below.
@@ -82,9 +83,10 @@ void soil_module::init(mesh& domain)
 
 void soil_module::run(mesh_elem& face)
 {
-
+    
     auto& d = face->make_module_data<soil_module::data>(ID);
    
+    // TODO new newday stuff and is last day new and is crhm test
     XG_algorithm XG = get_XG(face,d); 
     XG.run();
     get_soil_inputs(face,d,XG);
@@ -110,7 +112,7 @@ void soil_module::run(mesh_elem& face)
 bool soil_module::is_new_day()
 {
     // TODO This has hard coded elements, Chris suggested something different here: https://godbolt.org/z/3c51T1avT
-	int td = global_param->posix_time().time_of_day().total_seconds();
+    int td = global_param->posix_time().time_of_day().total_seconds();
     int time_to_midnight = 86400 - td;
     if (td >= 0 && td < global_param->dt()) //(time_to_midnight >= global_param->dt())
     {
@@ -331,7 +333,12 @@ int soil_module::data::get_dt()
 
 bool soil_module::data::get_new_day()
 {
-    if (this->local_module)
+    if (this->first_day)
+    {
+        this->first_day = false;
+        return true;
+    }
+    else if (this->local_module)
         return this->local_module->is_new_day();
         
     CHM_THROW_EXCEPTION(module_error,"local_module not set in soil_module::data");
@@ -437,7 +444,14 @@ void soil_module::init_param_state_XG(mesh_elem& face, soil_module::data& d)
 
 XG_algorithm soil_module::get_XG(mesh_elem& face,soil_module::data& d)
 {
-    d.S->is_newday = is_new_day();
+    if (d.first_day)
+    {
+        d.S->is_newday = true;
+    }
+    else
+        d.S->is_newday = is_new_day();
+     
+
     XG_algorithm XG((*face)["surface_temperature"_s],d.soil_storage,d.soil_rechr_storage,*(d.S),*(d.P));
 
     return XG;
