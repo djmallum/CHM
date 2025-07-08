@@ -191,6 +191,7 @@ public:
         bool calc_conductivity;
         bool is_crhm_test = false;
         ~params() {}; 
+        
         params(
             const std::vector<double> d, const double& t, const std::vector<double> p,
             const size_t& n, const std::vector<double> td, const double& tm, const std::vector<double> skm,
