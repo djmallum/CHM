@@ -29,6 +29,9 @@
 #include "TPSpline.hpp"
 #include <cmath>
 #include "Soil.h"
+#include "Crack.hpp"
+#include "Ayers.hpp"
+#include "boost/date_time/posix_time/posix_time_types.hpp"
 
 /**
  * \ingroup modules infil soils exp
@@ -102,15 +105,9 @@ public:
         std::string soil_type;
         
         // Crack
-        bool frozen;
-        double index;
-        double max_major_per_melt;
-        double init_SWE;
-        double daily_melt_total;
-        unsigned int major_melt_count;
-        bool current_day_is_major; 
+        Crack::info crack_model_status;
         int last_day;
-        double tmax;
+        bool end_freeze_tomorrow = false; // Delays end of freeze by one day so that we can get the melt distributed over the day.
 
         // Ayers
         std::string texture;
@@ -126,8 +123,10 @@ public:
 
 private:
     
-    // Soil Data
-    std::unique_ptr<Soil::_soils_base> SoilDataObj;
+    const Soil::soils_na& SoilDataObj = Soil::get_soil_obj<const Soil::soils_na>();
+
+	// General
+	bool is_new_day(void);
 
     // Crack
     double major;
@@ -155,20 +154,6 @@ private:
     void Increment_Totals(data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
     void melt_to_infil(double& inf,double& snowinf,double& snowmelt);
 
-    // Crack Functions
-    void Calc_Index(data &d, double &swe, double &theta);
-    double Calc_Actual_Inf(data &d, double &melt);
-    void Check_for_ice_lens(data &d, double &t); 
-    void increment_major_count(Infil_All::data& d);
-    bool is_first_major(Infil_All::data& d, double& snowmelt, double& swe);
-    bool is_limited_phase(Infil_All::data& d);
-    bool is_prior_first_major(Infil_All::data& d);
-    bool is_new_day(Infil_All::data& d);
-    bool is_major_melt(Infil_All::data& d);
-    void daily_melt_increment(Infil_All::data& d, double& snowmelt);
-
-
-
     // Green-Ampt Functions
     double convert_to_rate_hourly(double &rainfall); 
     bool is_space_in_dry_soil(double &moist, double &max, double &rainfall); 
@@ -177,9 +162,5 @@ private:
     void find_final_storage(data &d, std::unique_ptr<data::tempvars> &GA, \
         double &initial_storage, double &dt); 
     double calc_GA_infiltration_rate(data &d, std::unique_ptr<data::tempvars> &GA, double &F);
-
-
-
-
 
 };

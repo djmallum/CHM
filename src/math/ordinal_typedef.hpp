@@ -23,27 +23,13 @@
 
 #pragma once
 
-// Needed for the SPDLOG_ macro calls
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
+#include <Tpetra_Core.hpp>
 
-//spdlog includes
-#include "spdlog/spdlog.h"
-#include "spdlog/sinks/basic_file_sink.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
 
- enum log_level
- {
-     verbose,
-     debug,
-     warning,
-     info,
-     error
- };
 
-//#ifdef USE_MPI
-//#define MPI_RANK_DBG(RANK) if(_comm_world.rank() == RANK)
-//    {
-//    LOG_DEBUG << "\n\n-----------------------------\n\nI am PID " << getpid() <<", attach within 45s\n\n-----------------------------\n\n";
-//            sleep(45);
-//    t }
-//#endif
+
+typedef Tpetra::Details::DefaultTypes::global_ordinal_type global_ordinal_type;
+
+// essentially only ever used when a) the entire mesh is loaded or b) cell Id in MPI
+// but the mesh neded to exceed local_ordinal_type is too big for most machines
+typedef Tpetra::Details::DefaultTypes::local_ordinal_type local_ordinal_type;

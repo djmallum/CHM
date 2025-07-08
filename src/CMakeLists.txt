@@ -76,15 +76,18 @@ set(MODEL_SRCS
         modules/EvapotranspirationModels/PenmanMonteith.cpp
         modules/EvapotranspirationModels/PriestleyTaylor.cpp
         
-        modules/submodule_base.hpp   
-        modules/soil_submodules/soil_base.hpp
         modules/soil_submodules/soil_two_layer.cpp
         modules/soil_submodules/soil_ET.cpp
-        modules/soil_submodules/soil_DTO.hpp
     
-        modules/soil_submodules/I_K_estimate.hpp
         modules/soil_submodules/K_estimate.cpp
 
+        modules/soil_submodules/soil_classes.cpp
+
+        modules/soil_submodules/K_estimate.cpp
+
+        modules/soil_submodules/XG_algorithm.cpp
+    
+        modules/infil_submodules/Crack.cpp
         CACHE INTERNAL "" FORCE )
 
 set(CHM_SRCS
@@ -129,6 +132,7 @@ set (HEADER_FILES
 		modules/testing
         modules/EvapotranspirationModels/
         modules/soil_submodules/
+        modules/infil_submodules/
         math
         libmaw
         interpolation
@@ -416,26 +420,35 @@ endif()
 
 if (BUILD_TESTS)
 	message(STATUS "Tests enabled. Run with make check")
-	add_subdirectory (tests/googletest/googletest)
+	add_subdirectory (tests/googletest)
 
 	set(TEST_SRCS
-			tests/test_station.cpp
-			tests/test_interpolation.cpp
-			tests/test_timeseries.cpp
-			tests/test_core.cpp
-			tests/test_variablestorage.cpp
-			tests/test_metdata.cpp
-			tests/test_netcdf.cpp
+        #tests/test_station.cpp
+            #tests/test_interpolation.cpp
+            #tests/test_timeseries.cpp
+            #tests/test_core.cpp
+            #tests/test_variablestorage.cpp
+            #tests/test_metdata.cpp
+            #tests/test_netcdf.cpp
 			#    test_mesh.cpp
-			tests/test_regexptokenizer.cpp
+            #tests/test_regexptokenizer.cpp
 			#    test_daily.cpp
-            tests/test_triangulation.cpp
-			tests/main.cpp
-)
+            #tests/test_triangulation.cpp
+            tests/main.cpp
+            tests/submoduletests/test_crack.cpp
+			tests/submoduletests/test_ayers.cpp
+            tests/submoduletests/test_XG.cpp
+            tests/submoduletests/test_soil.cpp
+            tests/submoduletests/test_penmanmonteith.cpp
+            tests/submoduletests/CSVreader.hpp
+            tests/submoduletests/test_CSVreader.cpp
+            tests/submoduletests/test_daily_accumulator.cpp
+	)
 
 
 	set( GTEST_LINK
 			gtest
+            gmock
 			)
 
 

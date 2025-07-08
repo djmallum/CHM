@@ -19,9 +19,10 @@ void K_estimate::run(void)
 };
 
 void K_estimate::set_K_values(I_Darcy_Vels& Vels)
-{ 
-    double unit_changer = DTO.get_dt(DTO) * 1000.0; // m/s * s/step * mm/m = mm/step | m/s -> units of Vels.lateral_rechr (and others)
-    double unit_changer_lateral = unit_changer / 1000.0; // dW/A from Fang et al, (2013), only applies to lateral flow
+{
+	constexpr static double mm_per_m = 1000.0;
+    double unit_changer = DTO.get_dt() * mm_per_m; // m/s * s/step * mm/m = mm/step | m/s -> units of Vels.lateral_rechr (and others)
+    double unit_changer_lateral = unit_changer / mm_per_m; // dW/A from Fang et al, (2013), only applies to lateral flow
     DTO.K_rechr_to_ssr = Vels.lateral_rechr * DTO.soil_rechr_max * unit_changer_lateral;
     DTO.K_lower_to_ssr = Vels.lateral_lower * (DTO.soil_storage_max - DTO.soil_rechr_max) * unit_changer_lateral;
     DTO.K_depression_to_ssr = Vels.lateral_lower * DTO.soil_storage_max * unit_changer_lateral;
@@ -111,7 +112,7 @@ void Darcy_Vels::set_snow()
 
 void Darcy_Vels::set_clear()
 {
-    lateral_rechr = DTO.Ksaturated_rechr * pow( DTO.soil_rechr_storage/DTO.soil_rechr_max, exponent) * tan(DTO.local_slope);
+    lateral_rechr = DTO.Ksaturated_rechr * std::pow( DTO.soil_rechr_storage/DTO.soil_rechr_max, exponent) * std::tan(DTO.local_slope);
     lateral_lower = get_lateral_lower();
     
     vertical_depression = get_reused();
@@ -128,29 +129,28 @@ void Darcy_Vels::set_clear()
 
 double Darcy_Vels::get_lateral_lower()
 {
-    return DTO.Ksaturated_lower * pow( (DTO.soil_storage - DTO.soil_rechr_storage) / (DTO.soil_storage_max - DTO.soil_rechr_max), exponent)  *tan(DTO.local_slope);
+    return DTO.Ksaturated_lower * std::pow( (DTO.soil_storage - DTO.soil_rechr_storage) / (DTO.soil_storage_max - DTO.soil_rechr_max), exponent)  *std::tan(DTO.local_slope);
 };
 
 double Darcy_Vels::get_reused()
 {
     // This Darcy Vel is used many times, so its called repeated.
-    return DTO.Ksaturated_lower * pow( DTO.soil_storage / DTO.soil_storage_max, exponent);
+    return DTO.Ksaturated_lower * std::pow( DTO.soil_storage / DTO.soil_storage_max, exponent);
 };
 
 double Darcy_Vels::get_lateral_ground_water(void)
 {
-    return DTO.Ksaturated_ground_water * tan(DTO.local_slope);
+    return DTO.Ksaturated_ground_water * std::tan(DTO.local_slope);
 };
 
 double Darcy_Vels::get_detention_snow(void)
 {
-    double Ksaturated_snow = (0.077*pow((DTO.snow_grain_diameter/1000),2.0)*exp(-7.8*(DTO.snow_density/1000)))*factor;
+    double Ksaturated_snow = (0.077*std::pow((DTO.snow_grain_diameter/1000),2.0)*std::exp(-7.8*(DTO.snow_density/1000)))*factor;
 
-
-    return Ksaturated_snow * pow(DTO.detention_storage/DTO.detention_max,DTO.soil_index) * sin(DTO.local_slope);
+    return Ksaturated_snow * std::pow(DTO.detention_storage/DTO.detention_max,DTO.soil_index) * std::sin(DTO.local_slope);
 }
 
 double Darcy_Vels::get_detention_organic(void)
 {
-    return DTO.Ksaturated_organic * pow(DTO.detention_storage/DTO.detention_max,exponent_organic) * tan(DTO.local_slope);
+    return DTO.Ksaturated_organic * std::pow(DTO.detention_storage/DTO.detention_max,exponent_organic) * std::tan(DTO.local_slope);
 };
