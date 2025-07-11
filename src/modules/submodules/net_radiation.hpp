@@ -70,7 +70,7 @@ void net_radiation::execute()
 
 	net.short_wave = get_short_wave();
 
-	set_net_all_wave();
+	set_net_all_wave(net);
 
 };
 
