@@ -77,10 +77,6 @@ void net_radiation::execute()
 double net_radiation::get_long_wave() const
 {
 	static const double C = -0.85;
-	static const double brunt_a = -0.39;
-	static const double brunt_b = 0.093;
-	static const double cloud_cover_a = 0.26;
-	static const double cloud_cover_b = 0.81;
 	double long_wave = 0.0;
 
 	if (this->d.max_sun_hours() > 0.0)
