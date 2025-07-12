@@ -75,12 +75,12 @@ void net_radiation::execute()
 {
 	Net net;
 	
-	net.long_wave = get_long_wave();
+	net.long_wave = get_long_wave() * 
+		MJ_per_day_to_W;
 
 	net.short_wave = get_short_wave();
 
 	set_net_all_wave(net);
-
 };
 
 double net_radiation::get_long_wave() const
