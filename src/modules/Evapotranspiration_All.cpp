@@ -150,12 +150,13 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d
     const double pore_size_dist = SoilDataObj->pore_size_dist(soil_type);
     const double wilt_point = SoilDataObj->wilt_point(soil_type);
     const double porosity = SoilDataObj->porosity(soil_type);
-    
+	
+
     double soil_storage_max = face->soil_attribute<double>("soil_storage_max"_s);
     // Leaf area index is not used if no vegetation, but LAI and LAImax are references in the PenmanMonteith model, therefore values are needed for initialization. It is ok if these values go out of scope as long as there is no vegetation. 
 
     d.MyPenmanMonteith = std::make_unique<PenmanMonteith>(d.LAI, d.LAImax, d.vegetation_height, wind_height, 
-            stomatal_resistance_min, d.soil_depth, Frac_to_ground, Cp, kappa, 
+            stomatal_resistance_min, d.soil_depth, Frac_to_ground, global_param->dt(), Cp, kappa, 
             air_entry_tension, pore_size_dist, wilt_point, porosity);
     
 }
