@@ -20,8 +20,8 @@ public:
 	// overloaded constructors
 	// normal construction is the first line
 	// second constructor if you want to initialize the mean_value (starting in the middle of a day).
-	explicit daily_accumulator(data& _d) : base_step<data>(_d) {};
-	explicit daily_accumulator(data& _d, const double value) : base_step<data>(_d), _mean_value(value) {};
+	explicit daily_accumulator()  {};
+	explicit daily_accumulator(const double value) : _mean_value(value) {};
 
 	void bind_to_var(double& var)
 	{
@@ -38,7 +38,7 @@ public:
 		return _mean_value;
 	};
 
-	void execute() override final
+	void execute(data& d) override final
 	{
 		if (!_target_var) 
 		{
@@ -46,9 +46,9 @@ public:
             return;
 		};
         
-        if (this->d.is_new_day())
+        if (d.is_new_day())
 		{
-			_mean_value = _accumulator / this->d.steps_per_day();
+			_mean_value = _accumulator / d.steps_per_day();
 			_accumulator = 0.0;
 		};
 		
