@@ -6,22 +6,29 @@ concept NetRadiationData = requires(D d) {
     // Check required member functions
 	// Maximum sunlight hours for the day
 	{ d.max_sun_hours() } -> std::convertible_to<double>;
+	
 	// Air temperature (Celsius)
 	{ d.air_temperature() } -> std::convertible_to<double>;
-    // Vapour pressure in mb
+    
+	// Vapour pressure in mb
 	{ d.vapour_pressure() } -> std::convertible_to<double>;
-    // actual_sun_hours/max_sun_hours
+    
+	// actual_sun_hours/max_sun_hours
 	{ d.bright_sun_ratio() } -> std::convertible_to<double>;
-    // Real sun hours for that day
+    
+	// Real sun hours for that day
 	{ d.actual_sun_hours() } -> std::convertible_to<double>;
-    // Incident short wave radiation if there were no clouds
+    
+	// Incident short wave radiation if there were no clouds
 	{ d.incident_short_wave_clear() } -> std::convertible_to<double>;
-    // Diffuse radiation without clouds
+    
+	// Diffuse radiation without clouds
 	{ d.diffuse_short_wave_clear() } -> std::convertible_to<double>;
-    // Surface albedo
+    
+	// Surface albedo
 	{ d.albedo() } -> std::convertible_to<double>;
-
-    // Check net_all_wave is callable with a double
+	
+	// Check net_all_wave is callable with a double
 	// This sets the output
     { d.net_all_wave(std::declval<double>()) } -> std::same_as<void>;
 };
@@ -73,6 +80,18 @@ private:
 
 void net_radiation::execute()
 {
+	/*
+	 * Computes long-wave and short-wave radiation and outputs.
+	 *
+	 * get_long_wave() is in units of MJ/m^2/day.
+	 *
+	 * MJ_per_day_to_W converts these units to W/m^2.
+	 *
+	 * 1e6 is J/MJ
+	 *
+	 * 86400 is seconds/day
+	 */ 
+	static const double MJ_per_day_to_W = 1e6/86400;
 	Net net;
 	
 	net.long_wave = get_long_wave() * 
@@ -160,7 +179,9 @@ double net_radiation::get_short_wave() const
 
 void net_radiation::set_net_all_wave(Net& net)
 {
-	this->d.net_all_wave(net.get(this->d.albedo()));
+	double net_all = net.get(this->d.albedo()); 
+	
+	this->d.net_all_wave(net_all);
 };
 
 double net_radiation::stefan_boltzmann_law(const double& T) const
