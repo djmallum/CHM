@@ -1,7 +1,11 @@
 #include "net_all.hpp"
 net_all::net_all()
 {
-	// depends and provides
+	depends("t");
+	depends("rh");
+	depends("iswr_direct");
+	depends("iswr_diffuse");
+
 };
 
 void net_all::init(mesh& domain)
