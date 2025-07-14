@@ -43,12 +43,12 @@ class net_all : public module_base
 {
 REGISTER_MODULE_HPP(net_all)
 public:
-    net_all(config_file cfg);
+	explicit net_all(config_file cfg);
 
     ~net_all() {};
 
-    void run(mesh_elem &face);
-    void init(mesh& domain);
+    void run(mesh_elem &face) override;
+    void init(mesh& domain) override;
 
 	
     class data : public face_info
