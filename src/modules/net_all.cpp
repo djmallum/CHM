@@ -29,7 +29,7 @@ void net_all::run(mesh_elem& face)
 	d.set_outputs_to_face();
 };
 
-double& net_all::max_sun_hours() const
+double& net_all::data::max_sun_hours() const
 {
 	if (std::isnan(max_sun_hours))
 		max_sun_hours = (*face)["max_sun_hours"_s];
@@ -37,7 +37,7 @@ double& net_all::max_sun_hours() const
 	return max_sun_hours;
 };
 
-double& net_all::air_temperature() const
+double& net_all::data::air_temperature() const
 {
 	if (std::isnan(air_temperature))
 		air_temperature = (*face)["air_temperature"_s];
@@ -48,7 +48,7 @@ double& net_all::air_temperature() const
 	return air_temperature
 };
 
-double& net_all::vapour_pressure() const
+double& net_all::data::vapour_pressure() const
 {
 	if (std::isnan(vapour_pressure))
 	{
@@ -59,7 +59,7 @@ double& net_all::vapour_pressure() const
 	return vapour_pressure
 };
 
-double& net_all::actual_sun_hours() const
+double& net_all::data::actual_sun_hours() const
 {
 	if (std::isnan(actual_sun_hours))
 		actual_sun_hours = (*face)["actual_sun_hours"_s];
@@ -67,7 +67,7 @@ double& net_all::actual_sun_hours() const
 	return actual_sun_hours
 };
 
-double& net_all::direct_short_wave_clear() const
+double& net_all::data::direct_short_wave_clear() const
 {
 	if (std::isnan(direct_short_wave_clear))
 		direct_short_wave_clear = (*face)["direct_short_wave_clear"_s];
@@ -75,7 +75,7 @@ double& net_all::direct_short_wave_clear() const
 	return direct_short_wave_clear
 };
 
-double& net_all::diffuse_short_wave_clear() const
+double& net_all::data::diffuse_short_wave_clear() const
 {
 	if (std::isnan(diffuse_short_wave_clear))
 		diffuse_short_wave_clear = (*face)["diffuse_short_wave_clear"_s];
@@ -83,7 +83,7 @@ double& net_all::diffuse_short_wave_clear() const
 	return diffuse_short_wave_clear
 };
 
-double& net_all::albedo() const
+double& net_all::data::albedo() const
 {
 	if (std::isnan(albedo))
 		albedo = (*face)["albedo"_s];
@@ -91,12 +91,12 @@ double& net_all::albedo() const
 	return albedo
 };
 
-void net_all::net_all_wave(const double& out)
+void net_all::data::net_all_wave(const double& out)
 {
 	net_all_wave = out;
 };
 
-void net_all::set_outputs_to_face()
+void net_all::data::set_outputs_to_face()
 {
 	(*face)["net_all_wave"_s] = net_all_wave;
 };
