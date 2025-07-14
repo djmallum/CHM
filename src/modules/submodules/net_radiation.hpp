@@ -213,8 +213,8 @@ double net_radiation::net_clear_long_wave(data& d) const
 	 *
 	 * The constant b is empirical.
 	 *
-	 * The constant c is semi-empirical. It is the sum of empirical 
-	 * constant 0.58 and the approximate emissivity of snow.
+	 * The constant a is semi-empirical. It is the difference of 
+	 * empirical constant 0.58 and the approximate emissivity of snow.
 	 *
 	 * Details in 
 	 *
@@ -291,6 +291,6 @@ double net_radiation::diffuse_radiation(data& d) const
 	static const double b = 2.2;
 	static const double c = 3.85;
 
-	return 2.2 * d.bright_sun_ratio()
-		- 3.85 * std::pow(d.bright_sun_ratio(),2);
+	return b * d.bright_sun_ratio()
+		- c * std::pow(d.bright_sun_ratio(),2);
 };
