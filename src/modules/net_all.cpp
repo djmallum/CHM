@@ -99,6 +99,8 @@ void net_all::data::net_all_wave(const double& out)
 void net_all::data::set_outputs_to_face()
 {
 	(*face)["net_all_wave"_s] = net_all_wave;
+
+	reset_cache();
 };
 
 void net_all::data::reset_cache()
