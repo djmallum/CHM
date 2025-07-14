@@ -103,13 +103,16 @@ void net_all::data::set_outputs_to_face()
 
 void net_all::data::reset_cache()
 {
-	max_sun_hours = std::numeric_limits<double>::quiet_nan();
-	air_temperature = std::numeric_limits<double>::quiet_nan();
-	vapour_pressure = std::numeric_limits<double>::quiet_nan();
-	actual_sun_hours = std::numeric_limits<double>::quiet_nan();
-	direct_short_wave_clear = std::numeric_limits<double>::quiet_nan();
-	diffuse_short_wave_clear = std::numeric_limits<double>::quiet_nan();
-	albedo = std::numeric_limits<double>::quiet_nan();
+	static const double mynan = std::numeric_limits<double>::quiet_nan();
+
+	max_sun_hours = mynan; 
+
+	air_temperature = mynan;
+	vapour_pressure = mynan;
+	actual_sun_hours = mynan;
+	direct_short_wave_clear = mynan;
+	diffuse_short_wave_clear = mynan;
+	albedo = mynan;
 
 	net_all_wave = 0.0;
 }
