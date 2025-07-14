@@ -64,6 +64,9 @@ public:
 
 		//outputs
 		mutable double net_all_wave = 0.0;	
+
+		mesh_elem face{nullptr};
+		global* global_param{nullptr};
 	public:
 		double& max_sun_hours() const;
 		double& air_temperature() const;
@@ -77,7 +80,7 @@ public:
 
 		void set_outputs_to_face();
 		void set_face(mesh_elem& face_in)
-		{ face = *face_in; };
+		{ face = face_in; };
 		void set_global(global* global_param_)
 		{ global_param = global_param_; };
 		void reset_cache();
