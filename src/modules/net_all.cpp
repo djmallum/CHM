@@ -41,6 +41,9 @@ double& net_all::air_temperature() const
 {
 	if (std::isnan(air_temperature))
 		air_temperature = (*face)["air_temperature"_s];
+	
+	if (air_temperature > 150.0)
+		CHM_THROW_EXCEPTION(module_error, "net_all: Airtemperature too large, likely unphysical or Kelvin");
 
 	return air_temperature
 };
@@ -48,7 +51,10 @@ double& net_all::air_temperature() const
 double& net_all::vapour_pressure() const
 {
 	if (std::isnan(vapour_pressure))
-		vapour_pressure = (*face)["vapour_pressure"_s];
+	{
+		double relative_humidity = (*face)["vapour_pressure"_s];
+		vapour_pressure = relative_humidity * Atmosphere::saturatedVapourPressure(air_temperature() + 273.15);
+	}
 
 	return vapour_pressure
 };
