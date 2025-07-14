@@ -1,3 +1,4 @@
+#include "net_all.hpp"
 net_all::net_all()
 {
 	// depends and provides
@@ -5,7 +6,14 @@ net_all::net_all()
 
 void net_all::init(mesh& domain)
 {
+	for (size_t i = 0; i < domain->size_faces(); i++)
+	{
+		auto face = domain->face(i);
+		auto& d = face->make_module_data<net_all:data>(ID);
 
+		d.set_face(face);
+		d.set_global(global_param);
+	}
 };
 
 void net_all::run(mesh_elem& face)
