@@ -34,15 +34,15 @@ public:
     // double Veg_height;
     // double Veg_height_max;
     
-    double& leaf_area_index;
+    const double& leaf_area_index;
     //double LAImin;
     //double seasonal_growth;
-    double& leaf_area_index_max;
-    double& Veg_height;
-    double& wind_measurement_height; // This one might be uniform...
-    double& stomatal_resistance_min; // Also might be domain wide
-    double& soil_depth;
-    double& Frac_to_ground;
+    const double& leaf_area_index_max;
+    const double& Veg_height;
+    const double& wind_measurement_height; // This one might be uniform...
+    const double& stomatal_resistance_min; // Also might be domain wide
+    const double& soil_depth;
+    const double& Frac_to_ground;
     const double heat_capacity_air;
     const double kappa; // also might be domain wide
     const double air_entry_tension;

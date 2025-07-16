@@ -42,6 +42,7 @@ set(MODULE_SRCS
 		modules/Marsh_shading_iswr.cpp
 		modules/Sicart_ilwr.cpp
 		modules/PenmanMonteith_evaporation.cpp
+        modules/net_all.cpp
         modules/Evapotranspiration_All.cpp
 		modules/interp_met/Thornton_p.cpp
 		modules/Walcek_cloud.cpp

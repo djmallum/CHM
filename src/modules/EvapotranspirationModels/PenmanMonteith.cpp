@@ -3,7 +3,7 @@
 
 PenmanMonteith::PenmanMonteith(const double& LAI, const double& LAImax, const double& veg_Ht, const double& wind_height, const double& stomatal_res_min, const double& soil_d, const double& F_to_g, const double& s_per_step, const double Cp, const double K, const double tension, const double pore_sz, const double theta_pwp, const double phi) 
 
-    : leaf_area_index(LAI), leaf_area_index_max(LAImax), Veg_height(veg_Ht), wind_measurement_height(wind_height), stomatal_resistance_min(stomatal_res_min), soil_depth(soil_d), Frac_to_ground(F_to_g), s_per_time_step(s_per_step), heat_capacity_air(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi)
+    : leaf_area_index(LAI), leaf_area_index_max(LAImax), Veg_height(veg_Ht), wind_measurement_height(wind_height), stomatal_resistance_min(stomatal_res_min), soil_depth(soil_d), Frac_to_ground(F_to_g), heat_capacity_air(Cp), kappa(K), air_entry_tension(tension), pore_size_dist(pore_sz), wilt_point(theta_pwp), porosity(phi), s_per_time_step(s_per_step)
 {
     if (leaf_area_index == 0)
         has_vegetation = false;

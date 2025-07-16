@@ -95,11 +95,12 @@ private:
     double wind_height;
     double stomatal_resistance_min;
     double Frac_to_ground;
-     
+    
     void init_PenmanMonteith(Evapotranspiration_All::data& d, mesh_elem& face, double& wind_height, 
             double& stomatal_resistance_min, double& Frac_to_ground);
     
     PM_vars set_PenmanMonteith_vars(mesh_elem& face, double& t, 
             double& saturated_vapour_pressure, double& vapour_pressure);
     
+    static double get_dt(); 
 };
