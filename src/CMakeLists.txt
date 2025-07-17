@@ -103,6 +103,7 @@ set(CHM_SRCS
         physics/Soil.cpp
 
 		mesh/triangulation.cpp
+#		mesh/ugrid.cpp
 
 		interpolation/inv_dist.cpp
 		interpolation/TPSpline.cpp
@@ -255,7 +256,6 @@ add_executable(
 		${FILTER_SRCS}	
         ${MODEL_SRCS}
         ${MODULE_SRCS}
-		${LIBMAW_SRCS}
 )
 
 
@@ -459,7 +459,6 @@ if (BUILD_TESTS)
 			${CHM_SRCS}
             ${MODEL_SRCS}
 			${MODULE_SRCS}
-			${LIBMAW_SRCS}
 			${TEST_SRCS}
 	)
 	set_target_properties(runUnitTests
