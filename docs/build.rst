@@ -1,61 +1,49 @@
-Compilation
-============
-
-.. warning::
+Installation
+==============
+.. note::
     Conan is no longer used to build CHM. Spack is now used
 
 .. note::
    Building CHM without MPI support is now deprecated. MPI is now required.
 
-CHM uses `spack <https://spack.readthedocs.io/>`__ to manage and build all
+.. note::
+    The OpenMP features are disabled by default for good reason. Unless you know you need OpenMP support,
+    use MPI to obtain good parallel performance.
+
+Linux (x86_64) and Macos (arm64) are the only supported environments.
+
+
+The simplest way to build CHM for usage is to install and configure spack (as described in :ref:`configure-spack`)
+and then install CHM:
+
+::
+
+    spack install chm
+
+
+.. warning::
+   Unfortunately the Intel compiler doesn't currently work with applications that also
+   link against GSL. This is being investigated. For now, please do not build CHM with Intel Compilers.
+
+It is recommended to use `spack <https://spack.readthedocs.io/>`_ to manage and build all
 dependencies. Because of the various requirements on build
 configuration, versions, and inter-dependencies, using system libraries (apt/yum/brew/&c)
 is not recommended. Take care when compiling against homebrew libraries. Because homebrew releases
 new versions of libraries often, it often results in having to frequently recompile CHM.
 
-However, as the build system uses cmake to locate libraries, there are no assumptions about using spack, so any
-library provider will work, such as the above noted system libraries or other dependency management tools
-like easy_build.
-
-Environment requirements
-**************************
-
-Linux (x86_64) and Macos (arm64) are the only supported environments.
-
-Build env requirements:
-   - cmake >=3.21
-   - C++20 compiler (e.g., gcc 9.3.0+)
-   - Fortran 90+ compiler (e.g., gfortran)
-   - OpenMPI or IntelMPI
-
-.. warning::
-   Unfortunately the Intel compiler doesn't currently work with applications that also
-   link against GSL. This is being investigated. For now, please do no build CHM with Intel Compilers.
-
-
 Spack will build all required libraries and their dependencies, including compilers and MPI as required.
 This is the recommended approach.
 
-CHM source
-*************
-
-An out of source build should be used. That is, build in a separate folder outside of the CHM source.
-This makes it easier to clean up and start from scratch and to keep separate release and debug builds.
-
-An example is given below:
-
-::
-
-   cd ~/
-   git clone --recurse-submodules https://github.com/Chrismarsh/CHM
-   mkdir ~/build-CHM
-   cd ~/build-CHM
-   # This is where the build configuration will occur in the next steps
-
+As the build system uses cmake to locate libraries, there are no assumptions about using spack, so any
+library provider will work, such as the above noted system libraries or other dependency management tools
+like easy_build.
 
 
 CHM with spack
 ***************
+
+This is the recommend method to build CHM for HPC usage.
+
 
 Install spack
 +++++++++++++++
@@ -63,6 +51,8 @@ Install `spack <https://spack-tutorial.readthedocs.io/en/latest/tutorial_basics.
 
 Use the git repository and use the develop branch, as significant bug fixes to packages CHM uses have been made in
 this branch.
+
+.. _configure-spack:
 
 Configure Spack
 +++++++++++++++++++
@@ -78,33 +68,41 @@ spack <https://spack.readthedocs.io/en/latest/getting_started.html#spack-compile
 If you use a system MPI or intel-oneapi-(mkl|tbb) (i.e., a not-spack built version), this is when it should be configured
 `as a spack external <https://spack.readthedocs.io/en/latest/packages_yaml.html#external-packages>`__ package.
 
-On macos, apple-clang does not have a fortran compiler. The current suggestion is to install gfortran via gcc in brew
-and it will be detected as the fortran compiler for apple-clang in spack. Note th at when gcc updates, you'll need to
-rebuild impacted packages.
+On macos, apple-clang does not have a fortran compiler. Install gcc via spack and gfortran will be detected and
+added to apple-clang as the FC provider when using spack compiler find. Using brew's gfortran works, but you're
+then at the mercy of brew updates.
 
-CHM uses some libraries that are not currently in mainline spack. Until they have been accepted, please clone
-the CHM spack-repo
-
-::
-
-   git clone https://github.com/Chrismarsh/spack-repo.git /some/path/here/
-
-
-then create ``repos.yml`` in ``~/.spack`` and add the path to the above cloned ``spack-repo``.
-It will look like this
+CHM uses some libraries that are not currently in mainline spack. Please add the CHM spack repo as:
 
 ::
 
-    $ cat ~/.spack/repos.yaml
-        repos:
-          - /some/path/here/spack-repo
-          - $spack/var/spack/repos/builtin
+   spack repo add https://github.com/Chrismarsh/spack-repo.git
 
 
-Build dependencies
-+++++++++++++++++++++
+You may also manually clone spack-repo and add it to ``~/.spack/repos.yaml``:
 
-This step will build and install the dependencies via spack.
+::
+
+    repos:
+      chm: $spack/../spack-repo/spack_repo/chm
+
+
+Build and install CHM
+++++++++++++++++++++++++
+
+Once everything for spack is setup:
+
+::
+
+    spack install chm
+
+
+(optional) Create develop environment
+++++++++++++++++++++++++++++++++++++++++
+If you wish to develop CHM, then the following should be done to install the dependencies and build an environment
+to work on CHM. If you only want to run CHM, use the method above in :ref:`Installation`.
+
+Create a spack environment and build and install the dependencies.
 
 ::
 
@@ -116,11 +114,14 @@ This step will build and install the dependencies via spack.
 
 CHM with easy_build
 **********************
+.. warning::
+    This hasn't been updated in a while. YMMV.
+
 When targeting the Digital Alliance Canada stack, `this repository <https://github.com/Chrismarsh/easy_build>`__ hosts
 the easy_build scripts needed for missing libraries. They can be installed in a dependency-preserving order with ``install-all.sh``.
 
 Digital Alliance Canada
------------------------------
+++++++++++++++++++++++++
 
 To build on Compute Canada stack machines, such as Graham, all dependencies must be built
 from source to ensure the correct optimizations are used.
@@ -163,45 +164,55 @@ Optionally you can save this with ``module save chm``.
 CHM with system packages
 **************************
 
-Please install the following libraries using the package manager of your choice:
-  - boost >= 1.74.0 with: system, filesystem, date_time, thread, regex, iostreams, program_options, mpi, serialization
-  - cgal (header-only)
-  - hdf5 with c++ bindings
-  - netcdf
-  - netcdf-cxx4 >= 4.3
-  - gdal >= 3.6
-  - proj >=9
-  - sparsehash
-  - gperftools (only needed if tcmalloc is enabled)
-  - gsl
-  - armadillo
-  - intel-oneapi-tbb
-  - eigen
-  - meteoio
-  - func
-  - trilinos@15.0.0 with mpi, optionally openmp & threadsafe if CHM is built with omp
-  - jemalloc (only needed if jemalloc is enabled)
-  - vtk >= 9.2
-  - spdlog
-  - openblas
-  - MPI
+.. warning::
+    This often doesn't work well due to system libraries not being compiled with the features needed. YMMV.
+
+Please install the the libraries from your package manager of choice following the version constraints listed
+in the `CHM spack.yaml <https://github.com/Chrismarsh/CHM/blob/develop/spack.yaml>`_ file.
 
 .. warning::
     apple-clang doesn't ship with an OpenMP library,
     so OpenMP `should be installed <https://mac.r-project.org/openmp/>`__.
     Doing so via homebrew (``brew install libomp``) is likely the easiest.
 
-Compile CHM
-**************
+and then follow the instructions for CHM standalone.
+
+CHM standalone
+****************
 
 Regardless of what method was used to build the libraries, the configuration of CHM is the same.
 
+Environment requirements
+++++++++++++++++++++++++++++
+Build env requirements:
+   - cmake >=3.30
+   - C++20 compiler (e.g., gcc 9.3.0+)
+   - Fortran 90+ compiler (e.g., gfortran)
+   - OpenMPI or IntelMPI (OMPI recommended)
+
+Source code
++++++++++++++++
+
+An out of source build should be used. That is, build in a separate folder outside of the CHM source.
+This makes it easier to clean up and start from scratch and to keep separate release and debug builds.
+
+An example is given below:
+
+::
+
+   cd ~/
+   git clone https://github.com/Chrismarsh/CHM
+   mkdir ~/build-CHM
+   cd ~/build-CHM
+   # This is where the build configuration will occur in the next steps
+
+
 .. note::
-   The follow instructions assume that they are invoked from within ``~/build-CHM`` (or your equivalent).
+   The following instructions assume that they are invoked from within ``~/build-CHM`` (or your equivalent).
 
 
 Run cmake
----------
+++++++++++++
 
 This guide assumes you are building CHM to build and debug it. However, you can set the install prefix to be anywhere,
 such as shown in the example below
@@ -220,11 +231,7 @@ Both ``ninja`` and ``make`` (this is the default) are supported. To use ``ninja`
 The default build option creates an optimized “release” build. To build
 a debug build, use ``-DCMAKE_BUILD_TYPE=Debug``.
 
-
-Set compiler
-~~~~~~~~~~~~~~
-
-CMake does not always detect the most-optimal compiler you wish to use. The compiler can be manually specified to cmake.
+Sometimes CMake does not always detect the most-optimal compiler you wish to use. The compiler can be manually specified to cmake.
 For example, if the Intel compiler is used, add the following cmake flags:
 
 ::
@@ -234,15 +241,15 @@ For example, if the Intel compiler is used, add the following cmake flags:
 If using spack to build the compiler (e.g., gcc), use ``spack find -p gcc`` to find the spack-built compiler.
 
 High performance allocators
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+++++++++++++++++++++++++++++++++
 
-By default jemalloc is used.
+By default jemalloc is used. Unless there are issues these should be enabled.
 
 ``-DUSE_TCMALLOC=FALSE -DUSE_JECMALLOC=TRUE``.
 
 
 Building
---------
++++++++++++
 
 Using make
 
@@ -259,13 +266,14 @@ Using Ninja
    ninja -C . 
 
 Run tests
----------
+++++++++++
 
 Tests can be enabled with ``-DBUILD_TESTS=TRUE`` and run with
 ``make check``/ ``ninja check``. These have not been updated and currently fail
 
 Install
--------
++++++++++++
+Generally not needed for developemnt.
 
 ``make install``/``ninja install``
 
@@ -297,7 +305,7 @@ Troubleshooting
 ***************
 
 Disable allocators
---------------------
++++++++++++++++++++++
 
 The high performance allocators may need to be disabled and can be done via
 ``-DUSE_TCMALLOC=FALSE -DUSE_JEMALLOC=FALSE``

@@ -80,6 +80,8 @@ namespace po = boost::program_options;
 //gls
 #include <gsl/gsl_errno.h>
 
+#include <fmt/core.h>
+
 //includes from CHM
 #include "exception.hpp"
 #include "filter_base.hpp"
@@ -87,6 +89,7 @@ namespace po = boost::program_options;
 #include "interpolation.hpp"
 #include "logger.hpp"
 #include "math/coordinates.hpp"
+#include "mesh/ugrid_writer.hpp"
 #include "metdata.hpp"
 #include "module_base.hpp"
 #include "readjson.hpp"
@@ -330,11 +333,11 @@ protected:
     {
     public:
         output_info():
-                      fname{""},
-                      latitude{0}, longitude{0},
-                      name{""},
-                      x{0}, y{0},
-                      only_last_n{SIZE_MAX}
+        name{""},
+        fname{""},
+        latitude{0}, longitude{0},
+        x{0}, y{0},
+        only_last_n{SIZE_MAX}
         {
             face = nullptr;
         }
@@ -348,8 +351,24 @@ protected:
         {
             vtp,
             vtu,
+            ugrid,
             ascii
         };
+        // Should we rorate the ugrid to a new file?
+        bool should_rotate(const size_t& max_ts,
+                           const size_t& current_ts,
+                           const boost::posix_time::ptime& _current_date
+                           )
+        {
+            bool should = false;
+            if(rotate_frequency)
+            {
+                if(current_ts % *rotate_frequency == 0)
+                    should = true;
+            }
+
+            return should;
+        }
 
         // Should we output?
         bool should_output(const size_t& max_ts,
@@ -404,10 +423,11 @@ protected:
                     SPDLOG_DEBUG("\tspecific_datetime = {}", boost::posix_time::to_simple_string(*specific_datetime));
         }
 
-        output_type type; // the type of output
+        output_type type; // the type of output, timeseries or mesh
         std::string name;
-        std::vector<mesh_outputs> mesh_output_formats;
+        mesh_outputs mesh_output_formats;
         std::string fname;
+        std::string base_name; // base file name for vtu or ugrid outputs
 
         // these are input by the user, assumed to be WGS84
         double latitude;
@@ -423,6 +443,10 @@ protected:
 
         // Output options
 
+        // because the ugrid file can get huge, start a new file every X timesteps
+        // defaults to never
+        boost::optional<size_t> rotate_frequency;
+
         // every n timesteps
         boost::optional<size_t> frequency;
 
@@ -432,9 +456,12 @@ protected:
         // at a specific time
         boost::optional<boost::posix_time::ptime> specific_time;
 
-
         //Only output the last n timesteps. -1 = all
         boost::optional<size_t> only_last_n;
+
+        // bespoke writer to write this output
+        // the ugrid contains non-copyable MPI objects so needs to be ptr
+        boost::variant< boost::shared_ptr<ugrid_writer>> writer;
 
     };
 

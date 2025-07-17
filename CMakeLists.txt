@@ -55,15 +55,6 @@ if(NOT USE_MPI)
     message(FATAL_ERROR "Building CHM without MPI support is no longer supported")
 endif()
 
-option (FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)
-if (${FORCE_COLORED_OUTPUT})
-    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        add_compile_options (-fdiagnostics-color=always)
-    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-        add_compile_options (-fcolor-diagnostics)
-    endif ()
-endif ()
-
 if(USE_JEMALLOC AND USE_TCMALLOC)
     message(FATAL_ERROR "Cannot have both USE_TCMALLOC=TRUE and USE_JEMALLOC=TRUE")
 endif()
@@ -133,9 +124,12 @@ endmacro()
 # ---------------------------------------------------------------
 # ------ Start of find_package section --------------------------
 # ---------------------------------------------------------------
+if(BUILD_TESTS)
+    find_package(GTest CONFIG REQUIRED)
+endif(BUILD_TESTS)
 
 # Need to check for MPI before building external libraries
-find_package(MPI REQUIRED COMPONENTS C CXX Fortran) # MPI_C is needed for the mpi that HDF can bring in
+find_package(MPI REQUIRED COMPONENTS C CXX Fortran REQUIRED) # MPI_C is needed for the mpi that HDF can bring in
 
 message(STATUS "Found MPI at ${MPI_CXX_INCLUDE_DIRS}")
 add_definitions(-DUSE_MPI)
@@ -184,22 +178,23 @@ endif()
 
 
 #these are the flags we will use to build CHM. Used with target properties instead of modifying CXX_FLAGS
-set(CHM_BUILD_FLAGS "-Wall -Wno-unused-variable -Wno-unknown-pragmas")
+set(CHM_BUILD_FLAGS "-Wall -Wno-unused-variable -Wno-unknown-pragmas -Wno-comment")
 #reset these back
 if (CMAKE_BUILD_TYPE MATCHES Debug)
     message(WARNING "Debug mode")
     add_definitions(-DSAFE_CHECKS)
 
-    set(DEBUG_FLAGS "")
+    set(DEBUG_FLAGS "-g3 -ggdb")
 
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         # A new general optimization level, -Og, has been introduced. It addresses the need for fast compilation and
         # a superior debugging experience while providing a reasonable level of run-time performance.
         # Overall experience for development should be better than the default optimization level -O0.
         # new to 4.8 https://gcc.gnu.org/gcc-4.8/changes.html
-        set(DEBUG_FLAGS "${DEBUG_FLAGS} -g3 -Og -fno-inline -ggdb")
+        # -Wno-misleading-indentation is for armadillo
+        set(DEBUG_FLAGS "${DEBUG_FLAGS}  -Og -fno-inline -Wall -Wno-misleading-indentation")
     else("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang" )
-        set(DEBUG_FLAGS "${DEBUG_FLAGS} -g3 -O1 -ggdb")
+        set(DEBUG_FLAGS "${DEBUG_FLAGS}  -O0 -fno-omit-frame-pointer -fno-inline -fno-eliminate-unused-debug-symbols")
     endif()
 
     set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
@@ -207,7 +202,8 @@ if (CMAKE_BUILD_TYPE MATCHES Debug)
     set(CHM_BUILD_FLAGS "${CHM_BUILD_FLAGS} ${DEBUG_FLAGS}")
 else()
     message(STATUS "Release mode")
-    set(RELEASE_FLAGS "-g -O3 -ggdb")
+    # -Wno-misleading-indentation is for armadillo
+    set(RELEASE_FLAGS "-g -O3 -ggdb -Wno-misleading-indentation")
 
     if(ENABLE_SAFE_CHECKS)
         add_definitions(-DSAFE_CHECKS)
@@ -229,14 +225,12 @@ endif()
 if(USE_OMP)
     find_package(OpenMP REQUIRED) # This will produce the target for us
 
-    if(OpenMP_FOUND)
-        set(CHM_BUILD_FLAGS "${CHM_BUILD_FLAGS} ${OpenMP_CXX_FLAGS}")
-        if(OMP_SAFE_EXCEPTION)
-            message(STATUS "Enabling safe OMP exception handling")
-            add_definitions(-DOMP_SAFE_EXCEPTION)
-        endif()
-     #should correctly work with cmake 3.12+ https://iscinumpy.gitlab.io/post/omp-on-high-sierra/
+    set(CHM_BUILD_FLAGS "${CHM_BUILD_FLAGS} ${OpenMP_CXX_FLAGS}")
+    if(OMP_SAFE_EXCEPTION)
+        message(STATUS "Enabling safe OMP exception handling")
+        add_definitions(-DOMP_SAFE_EXCEPTION)
     endif()
+
 endif()
 
 #already makes a target
@@ -253,8 +247,6 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 
 set(BLA_VENDOR OpenBLAS)
 find_package(BLAS REQUIRED)
-
-
 
 find_package(Sparsehash)
 if( Sparsehash_FOUND )
@@ -337,9 +329,25 @@ else()
     message(STATUS "gvpr and dot present, module output to pdf will function.")
 endif()
 
-find_package(Trilinos 15.0 REQUIRED)
+find_package(Trilinos REQUIRED)
 create_target(Trilinos)
 
+# If Trilinos (or any dependency) drags in OpenMP and we explicitly do not want
+# OpenMP, strip interface flags from the imported OpenMP target to prevent
+# propagation of -fopenmp into CHM builds.
+if(NOT USE_OMP)
+    if(TARGET OpenMP::OpenMP_CXX)
+        message(STATUS "USE_OMP=OFF: stripping OpenMP interface options from OpenMP::OpenMP_CXX")
+        # Clear compile and link interface options to avoid implicit -fopenmp
+        set_property(TARGET OpenMP::OpenMP_CXX PROPERTY INTERFACE_COMPILE_OPTIONS "")
+        set_property(TARGET OpenMP::OpenMP_CXX PROPERTY INTERFACE_LINK_OPTIONS "")
+    endif()
+endif()
+
+# Detect compiler support for disabling OpenMP pragmas explicitly.
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-fno-openmp" CHM_HAS_FNO_OPENMP)
+set(CHM_HAS_FNO_OPENMP ${CHM_HAS_FNO_OPENMP} CACHE INTERNAL "Compiler supports -fno-openmp")
 #setup src dirs
 include(third_party/CMakeLists.txt)
 add_subdirectory(src)

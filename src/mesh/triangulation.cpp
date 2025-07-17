@@ -65,7 +65,6 @@ triangulation::triangulation()
     // Array datatype for is_geographic
     geographic_dims=1;
     partition_dims=1;
-
 }
 
 
@@ -79,10 +78,14 @@ std::string triangulation::proj4()
 {
     return _srs_wkt;
 }
-
-void triangulation::write_param_to_vtu(bool write_param)
+bool triangulation::write_param_to_output()
 {
-    _write_parameters_to_vtu = write_param;
+    return _write_parameters;
+}
+
+void triangulation::write_param_to_output(bool write_param)
+{
+    _write_parameters = write_param;
 }
 
 void triangulation::write_ghost_neighbors_to_vtu(bool write_ghost_neighbors)
@@ -99,7 +102,7 @@ bool triangulation::is_geographic()
 {
     return _is_geographic;
 }
-size_t triangulation::size_faces()
+size_t triangulation::size_local_faces()
 {
     return _num_faces;
 }
@@ -108,9 +111,9 @@ size_t triangulation::size_global_faces()
     return _num_global_faces;
 }
 
-size_t triangulation::size_vertex()
+size_t triangulation::size_local_vertex()
 {
-    return _num_vertex;
+    return _num_local_vertex;
 }
 
 mesh_elem triangulation::locate_face(double x, double y)
@@ -207,6 +210,7 @@ void triangulation::from_json(pt::ptree &mesh)
 {
 
     _version.from_string(mesh.get<std::string>("mesh.version",""));
+    _mesh_is_from_partition = false;
 
     if(!_version.mesh_ver_meets_min_json())
     {
@@ -217,7 +221,7 @@ void triangulation::from_json(pt::ptree &mesh)
     SPDLOG_DEBUG("Reading in #vertex={}",nvertex_toread);
     size_t i=0;
 
-    //paraview struggles with lat/long as it doesn't seem to have the accuracy. So we need to scale up lat-long.
+    //paraview struggles with lat/long as it doesn"t seem to have the accuracy. So we need to scale up lat-long.
     int is_geographic = mesh.get<int>("mesh.is_geographic");
     if( is_geographic == 1)
     {
@@ -258,8 +262,8 @@ void triangulation::from_json(pt::ptree &mesh)
         _vertexes.push_back(Vh);
         i++;
     }
-    _num_vertex = this->number_of_vertices();
-    SPDLOG_DEBUG("# nodes created = {}",_num_vertex);
+    _num_local_vertex = this->number_of_vertices();
+    SPDLOG_DEBUG("# nodes created = {}",_num_local_vertex);
 
     if( this->number_of_vertices() != nvertex_toread)
     {
@@ -317,12 +321,12 @@ void triangulation::from_json(pt::ptree &mesh)
 
     _num_faces = this->number_of_faces();
 
-    SPDLOG_DEBUG("Created a mesh with {} triangles", this->size_faces());
+    SPDLOG_DEBUG("Created a mesh with {} triangles", this->size_local_faces());
 
     if( this->number_of_faces() != num_elem)
     {
         CHM_THROW_EXCEPTION(config_error,
-                "Expected: " + std::to_string(num_elem) + " elems, got: " + std::to_string(this->size_faces()));
+                "Expected: " + std::to_string(num_elem) + " elems, got: " + std::to_string(this->size_local_faces()));
     }
 
     SPDLOG_DEBUG("Building face neighbors");
@@ -362,17 +366,17 @@ void triangulation::from_json(pt::ptree &mesh)
         // build up the entire list of parameters so we can use this to init the per-face parameter
         // storage later
 
-        std::set<std::string> blacklist; // holds any parameters that have 0 length, eg "area": [],
+        std::set<std::string> excludelist; // holds any parameters that have 0 length, eg "area": [],
         for (auto &itr : mesh.get_child("parameters"))
         {
             // we could have an item like this
             // "area": [],
-            // and we need to ensure we *don't* load those
+            // and we need to ensure we *don"t* load those
             std::string name = itr.first.data();
             size_t i=0;
             for (auto &jtr : itr.second)
             {
-                //just count the first couple items, make sure it's non zero
+                //just count the first couple items, make sure it"s non zero
                 if(i > 1)
                     break;
                 ++i;
@@ -380,7 +384,7 @@ void triangulation::from_json(pt::ptree &mesh)
 
             if(i == 0)
             {
-                blacklist.insert(name);
+                excludelist.insert(name);
                 SPDLOG_WARN("Parameter " + name + " is zero length and will be ignored.");
             } else {
                 _parameters.insert(name);
@@ -390,7 +394,7 @@ void triangulation::from_json(pt::ptree &mesh)
 
         // init the storage
 #pragma omp parallel for
-        for (size_t i = 0; i < size_faces(); i++)
+        for (size_t i = 0; i < size_local_faces(); i++)
         {
              _faces.at(i)->init_parameters(_parameters);
         }
@@ -401,8 +405,8 @@ void triangulation::from_json(pt::ptree &mesh)
             i = 0; // reset evertime we get a new parameter set
             auto name = itr.first.data();
 
-            if(blacklist.find(name) != blacklist.end())
-                continue; // skip blacklisted ones, as we don't want to use these
+            if(excludelist.find(name) != excludelist.end())
+                continue; // skip blacklisted ones, as we don"t want to use these
 
             SPDLOG_DEBUG("Applying parameter: {}",name);
 
@@ -424,11 +428,11 @@ void triangulation::from_json(pt::ptree &mesh)
         }
     }catch(pt::ptree_bad_path& e)
     {
-        // we don't have this section, no worries
+        // we don"t have this section, no worries
         // but we still need to build up the face storage as we may have parameters from a module
         // init the storage, which builds the mphf
 #pragma omp parallel for
-        for (size_t i = 0; i < size_faces(); i++)
+        for (size_t i = 0; i < size_local_faces(); i++)
         {
              _faces.at(i)->init_parameters(_parameters);
         }
@@ -455,10 +459,11 @@ void triangulation::from_json(pt::ptree &mesh)
         }
     }catch(pt::ptree_bad_path& e)
     {
-        // we don't have this section, no worries
+        // we don"t have this section, no worries
     }
     _num_faces = this->number_of_faces();
-    _num_vertex = this->number_of_vertices();
+    _num_local_vertex = this->number_of_vertices();
+    _num_global_faces = _faces.size();
 
     // Get local sizes for each rank
     // If not available, use the old "balanced" setting
@@ -490,8 +495,9 @@ void triangulation::from_json(pt::ptree &mesh)
         SPDLOG_DEBUG("No face permutation.");
     }
 
-    // Don't actually want to partition the mesh. Use the non-MPI one
+
     partition_mesh_nonMPI(_faces.size());
+
 
     _build_dDtree();
 
@@ -524,7 +530,7 @@ void triangulation::to_hdf5(std::string filename_base)
     H5::Group group(file.createGroup("/mesh"));
 
     hsize_t ntri= size_global_faces();
-    hsize_t nvert= size_vertex();
+    hsize_t nvert= size_local_vertex();
 
     { // Local sizes
       SPDLOG_DEBUG("Writing Local Sizes.");
@@ -777,7 +783,7 @@ void triangulation::load_mesh_from_h5(const std::string& mesh_filename)
         }
         catch (AttributeIException& e)
         {
-            // non partition meshes won't have this
+            // non partition meshes won"t have this
             _mesh_is_from_partition = false;
         }
 
@@ -806,7 +812,7 @@ void triangulation::load_mesh_from_h5(const std::string& mesh_filename)
         }
 
         // if we are from a partition we are loading _local_sizes from the partition file not from the h5
-        // they're almost always identical /unless/ we have created a subset debugging partition file (e.g., -v 1 -v 2)
+        // they"re almost always identical /unless/ we have created a subset debugging partition file (e.g., -v 1 -v 2)
         // in this case, the partition file will have the "real" number of partitions whereas this h5 is
         // before we subset it
         if(!_mesh_is_from_partition)
@@ -840,7 +846,7 @@ void triangulation::load_mesh_from_h5(const std::string& mesh_filename)
 
     std::vector<int> owner; //what MPIrank owns each triangle,
     {
-        // if we have a h5 that isn't partitioned (ie mesh <v3.0.0) then we are entirely owned by rank 0
+        // if we have a h5 that isn"t partitioned (ie mesh <v3.0.0) then we are entirely owned by rank 0
         if(_version.to_string() == "1.0.0" ||
             _version.to_string() == "1.2.0" ||
             _version.to_string() == "2.0.0")
@@ -890,15 +896,10 @@ void triangulation::load_mesh_from_h5(const std::string& mesh_filename)
             Vh->set_id(i);
             _vertexes.push_back(Vh);
 
-            // std::cout << i << ":";
-            // for(int j=0; j< 3; ++j){
-            //   std::cout << " " << vertex[i][j];
-            // }
-            // std::cout << "\n";
         }
 
-        _num_vertex = _vertexes.size();
-        SPDLOG_DEBUG("# nodes created = {}",_num_vertex);
+        _num_local_vertex = _vertexes.size();
+        SPDLOG_DEBUG("# nodes created = {}",_num_local_vertex);
     }
 
     {
@@ -921,9 +922,12 @@ void triangulation::load_mesh_from_h5(const std::string& mesh_filename)
             auto vert3 = _vertexes.at(elem[i][2]);
 
             auto face = this->create_face(vert1, vert2, vert3);
+
             // get the global ID from file, so-as to support either pre partitioned or non partitioned meshes
             face->cell_global_id = _global_IDs.at(i);
             face->owner = owner.at(i);
+
+            face->cell_continuous_global_id = i * (_comm_world.rank()+1);
 
             // this local id will include local ids for ghosts. However, that will need to be reset once partition
             // splits out the ghosts
@@ -954,7 +958,7 @@ void triangulation::load_mesh_from_h5(const std::string& mesh_filename)
 
         }
         _num_faces = _faces.size();
-        SPDLOG_DEBUG("Created a mesh with {} triangles", this->size_faces());
+        SPDLOG_DEBUG("Created a mesh with {} triangles", this->size_local_faces());
     }
 
     {
@@ -992,7 +996,7 @@ void triangulation::load_mesh_from_h5(const std::string& mesh_filename)
 //            // if we are loading from a partition, convert these to local ids
             if(_mesh_is_from_partition)
             {
-                // neighbours that are missing come in as -1 so they won't cleanly remap
+                // neighbours that are missing come in as -1 so they won"t cleanly remap
 
                 neigh_i_0_idx = neigh_i_0_idx != -1 ? _global_to_locally_owned_index_map[neigh_i_0_idx] : -1;
                 neigh_i_1_idx = neigh_i_1_idx != -1 ? _global_to_locally_owned_index_map[neigh_i_1_idx] : -1;
@@ -1155,7 +1159,7 @@ void triangulation::from_partitioned_hdf5(const std::string& partition_filename,
         SPDLOG_DEBUG("No addtional initial conditions found in mesh section.");
     }
 
-    // keep just our rank's. The hdf5 loader expects a vector of potential files so make a vector of 1
+    // keep just our rank"s. The hdf5 loader expects a vector of potential files so make a vector of 1
 
     int tmp_rank = 0; // play nicely in non mpi builds
 #ifdef USE_MPI
@@ -1237,7 +1241,7 @@ void triangulation::from_hdf5(const std::string& mesh_filename,
 void triangulation::load_hdf5_parameters( const std::vector<std::string>& param_filenames)
 {
 
-    // we might have modules params but we aren't loading file params, so do the init here
+    // we might have modules params but we aren"t loading file params, so do the init here
     // this is a copy paste as the logic in the main loop below has to handle loading multiple param files
 
     if (param_filenames.empty())
@@ -1336,7 +1340,7 @@ void triangulation::load_hdf5_parameters( const std::vector<std::string>& param_
 
                 // _num_faces will have been set to the local face size in MPI mode
                 // however, if we are reading from a partitioned mesh file, we can actually load the entire set of
-                // faces' data in one go
+                // faces" data in one go
                 hsize_t local_size = static_cast<hsize_t>(
                     _mesh_is_from_partition ? _faces.size() : _num_faces);
 
@@ -1420,12 +1424,12 @@ void triangulation::load_hdf5_parameters( const std::vector<std::string>& param_
 
 void triangulation::reorder_faces(std::vector<size_t> permutation)
 {
-  // NOTE: be careful with evaluating this, the 'cell_global_id's and a
-  // cell's position in the '_faces' vec are unrelated. They must both
-  // be modified (ie. renumber the 'cell_global_id's, AND sort the '_faces'
+  // NOTE: be careful with evaluating this, the "cell_global_id"s and a
+  // cell"s position in the "_faces" vec are unrelated. They must both
+  // be modified (ie. renumber the "cell_global_id"s, AND sort the "_faces"
   // vector) before the new ordering is consistent.
 
-  assert( permutation.size() == size_faces() );
+  assert( permutation.size() == size_local_faces() );
   SPDLOG_DEBUG("Reordering faces");
 
   // Update the IDs on all faces
@@ -1483,14 +1487,14 @@ void triangulation::load_partition_from_mesh(const std::string& mesh_filename)
 
     SPDLOG_DEBUG(mesh_filename);
 
-    // when we get to here, we have a mix of ghosts and not ghosts in _local_faces and don't have the sizes
+    // when we get to here, we have a mix of ghosts and not ghosts in _local_faces and don"t have the sizes
     // we need to pick this apart
     // since the faces are sorted coming from the partition tool, they will be sorted here. Since we grow arrays we
-    // can't do this in parallel which will preserve the sort. If this is every changed, then need to sort
+    // can"t do this in parallel which will preserve the sort. If this is every changed, then need to sort
 
 
     // here we loop through all (incl ghosts!) to figure out where everything should go.
-    // DO NOT do this in parallel (at the moment) as it's not thread safe
+    // DO NOT do this in parallel (at the moment) as it"s not thread safe
     size_t local_face_i = 0;
     for (size_t i = 0; i < _faces.size(); ++i)
     {
@@ -1510,7 +1514,7 @@ void triangulation::load_partition_from_mesh(const std::string& mesh_filename)
         {
             _faces[i]->is_ghost = false;
 
-            // Although we set thsin from_h5 we need to reset it here such that it doesn't include ghosts
+            // Although we set this from_h5 we need to reset it here such that it doesn't include ghosts
             _faces[i]->cell_local_id = local_face_i;
 
             _local_faces.push_back(_faces[i]);
@@ -1521,7 +1525,7 @@ void triangulation::load_partition_from_mesh(const std::string& mesh_filename)
         }
     }
 
-    // Set up so that all processors know how 'big' all other processors are
+    // Set up so that all processors know how "big" all other processors are
     _num_faces_in_partition.resize(_comm_world.size());
     for (unsigned int i = 0; i < _comm_world.size(); ++i)
     {
@@ -1547,13 +1551,13 @@ void triangulation::load_partition_from_mesh(const std::string& mesh_filename)
 //    if (face_start_idx != _local_faces.front()->cell_global_id ||
 //        face_end_idx != _local_faces.back()->cell_global_id)
 //    {
-//        LOG_ERROR << "The computed and read start/end index don't match. Computed:\n"
+//        LOG_ERROR << "The computed and read start/end index don"t match. Computed:\n"
 //                  << "\tface_start_idx = " << face_start_idx << "\n"
 //                  << "\tface_end_idx = " << face_end_idx << "\n"
 //                  << "Read:\n"
 //                  << "\t_local_faces[0] = " << _local_faces.front()->cell_global_id << "\n"
 //                  << "\t_local_faces[-1] = " << _local_faces.back()->cell_global_id;
-//        CHM_THROW_EXCEPTION(mesh_error, "Computed and read global indexs don't match");
+//        CHM_THROW_EXCEPTION(mesh_error, "Computed and read global indexs don"t match");
 //    }
 
     // Store in the public members
@@ -1590,9 +1594,12 @@ void triangulation::partition_mesh_nonMPI(size_t _num_global_faces)
 #pragma omp parallel for
     for (size_t i = 0; i < _num_global_faces; ++i)
     {
+        auto face = _faces.at(i);
         _global_IDs[i] = i;
-        _faces.at(i)->is_ghost = false;
-        _faces.at(i)->cell_local_id =
+        face->is_ghost = false;
+        face->owner = 0;
+        face->ghost_type = 0;
+        face->cell_local_id =
             i; // Mesh has been (potentially) reordered before this point. Set the local_id correctly
     }
 
@@ -1621,7 +1628,7 @@ void triangulation::partition_mesh()
 
     int my_rank = _comm_world.rank();
 
-    // Set up so that all processors know how 'big' all other processors are
+    // Set up so that all processors know how "big" all other processors are
     _num_faces_in_partition.resize(_comm_world.size(), _num_global_faces / _comm_world.size());
     for (unsigned int i = 0; i < _num_global_faces % _comm_world.size(); ++i)
     {
@@ -1643,7 +1650,7 @@ void triangulation::partition_mesh()
     // Set size of vector containing locally owned faces
     _local_faces.resize(_num_faces_in_partition[_comm_world.rank()]);
 
-    // Loop can't be parallel due to modifying map
+    // Loop can"t be parallel due to modifying map
     for (size_t local_ind = 0; local_ind < _local_faces.size(); ++local_ind)
     {
         size_t offset_idx = global_cell_start_idx + local_ind;
@@ -1688,7 +1695,7 @@ void triangulation::determine_local_boundary_faces()
   using th_safe_multicontainer_type = std::vector< std::pair<mesh_elem,bool> >[];
 
 #ifdef USE_MPI
-  // Need to ensure we're starting from nothing?
+  // Need to ensure we"re starting from nothing?
   assert( _boundary_faces.size() == 0 );
 
   SPDLOG_DEBUG("Determining local boundary faces");
@@ -1711,26 +1718,26 @@ void triangulation::determine_local_boundary_faces()
 
              int num_owned_neighbors = 0;
              for (int neigh_index = 0; neigh_index < 3; ++neigh_index)
-               {
+             {
 
                  auto neigh = face->neighbor(neigh_index);
 
-                 // Test status of neighbor
-                 if (neigh == nullptr)
-                   {
-                     th_local_boundary_faces[omp_get_thread_num()].push_back(std::make_pair(face,true));
-                     num_owned_neighbors=3; // set this to avoid triggering the post-loop if statement
-                     break;
-                   } else
-                   {
-                     if (neigh->is_ghost == false)
-                       {
-                         num_owned_neighbors++;
-                       }
-                   }
-               }
+            // Test status of neighbor
+            if (neigh == nullptr)
+            {
+                th_local_boundary_faces[omp_get_thread_num()].push_back(std::make_pair(face,true));
+                num_owned_neighbors=3; // set this to avoid triggering the post-loop if statement
+                break;
+            } else
+            {
+                if (neigh->is_ghost == false)
+                {
+                    num_owned_neighbors++;
+                }
+            }
+             }
 
-             // If we don't own 3 neighbors, we are a local, but not a global boundary face
+             // If we don"t own 3 neighbors, we are a local, but not a global boundary face
              if( num_owned_neighbors<3 ) {
                th_local_boundary_faces[omp_get_thread_num()].push_back(std::make_pair(face,false));
              }
@@ -1868,7 +1875,7 @@ void triangulation::determine_ghost_owners()
         // on first it, no value of prev_owner exists... set it
         if(i==0) prev_owner = _ghost_neighbor_owners[i];
 
-        // if owner different from last owner, store prev segment's ownership info
+        // if owner different from last owner, store prev segment"s ownership info
         if (prev_owner != _ghost_neighbor_owners[i])
         {
             num_partners++;
@@ -2045,7 +2052,7 @@ void triangulation::ghost_neighbors_communicate_variable(const uint64_t& var)
   // For each communication partner:
   // - pack vectors of the variable to send
   // - send/recv it
-  // - unpack the recv'd vectors into mesh_elem->face_data (so it can be used exactly as local info)
+  // - unpack the recv"d vectors into mesh_elem->face_data (so it can be used exactly as local info)
 
   std::vector<boost::mpi::request> reqs;
 
@@ -2157,7 +2164,7 @@ void triangulation::ghost_to_neighbors_communicate_variable(const uint64_t& var)
     // For each communication partner:
     // - pack vectors of the variable to send
     // - send/recv it
-    // - unpack the recv'd vectors into mesh_elem->face_data (so it can be used exactly as local info)
+    // - unpack the recv"d vectors into mesh_elem->face_data (so it can be used exactly as local info)
 
     std::vector<boost::mpi::request> reqs;
 
@@ -2253,7 +2260,7 @@ void dfs_to_max_distance_aux(mesh_elem starting_face, double max_distance, mesh_
 {
   // DFS auxiliary function, does all of the work constructing the set of faces
 
-  // if we're outside of the distance or already visited, we're done
+  // if we"re outside of the distance or already visited, we"re done
   bool is_not_within_distance = (math::gis::distance(starting_face->center(),face->center()) > max_distance);
   bool is_visited             = (visited.find(face) != visited.end());
   if(  is_not_within_distance || is_visited  )
@@ -2353,7 +2360,6 @@ void triangulation::shrink_local_mesh_to_owned_and_distance_neighbors()
 }
 
 
-
 Delaunay::Vertex_handle triangulation::vertex(size_t i)
 {
     return _vertexes.at(i);
@@ -2396,9 +2402,9 @@ void triangulation::init_vtkUnstructured_Grid(std::vector<std::string> output_va
     vtkSmartPointer<vtkCellArray> triangles = vtkSmartPointer<vtkCellArray>::New();
     if(_write_ghost_neighbors_to_vtu)
     {
-      triangles->Allocate(this->size_faces()+_ghost_faces.size());
+      triangles->Allocate(this->size_local_faces()+_ghost_faces.size());
     } else {
-      triangles->Allocate(this->size_faces());
+      triangles->Allocate(this->size_local_faces());
     }
 
     vtkSmartPointer<vtkStringArray> proj4 = vtkSmartPointer<vtkStringArray>::New();
@@ -2413,7 +2419,7 @@ void triangulation::init_vtkUnstructured_Grid(std::vector<std::string> output_va
 
     // npoints holds the total number of points
     int npoints=0;
-    for (size_t i = 0; i < this->size_faces(); i++)
+    for (size_t i = 0; i < this->size_local_faces(); i++)
     {
         mesh_elem fit = this->face(i);
 
@@ -2424,7 +2430,7 @@ void triangulation::init_vtkUnstructured_Grid(std::vector<std::string> output_va
 	for (int j=0;j<3;++j){
 	  auto vit = fit->vertex(j);
 	  int global_id = vit->get_id();
-	  // If point hasn't been seen yet, account for it
+	  // If point hasn"t been seen yet, account for it
 	  if ( global_to_local_vertex_id.find(global_id) == global_to_local_vertex_id.end() ) {
 	    global_to_local_vertex_id[global_id] = npoints;
 	    npoints++;
@@ -2452,7 +2458,7 @@ void triangulation::init_vtkUnstructured_Grid(std::vector<std::string> output_va
             for (int j=0;j<3;++j){
               auto vit = fit->vertex(j);
               int global_id = vit->get_id();
-              // If point hasn't been seen yet, account for it
+              // If point hasn"t been seen yet, account for it
               if ( global_to_local_vertex_id.find(global_id) == global_to_local_vertex_id.end() ) {
                 global_to_local_vertex_id[global_id] = npoints;
                 npoints++;
@@ -2490,7 +2496,7 @@ void triangulation::init_vtkUnstructured_Grid(std::vector<std::string> output_va
     _vtu_global_id = vtkSmartPointer<vtkUnsignedLongArray>::New();
     _vtu_global_id->SetName("global_id");
 
-    if(_write_parameters_to_vtu)
+    if(_write_parameters)
     {
         auto params = this->face(0)->parameters();
         for (auto &v: params)
@@ -2550,7 +2556,7 @@ void triangulation::init_vtkUnstructured_Grid(std::vector<std::string> output_va
 void triangulation::init_timeseries(std::set< std::string > variables)
 {
     #pragma omp parallel for
-    for (size_t it = 0; it < size_faces(); it++)
+    for (size_t it = 0; it < size_local_faces(); it++)
     {
         auto face = this->face(it);
         face->init_time_series(variables);
@@ -2561,7 +2567,7 @@ void triangulation::init_timeseries(std::set< std::string > variables)
 void triangulation::init_vectors(std::set<std::string>& variables)
 {
 #pragma omp parallel for
-    for (size_t it = 0; it < size_faces(); it++)
+    for (size_t it = 0; it < size_local_faces(); it++)
     {
         auto face = this->face(it);
         face->init_vectors(variables);
@@ -2571,7 +2577,7 @@ void triangulation::init_vectors(std::set<std::string>& variables)
 void triangulation::init_module_data(std::set< std::string > modules)
 {
 #pragma omp parallel for
-    for (size_t it = 0; it < size_faces(); it++)
+    for (size_t it = 0; it < size_local_faces(); it++)
     {
         auto face = this->face(it);
         face->init_module_data(modules);
@@ -2601,7 +2607,7 @@ void triangulation::init_face_data(std::set< std::string >& timeseries,
                     std::set< std::string >& module_data)
 {
     #pragma omp parallel for
-        for (size_t it = 0; it < size_faces(); it++)
+        for (size_t it = 0; it < size_local_faces(); it++)
         {
             auto face = this->face(it);
             face->init_time_series(timeseries);
@@ -2624,7 +2630,7 @@ void triangulation::init_face_data(std::set< std::string >& timeseries,
 
 void triangulation::update_vtk_data(std::vector<std::string> output_variables)
 {
-    //if we haven't inited yet, do so.
+    //if we haven"t inited yet, do so.
     if(!_vtk_unstructuredGrid || _terrain_deformed)
     {
         this->init_vtkUnstructured_Grid(output_variables);
@@ -2635,7 +2641,7 @@ void triangulation::update_vtk_data(std::vector<std::string> output_variables)
     auto ics = this->face(0)->initial_conditions();
     auto vecs = this->face(0)->vectors();
 
-    for (size_t i = 0; i < this->size_faces(); i++)
+    for (size_t i = 0; i < this->size_local_faces(); i++)
     {
         mesh_elem fit = this->face(i);
 
@@ -2653,7 +2659,7 @@ void triangulation::update_vtk_data(std::vector<std::string> output_variables)
         //this is mandatory now
         _vtu_global_id->InsertTuple1(i, fit->cell_global_id);
 
-        if(_write_parameters_to_vtu)
+        if(_write_parameters)
         {
             for (auto &v: params)
             {
@@ -2704,7 +2710,7 @@ void triangulation::update_vtk_data(std::vector<std::string> output_variables)
     {
         mesh_elem fit = _ghost_faces[i];
 
-	size_t insert_offset = i + this->size_faces();
+	size_t insert_offset = i + this->size_local_faces();
 
 
         for (auto &v: variables)
@@ -2723,7 +2729,7 @@ void triangulation::update_vtk_data(std::vector<std::string> output_variables)
 
         _vtu_global_id->InsertTuple1(insert_offset,fit->cell_global_id);
 
-        if(_write_parameters_to_vtu)
+        if(_write_parameters)
         {
             for (auto &v: params)
             {
@@ -2895,11 +2901,11 @@ void segmented_AABB::make( triangulation* domain, size_t rows, size_t cols)
             arma::mat* t = new arma::mat(5, 2);
 
 
-            *t << h_x << h_y - v_dy << arma::endr // bottom left
-                    << h_x + h_dx << h_y - v_dy << arma::endr //bottom right
-                    << h_x + h_dx << h_y << arma::endr // top right
-                    << h_x << h_y << arma::endr //top left
-                    << h_x << h_y - v_dy << arma::endr; // bottom left
+            *t = {{ h_x, h_y - v_dy},// bottom left
+                    {h_x + h_dx, h_y - v_dy}, //bottom right
+                    {h_x + h_dx, h_y}, // top right
+                    {h_x,  h_y},//top left
+                    {h_x, h_y - v_dy}}; // bottom left
 
 
             m_grid[i][j] = new rect(t);

@@ -161,7 +161,7 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
     } catch(netCDF::exceptions::NcException& e)
     {
         OGRCoordinateTransformation::DestroyCT(coordTrans);
-        CHM_THROW_EXCEPTION(forcing_error, std::format("Failed to open netcdf file {}. Error: {}", path, e.what()));
+        CHM_THROW_EXCEPTION(forcing_error, fmt::format("Failed to open netcdf file {}. Error: {}", path, e.what()));
     }
 
     try
@@ -186,18 +186,21 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
 
             // check if we have a nc standard_name -> CHM mapping
             auto chm_var = itr;
-            if(stdname != "")
+            if(!stdname.empty())
             {
-                chm_var = CF_name_mapping::standard_names.right.find(stdname)->second;
-
-                if(chm_var == "")
+                auto mapped = CF_name_mapping::standard_names.right.find(stdname);
+                if(mapped == CF_name_mapping::standard_names.right.end())
                 {
                     _nc_ignored_variables.insert(itr);
-                    SPDLOG_WARN("Could not remap nc var {} with standard_name {}, ignoring", itr, stdname);
+
+                    // silence these warnings as it leads to users thinking something is wrong
+                    if (stdname != "geopotential_height" && stdname != "time")
+                        SPDLOG_WARN("Could not remap nc var {} with standard_name {}, ignoring", itr, stdname);
+
                     continue;
-                    // CHM_THROW_EXCEPTION(forcing_error, std::format("Could not remap nc var {} with standard_name {}", itr, stdname));
                 }
 
+                chm_var = mapped->second;
                 SPDLOG_DEBUG("Remapping variable nc var {} to {} ", itr, chm_var);
             }
             _variables.insert(chm_var);
@@ -207,7 +210,7 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
     } catch(netCDF::exceptions::NcException& e)
     {
         OGRCoordinateTransformation::DestroyCT(coordTrans);
-        CHM_THROW_EXCEPTION(forcing_error, std::format("Failed to map variables. Error: {}", e.what()));
+        CHM_THROW_EXCEPTION(forcing_error, fmt::format("Failed to map variables. Error: {}", e.what()));
     }
 
     try{
@@ -241,7 +244,7 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
     } catch(netCDF::exceptions::NcException& e)
     {
         OGRCoordinateTransformation::DestroyCT(coordTrans);
-        CHM_THROW_EXCEPTION(forcing_error, std::format("Failed to load coordinates. Error: {}", e.what()));
+        CHM_THROW_EXCEPTION(forcing_error, fmt::format("Failed to load coordinates. Error: {}", e.what()));
     }
 
     try
@@ -251,7 +254,7 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
         std::variant<netcdf::data, netcdf::vec> lat = is_2D_coords ? std::variant<netcdf::data, netcdf::vec>(_nc->get_lat2D()) : std::variant<netcdf::data, netcdf::vec>(_nc->get_lat());
         std::variant<netcdf::data, netcdf::vec> lon = is_2D_coords ? std::variant<netcdf::data, netcdf::vec>(_nc->get_lon2D()) : std::variant<netcdf::data, netcdf::vec>(_nc->get_lon());
 
-        SPDLOG_DEBUG("Initializing datastructure");
+        SPDLOG_DEBUG("Building list of forcing inputs");
 
 
         netcdf::data e;
@@ -264,9 +267,9 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
         // don't seem to help. Probably _dD_tree is not thread safe
 
         // guarantee at least this number of stations are found, might need to expand bbox
-        int at_least = _num_stations_to_use ? *_num_stations_to_use : 0;
-        int tries = 0;
-        int skipped = 0; // keep track of how many we skipped due to nans
+        size_t at_least = _num_stations_to_use ? *_num_stations_to_use : 0;
+        size_t tries = 0;
+        size_t skipped = 0; // keep track of how many we skipped due to nans
 
         bool done = false;
         do
@@ -279,14 +282,13 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
                     size_t index = x + y * _nc->get_xsize();
 
                     double latitude = 0;
-                    double longitude = 0 ;
-                    double z = 0;
+                    double longitude = 0;
+                    double z = -9999.;
 
                     if(is_2D_coords)
                     {
                         latitude = (*std::get<netcdf::data>(lat))[y][x];
                         longitude = (*std::get<netcdf::data>(lon))[y][x];
-
                     }
                     else
                     {
@@ -294,11 +296,14 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
                         longitude = (*std::get<netcdf::vec>(lon))[x];
                     }
 
-                    // Some Netcdf files have NaN grid squares, For these cases we will just insert a nullptr station and
-                    // don't add the station to the dD list which is the only way it ever gets to modules
-                    if ( std::isnan(latitude) ||
-                        std::isnan(longitude) ||
-                        std::isnan(z))
+                    if(!missing_z())
+                    {
+                        z = (*e)[y][x];
+                    }
+
+                    // Some Netcdf files have NaN grid squares (latitude/longitude or sometimes height). Drop those points
+                    // so downstream modules never see undefined forcing values.
+                    if (std::isnan(latitude) || std::isnan(longitude) || std::isnan(z))
                     {
                         _stations.at(index) = nullptr;
                         ++skipped;
@@ -326,13 +331,10 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
                         continue;
                     }
 
-
-
                     if(missing_z())
                         z = -9999; // estimate this later
                     else
                         z = (*e)[y][x];
-
 
                     std::shared_ptr<station> s = std::make_shared<station>(station_name,
                         longitude, latitude, z, _variables);
@@ -366,6 +368,9 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
                 _bounding_box.y_min -= y_expansion;
                 _bounding_box.y_max += y_expansion;
 
+                // This will hold stale stations upon the bbox expansion, so clear it
+                _dD_tree.clear();
+
                 tries++;
             }
 
@@ -386,11 +391,14 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
 
         SPDLOG_DEBUG("Done initializing datastructure");
 
+        _prune_nullptr_stations();
+        SPDLOG_DEBUG("This rank is using # grid cells = {}", _stations.size());
+
         boost::mpi::communicator local;
         boost::filesystem::path nc_path(path);
 
         boost::filesystem::create_directories(_output_dir / "forcing" / nc_path.stem());
-        auto forcing_point_path = _output_dir / "forcing" / nc_path.stem() / std::format("stations_{}.", local.rank());
+        auto forcing_point_path = _output_dir / "forcing" / nc_path.stem() / fmt::format("stations_{}.", local.rank());
 
         // SPDLOG_DEBUG("Forcing points: {}", forcing_point_path.string());
         write_stations_to_ptv(forcing_point_path.string() + "vtp");
@@ -400,7 +408,6 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
         // The output diagnostic forcing points and bbox need to be written before we bail if there were any mistakes
         local.barrier();
 
-        SPDLOG_DEBUG("This rank is using # grid cells = {}", _stations.size() - skipped);
         if( skipped == _nstations)
         {
             CHM_THROW_EXCEPTION(forcing_error,
@@ -408,6 +415,8 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
                                 " regardless of the timestep the model is started from, are defined from timestep = 0 "
                                 ". Ensure it is defined then. Also, could be a bounding box issue.");
         }
+
+
         
     } catch(netCDF::exceptions::NcException& e)
     {
@@ -874,7 +883,7 @@ bool metdata::next_nc()
             {
                 //auto ud = d * si::kelvin;
                 //d = ud.numerical_value_in(si::degree_Celsius);
-                d = d + 273.15;
+                d = d - 273.15;
             }
 
             if(stdname == "relative_humidity" && unit == "1")
@@ -931,13 +940,25 @@ std::vector< std::shared_ptr<station> > metdata::nearest_station(double x, doubl
 
 }
 
+void metdata::_prune_nullptr_stations()
+{
+    _stations.erase(
+    std::remove_if(_stations.begin(), _stations.end(),
+                   [](auto const& it) {
+                       return it == nullptr;   // erase only nullptr entries
+                   }),
+    _stations.end());
+
+    _nstations = _stations.size();
+}
+
 void metdata::prune_stations(std::unordered_set<std::string>& station_ids)
 {
     _stations.erase(
         std::remove_if(std::begin(_stations), std::end(_stations),
         [&](auto const& it)
         {
-                           //handle nan stations from the nc
+          //handle nan stations from the nc
           return (!it || station_ids.find(it->ID()) != std::end(station_ids));
         }),
         std::end(_stations));

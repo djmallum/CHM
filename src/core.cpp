@@ -406,14 +406,22 @@ void core::config_checkpoint( pt::ptree& value)
         size_t csz = 1;
         size_t rank = 0;
 
-        #ifdef USE_MPI
-            csz = _comm_world.size();
-            rank = _comm_world.rank();
-        #endif
+        csz = _comm_world.size();
+        rank = _comm_world.rank();
+
 
         if( csz != chkp.get<size_t>("ranks") )
         {
             CHM_THROW_EXCEPTION(config_error, "Checkpoint file was saved with a different number of ranks");
+        }
+
+        try
+        {
+            _global->timestep_counter = chkp.get<size_t>("timestep_counter");
+        }catch (...)
+        {
+            CHM_THROW_EXCEPTION(config_error,
+                "This checkpoint was saved with an older version and does not have the field timestep_counter");
         }
 
         boost::filesystem::path ckpt_nc_path;
@@ -441,11 +449,6 @@ void core::config_checkpoint( pt::ptree& value)
         SPDLOG_DEBUG("Rank {} using checkpoint restore file {}", rank, ckpt_nc_path.string());
         _checkpoint_opts.in_savestate.open(ckpt_nc_path.string());
     }
-
-
-
-
-
 }
 void core::config_forcing(pt::ptree &value)
 {
@@ -576,7 +579,7 @@ void core::config_forcing(pt::ptree &value)
         {
             SPDLOG_WARN("No geopotential height field found in the netcdf file. Using the height of nearest triangle to estimate. This is almost certainly NOT what you want");
 
-            for(size_t i = 0; i < _mesh->size_faces(); i++)
+            for(size_t i = 0; i < _mesh->size_local_faces(); i++)
             {
                 for (auto face = _mesh->face(i); auto& s : face->stations())
                 {
@@ -652,6 +655,8 @@ void core::config_forcing(pt::ptree &value)
         nstations = _metdata->nstations();
     }
 
+    // based on config file the loaded metdata might be trimmed so we need to wait until
+    // determine_starend_ts_forcing call to populate any global structs of star/end time.
 
     SPDLOG_DEBUG("Found # stations = {}", nstations);
     if(nstations == 0)
@@ -740,6 +745,9 @@ void core::determine_startend_ts_forcing()
     //ensure all the stations have the same start and end times
     // per-timestep agreement happens during runtime.
     _metdata->check_ts_consistency();
+
+    // write this into global
+    _global->_n_timestep = _metdata->n_timestep();
 }
 void core::config_parameters(pt::ptree &value)
 {
@@ -829,7 +837,7 @@ bool core::config_meshes( pt::ptree &value)
             CHM_THROW_EXCEPTION(mesh_error, "MPI multiprocess run requires hdf5 mesh.\n\n    Run the serial hdf5 conversion tool\n\n");
         }
 
-        // only check the params and ics if we aren't using a parition file
+        // only check the params and ics if we aren't using a partition file
         if(mesh_file_extension != ".partition")
         {
 
@@ -943,7 +951,7 @@ bool core::config_meshes( pt::ptree &value)
 
     }
 
-    if (_mesh->size_faces() == 0)
+    if (_mesh->size_local_faces() == 0)
     {
       CHM_THROW_EXCEPTION(mesh_error, "Mesh size = 0!");
     }
@@ -961,20 +969,15 @@ void core::config_output(pt::ptree &value)
 
     size_t ID = 0;
     auto pts_dir = "points";
-    auto msh_dir = "meshes";
     boost::filesystem::path pts_path;
-    boost::filesystem::path msh_path;
-
 
     auto output_dir = value.get<std::string>("output_dir","output");
     output_folder_path = cwd_dir / output_dir;
     boost::filesystem::create_directories(output_folder_path);
 
-    // Create empty folders /points/ and /meshes/
+    // Create empty folders /points/
     pts_path = output_folder_path / pts_dir;
-    msh_path = output_folder_path / msh_dir;
     boost::filesystem::create_directories(pts_path);
-    boost::filesystem::create_directories(msh_path);
 
     _find_and_insert_subjson(value);
 
@@ -987,12 +990,20 @@ void core::config_output(pt::ptree &value)
             continue;
         }
 
-        if ((out_type != "mesh"))  // anything else *should* be a time series*......
+        if (out_type == "mesh")
+        {
+            CHM_THROW_EXCEPTION(config_error,
+                "output.mesh is now removed in favour of output.vtu or output.ugrid\n"
+                "Please see\n\thttps://chm.readthedocs.io/en/develop/configuration.html#output \n for more information.");
+        }
+
+        if ((out_type !="vtu") &&
+            (out_type !="ugrid"))  // anything else *should* be a time series*......
         {
             out.type = output_info::time_series;
-            out.name = out_type;
+            out.name = out_type; //station name = key name
 
-            std::string fname = "";
+            std::string fname;
             try
             {
                 fname = itr.second.get<std::string>("file");
@@ -1074,19 +1085,14 @@ void core::config_output(pt::ptree &value)
                 SPDLOG_WARN("Output point {} was not found in this rank's mesh", out.name);
             }
         }
-        else if (out_type == "mesh")
+        else if (out_type == "vtu" || out_type == "ugrid")
         {
             out.type = output_info::mesh;
 
-            auto fname = itr.second.get<std::string>("base_name","output");
-            auto f = msh_path / fname;
-            boost::filesystem::create_directories(f.parent_path());
-            out.fname = f.string();
+            out.name = out_type;
+            out.base_name = itr.second.get<std::string>("base_name", output_dir);
 
-            _mesh->write_param_to_vtu( itr.second.get("write_parameters",true) ) ;
-
-	    // Set option for writing ghost neighbor data, defaults to not
-            _mesh->write_ghost_neighbors_to_vtu( itr.second.get("write_ghost_neighbors",false) ) ;
+            _mesh->write_param_to_output( itr.second.get("write_parameters",true) ) ;
 
             try
             {
@@ -1100,7 +1106,46 @@ void core::config_output(pt::ptree &value)
                 SPDLOG_WARN("Writing all variables to output mesh");
             }
 
+            if (out_type == "vtu")
+            {
+                auto msh_path = output_folder_path / "vtu";
+                boost::filesystem::create_directories(msh_path);
+
+                auto f = msh_path / out.base_name;
+                boost::filesystem::create_directories(f.parent_path());
+                out.fname = f.string();
+                out.mesh_output_formats = output_info::mesh_outputs::vtu;
+            }
+            else
+            {
+                boost::filesystem::path ugrid_path = output_folder_path / (out.base_name + ".nc");
+                out.mesh_output_formats = output_info::mesh_outputs::ugrid;
+                out.fname = ugrid_path.string();
+
+                out.writer = boost::make_shared<ugrid_writer>(_mesh, _global, _mesh->write_param_to_output(), out.fname);
+
+                boost::get<boost::shared_ptr<ugrid_writer>>(out.writer)->compress = itr.second.get<bool>("compress", true);
+                boost::get<boost::shared_ptr<ugrid_writer>>(out.writer)->bitgroom = itr.second.get<bool>("bitgroom", true);
+
+            }
+
+
+	    // Set option for writing ghost neighbor data, defaults to not
+            // only possible for vtu outputs
+            auto write_ghost = itr.second.get("write_ghost_neighbors",false);
+            if (write_ghost && out.mesh_output_formats == output_info::mesh_outputs::ugrid )
+            {
+                CHM_THROW_EXCEPTION(config_error, "ugrid output cannot have write_ghost_neighbors=true");
+            }
+            _mesh->write_ghost_neighbors_to_vtu(write_ghost) ;
+
             out.frequency = itr.second.get_optional<size_t>("frequency"); //defaults to every timestep
+            out.rotate_frequency = itr.second.get_optional<size_t>("rotate_frequency"); //defaults to never
+
+            if (out.rotate_frequency)
+            {
+                SPDLOG_DEBUG("Creating new UGRID output every {} timestep", *out.rotate_frequency);
+            }
 
             out.only_last_n = itr.second.get_optional<size_t>("only_last_n");
 
@@ -1125,8 +1170,6 @@ void core::config_output(pt::ptree &value)
             }
 
 
-            out.mesh_output_formats.push_back(output_info::mesh_outputs::vtu);
-            out.name = "vtu output";
             out.list_outputs();
 
         } else
@@ -1140,23 +1183,17 @@ void core::config_output(pt::ptree &value)
         {
             // we will pass for now, but ultimiately we should have done an MPI comms and
             // check if we are missing an output
-#ifndef USE_MPI
-            CHM_THROW_EXCEPTION(config_error(), "Requested an output point that is not in the triangulation domain. Pt:"
-                                                             + std::to_string(out.longitude) + "," +
-                                                             std::to_string(out.latitude) + " name: " + out.name));
-#else
-            SPDLOG_WARN("In MPI mode there is currently no check if all the nodes correctly find the output triangle. "
+
+            SPDLOG_WARN("There is currently no check if all the MPI ranks correctly find the output timeseries triangle. "
                            "If you are missing output, ensure that all the output points are within the domain.");
-#endif
+
 
         }else
         {
             _outputs.push_back(out);
         }
     }
-#ifdef USE_MPI
-    SPDLOG_DEBUG("MPI Process {} has #ouput points = {}", _comm_world.rank(), _outputs.size());
-#endif
+
     vtkSmartPointer<vtkPolyData> polydata = vtkSmartPointer<vtkPolyData>::New();
     polydata->SetPoints(points);
     polydata->GetPointData()->AddArray(labels);
@@ -1164,10 +1201,8 @@ void core::config_output(pt::ptree &value)
     vtkSmartPointer<vtkXMLPolyDataWriter> writer = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
 
     //output this to the same folder as the points are written out to
-    std::string rank = "";
-#ifdef USE_MPI
-    rank = "."+ std::to_string(_comm_world.rank());
-#endif
+    std::string rank = "."+ std::to_string(_comm_world.rank());
+
     auto f = pts_path / ("output_points"+rank+".vtp");
     writer->SetFileName(f.string().c_str());
     #if VTK_MAJOR_VERSION <= 5
@@ -1500,7 +1535,7 @@ void core::init(int argc, char **argv)
 
     // needs both the mesh loaded and output folder setup
     boost::filesystem::create_directories(output_folder_path / "mesh_boundingbox");
-    auto f = output_folder_path / "mesh_boundingbox" / std::format("mesh_bbox_{}.geojson", _comm_world.rank());
+    auto f = output_folder_path / "mesh_boundingbox" / fmt::format("mesh_bbox_{}.geojson", _comm_world.rank());
     _mesh->write_bbox_geojson(f.string());
 
     config_forcing(cfg.get_child("forcing"));
@@ -1603,8 +1638,8 @@ void core::init(int argc, char **argv)
         }
     }
 
-
-    pt::json_parser::write_json((output_folder_path / "config.json" ).string(),cfg); // output a full dump of the cfg, after all modifications, to the output directory
+    // output a full dump of the cfg, after all modifications, to the output directory
+    pt::json_parser::write_json((output_folder_path / "config.json" ).string(), cfg);
     _cfg = cfg;
 
     SPDLOG_DEBUG("Finished initialization");
@@ -1686,7 +1721,7 @@ void core::init(int argc, char **argv)
             }
         }
         _mesh->prune_faces(faces_to_init);
-        SPDLOG_DEBUG("Mesh now has #faces = {}",_mesh->size_faces());
+        SPDLOG_DEBUG("Mesh now has #faces = {}",_mesh->size_local_faces());
     }
 
     // module provided params are initialized when the mesh loads as we also have to handle the mesh params at the same time
@@ -2174,9 +2209,7 @@ void core::_schedule_modules()
 
 void core::run()
 {
-
     timer c;
-
 
     //setup a XML writer for the PVD paraview format
     pt::ptree pvd;
@@ -2203,13 +2236,14 @@ void core::run()
 
     double meantime = 0;
     size_t current_ts = 0;
-    _global->timestep_counter = 0; //use this to pass the timestep info to the modules for easier debugging specific timesteps
-    size_t max_ts = _metdata->n_timestep();
+      size_t max_ts = _metdata->n_timestep();
     bool done = false;
 
     while (!done)
     {
         boost::posix_time::ptime t;
+
+        _global->timestep_counter++;
 
         _global->_current_date = _metdata->current_time();
 
@@ -2230,26 +2264,26 @@ void core::run()
 #ifdef OMP_SAFE_EXCEPTION
                     ompException e;
 #endif
-                    #pragma omp parallel for
-                    for (size_t i = 0; i < _mesh->size_faces(); i++)
+#pragma omp parallel for
+                    for (size_t i = 0; i < _mesh->size_local_faces(); i++)
                     {
                         auto face = _mesh->face(i);
                         if (point_mode.enable && face->_debug_name != _outputs[0].name)
                             continue;
 
-                         //module calls
-                         for (auto &jtr : itr)
-                         {
+                        //module calls
+                        for (auto &jtr : itr)
+                        {
 #ifdef OMP_SAFE_EXCEPTION
-                             e.Run(
-                                 [&]
-                                 {
+                            e.Run(
+                                [&]
+                                {
 #endif
-                                     jtr->run(face);
+                                    jtr->run(face);
 #ifdef OMP_SAFE_EXCEPTION
-                                 });
+                                });
 #endif
-                         }
+                        }
                     }
 #ifdef OMP_SAFE_EXCEPTION
                     e.Rethrow();
@@ -2260,7 +2294,7 @@ void core::run()
                     //module calls for domain parallel
                     for (auto &jtr : itr)
                     {
-                      jtr->run(_mesh);
+                        jtr->run(_mesh);
                     }
                 }
 
@@ -2287,19 +2321,7 @@ void core::run()
             SPDLOG_ERROR(e.what());
         }
 
-        // check that we actually need a mesh output this timestep
-        for (auto &itr : _outputs)
-        {
-            if(itr.type == output_info::output_type::mesh &&
-                itr.should_output(max_ts, current_ts, _global->_current_date))
-            {
-                std::vector<std::string> output;
-                output.assign(itr.variables.begin(),itr.variables.end()); //convert to list to match internal lists
 
-                _mesh->update_vtk_data(output); //update the internal vtk mesh
-                break; // we're done as soon as we've called update once. No need to do it multiple times.
-            }
-        }
 
         // save the current state
         if(_checkpoint_opts.should_checkpoint(current_ts,
@@ -2320,10 +2342,8 @@ void core::run()
             auto timestr = boost::posix_time::to_iso_string(timestamp); // start from current TS + dt
 
 
-            size_t rank = 0;
-#ifdef USE_MPI
-            rank = _comm_world.rank();
-#endif
+            size_t rank = _comm_world.rank();
+
 
             auto dirpath = _checkpoint_opts.ckpt_path / timestr;
             boost::filesystem::create_directories(dirpath);
@@ -2352,23 +2372,23 @@ void core::run()
             }
 
             savestate.get_ncfile().putAtt("restart_time",boost::posix_time::to_simple_string(timestamp));
-            savestate.get_ncfile().putAtt("restart_time_sec", netCDF::ncUint64,ts_sec);
+            savestate.get_ncfile().putAtt("restart_time_sec", netCDF::ncUint64, ts_sec);
+            savestate.get_ncfile().putAtt("timestep_counter", netCDF::ncUint64, static_cast<unsigned long long>(_global->timestep_counter));
 
             pt::ptree tree;
 
-            int nranks = 1;
-#ifdef USE_MPI
-            nranks = _comm_world.size();
-#endif
+            int nranks = _comm_world.size();
+
 
             tree.put("ranks", nranks);
             tree.put("restart_time_sec", ts_sec);
             tree.put("startdate", timestr);
+            tree.put("timestep_counter", _global->timestep_counter);
 
             pt::ptree files;
 
             pt::ptree tmp_files;
-            for (size_t i = 0; i < nranks; ++i)
+            for (int i = 0; i < nranks; ++i)
             {
                 pt::ptree s;
 
@@ -2406,121 +2426,116 @@ void core::run()
 
                 if(do_output)
                 {
+                    std::vector<std::string> output;
+                    output.assign(itr.variables.begin(),itr.variables.end()); //convert to list to match internal lists
 
-                    #pragma omp parallel
+                    if (itr.mesh_output_formats == output_info::mesh_outputs::vtu)
                     {
-                        #pragma omp single
+                        std::string base_name = itr.fname + std::to_string(_global->posix_time_int());
+                        boost::filesystem::path p(base_name);
+                        _mesh->update_vtk_data(output); //update the internal vtk mesh
+
+                        // this really only works if we let rank0 handle the io.
+                        // If we let each process do it, they walk all over each other's output
+
+                        if(_comm_world.rank() == 0)
                         {
-                            for (auto jtr : itr.mesh_output_formats)
+                            for(int rank = 0; rank < _comm_world.size(); rank++)
                             {
-                                #pragma omp task
-                                {
-                                    std::string base_name = itr.fname + std::to_string(_global->posix_time_int());
-                                    boost::filesystem::path p(base_name);
 
-                                    if (jtr == output_info::mesh_outputs::vtu  )
-                                    {
+                                // write paths that are relative to the pvd file
+                                boost::filesystem::path vtu_path(output_folder_path.string() + "/vtu/" + p.filename().string()+"_"+std::to_string(rank) + ".vtu");
+                                pt::ptree &dataset = pvd.add("VTKFile.Collection.DataSet", "");
+                                dataset.add("<xmlattr>.timestep", _global->posix_time_int());
+                                dataset.add("<xmlattr>.group", "");
+                                dataset.add("<xmlattr>.part", rank);
+                                dataset.add("<xmlattr>.file", boost::filesystem::relative(vtu_path, output_folder_path).string());
 
-                                        // this really only works if we let rank0 handle the io.
-                                        // If we let each process do it, they walk all over each other's output
-#ifdef USE_MPI
-                                        if(_comm_world.rank() == 0)
-                                        {
-                                            for(int rank = 0; rank < _comm_world.size(); rank++)
-                                            {
-#else
-                                                int rank = 0;
-#endif
-                                                // write paths that are relative to the pvd file
-                                                boost::filesystem::path vtu_path(output_folder_path.string() + "/meshes/" + p.filename().string()+"_"+std::to_string(rank) + ".vtu");
-                                                pt::ptree &dataset = pvd.add("VTKFile.Collection.DataSet", "");
-                                                dataset.add("<xmlattr>.timestep", _global->posix_time_int());
-                                                dataset.add("<xmlattr>.group", "");
-                                                dataset.add("<xmlattr>.part", rank);
-                                                dataset.add("<xmlattr>.file", boost::filesystem::relative(vtu_path, output_folder_path).string());
-#ifdef USE_MPI
-                                            }
-                                        }
-#endif
-
-                                        //because a full path can be provided for the base_name, we need to strip this off
-                                        //to make it a relative path in the xml file.
-
-#ifdef USE_MPI
-                                        _mesh->write_vtu(base_name + "_"+std::to_string(_comm_world.rank() )+ ".vtu");
-#else
-                                        _mesh->write_vtu(base_name + "_"+std::to_string(rank)+ ".vtu");
-#endif
-
-                                    }
-                                }
                             }
                         }
+
+                        //because a full path can be provided for the base_name, we need to strip this off
+                        //to make it a relative path in the xml file.
+                        _mesh->write_vtu(base_name + "_"+std::to_string(_comm_world.rank() )+ ".vtu");
+
+                    }
+                    else if (itr.mesh_output_formats == output_info::mesh_outputs::ugrid)
+                    {
+                        // first, check if we need a new ugrid file
+                        bool new_ugrid = itr.should_rotate(max_ts, current_ts, _global->_current_date);
+
+                        auto& writer = boost::get<boost::shared_ptr<ugrid_writer>>(itr.writer);
+                        if (new_ugrid)
+                        {
+                            writer->close_ugrid();
+                        }
+
+                        writer->write_ugrid({itr.variables.begin(), itr.variables.end()} );
                     }
                 }
             }
         }
 
-            //If we are output a timeseries at specific triangles, we do that here
-            //Each output knows what face it corresponds to
-            for (auto &itr : _outputs)
+        //If we are output a timeseries at specific triangles, we do that here
+        //Each output knows what face it corresponds to
+        for (auto &itr : _outputs)
+        {
+            //only update the full timeseries
+            if (itr.type == output_info::output_type::time_series)
             {
-                //only update the full timeseries
-                if (itr.type == output_info::output_type::time_series)
+                for (auto v : _provided_var_module)
                 {
-                    for (auto v : _provided_var_module)
-                    {
-                        auto data = (*itr.face)[v];
-                        itr.ts.at(v, current_ts) = data;
-                    }
+                    auto data = (*itr.face)[v];
+                    itr.ts.at(v, current_ts) = data;
                 }
             }
+        }
 
-            if(!_metdata->next())
-            {
-                done = true;
-            }
-            else
-            {
-                // loading a new netcdf will invalidate all our stations, so we need to rebuild the list of stations
-                if(_metdata->is_multipart_nc() && _metdata->nc_just_loaded())
-                    populate_face_station_lists();
-            }
-
-
-            auto timestep = c.toc<ms>();
-            meantime += timestep;
-
-            current_ts++;
-            _global->timestep_counter++;
-
-            double mt = meantime / current_ts;
-            bool ms = true;
-            if (mt > 1000)
-            {
-                mt /= 1000.;
-                ms = false;
-            }
-
-            std::string s = std::to_string(std::lround(mt)) + (ms == true ? " ms" : "s");
+        if(!_metdata->next())
+        {
+            done = true;
+        }
+        else
+        {
+            // loading a new netcdf will invalidate all our stations, so we need to rebuild the list of stations
+            if(_metdata->is_multipart_nc() && _metdata->nc_just_loaded())
+                populate_face_station_lists();
+        }
 
 
-            //we need it in seconds now
-            if (ms)
-            {
-                mt /= 1000.0;
-            }
+        auto timestep = c.toc<ms>();
+        meantime += timestep;
 
-            boost::posix_time::ptime pt(boost::posix_time::second_clock::local_time());
-            pt = pt + boost::posix_time::seconds(size_t(mt) * (max_ts - current_ts));
+        current_ts++;
 
-            SPDLOG_DEBUG("Took {}s. Avg duration {} \tEstimated completion: {}", std::lround(timestep/1000), s, boost::posix_time::to_simple_string(pt));
-            _global->first_time_step = false;
+
+        double mt = meantime / current_ts;
+        bool ms = true;
+        if (mt > 1000)
+        {
+            mt /= 1000.;
+            ms = false;
+        }
+
+        std::string s = std::to_string(std::lround(mt)) + (ms == true ? " ms" : "s");
+
+
+        //we need it in seconds now
+        if (ms)
+        {
+            mt /= 1000.0;
+        }
+
+        boost::posix_time::ptime pt(boost::posix_time::second_clock::local_time());
+        pt = pt + boost::posix_time::seconds(size_t(mt) * (max_ts - current_ts));
+
+        SPDLOG_DEBUG("Took {}s. Avg duration {} \tEstimated completion: {}", std::lround(timestep/1000), s, boost::posix_time::to_simple_string(pt));
+        _global->first_time_step = false;
 
 
     }
-        double elapsed = c.toc<s>();
-        SPDLOG_DEBUG("Total runtime was {}s", elapsed);
+    double elapsed = c.toc<s>();
+    SPDLOG_DEBUG("Total runtime was {}s", elapsed);
 
 
 
@@ -2528,7 +2543,7 @@ void core::run()
 
     for (auto &itr : _outputs)
     {
-        if (itr.type == output_info::output_type::mesh)
+        if (itr.mesh_output_formats == output_info::mesh_outputs::vtu)
         {
 
 #ifdef USE_MPI
@@ -2556,8 +2571,12 @@ void core::run()
             itr.ts.subset(*_start_ts,*_end_ts); // in the event of an exception, _end_ts will be reset to have the esception timestep so-as to no write massive amounts of nan values
             itr.ts.to_file(itr.fname);
         }
-    }
 
+        if (itr.mesh_output_formats == output_info::mesh_outputs::ugrid)
+        {
+            boost::get<boost::shared_ptr<ugrid_writer>>(itr.writer)->close_ugrid();
+        }
+    }
 
     if(_notification_script != "")
     {
@@ -2654,7 +2673,7 @@ void core::populate_face_station_lists()
 
     SPDLOG_DEBUG("Populating each face's station list");
 
-    for (size_t i = 0; i < _mesh->size_faces(); i++)
+    for (size_t i = 0; i < _mesh->size_local_faces(); i++)
     {
         auto f = _mesh->face(i);
         f->stations().clear();
