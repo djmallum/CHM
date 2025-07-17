@@ -86,7 +86,6 @@ set(MODEL_SRCS
         modules/soil_submodules/I_K_estimate.hpp
         modules/soil_submodules/K_estimate.cpp
 
-        modules/soil_submodules/I_freeze_thaw_depths.hpp
         modules/soil_submodules/XG_algorithm.cpp
     
         modules/infil_submodules/Crack.cpp
@@ -424,6 +423,7 @@ endif()
 if (BUILD_TESTS)
 	message(STATUS "Tests enabled. Run with make check")
 	add_subdirectory (tests/googletest)
+
 	set(TEST_SRCS
         #tests/test_station.cpp
             #tests/test_interpolation.cpp
@@ -443,6 +443,7 @@ if (BUILD_TESTS)
             tests/submoduletests/test_soil.cpp
             tests/submoduletests/CSVreader.hpp
             tests/submoduletests/test_CSVreader.cpp
+            tests/submoduletests/test_daily_accumulator.cpp
 	)
 
 

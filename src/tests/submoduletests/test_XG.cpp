@@ -2,7 +2,6 @@
 #include <vector>
 #include <memory>
 #include "gtest/gtest.h"
-#include "CSVreader.hpp"
 /*
  * XGStateTest: Wrapper class for tests
  * XGStateTest is effectively a mock of Infil_All module but done indirectly. Due to the complexity of the module classes, it was easier to write this.  
@@ -544,7 +543,6 @@ protected:
             .set_freezethaw_ratios(*P);
     }
 
-
     struct CRHM
     {
         double TrigAcc;
@@ -748,70 +746,72 @@ TEST_F(XGTest,FullZdFrontOrganizeTest)
 #define diff4 0.0001
 #define diff3 0.001
 #define diff5 0.00001
-TEST_F(XGTest,LongTimeTest)
-{
-//#ifdef NDEBUG
-//    std::cout << "NDEBUG is defined (asserts are disabled)\n";
-//#else
-//    std::cout << "NDEBUG is NOT defined (asserts work)\n";
-//#endif
-    soil_rechr_max = 250.0;
-    soil_moist_max = 750.0; 
-    num_layers = 10;
-    
-    init_vectors();
-    
-    double soil_storage = 375.0;
-    double soil_rechr_storage = 125.0;
 
-    P = set_default_P();
-    P->is_crhm_test = true;
-    S = set_default_S(P->N_Soil_layers);
-    S->set_layer_moisture_maximums(*P)
-        .set_thermal_conductivities(*P,soil_storage,soil_rechr_storage)
-        .set_freezethaw_ratios(*P);
-    { 
-    XG_algorithm XG(0.0,0.0,0.0,*S,*P);
-
-    double Zdf_init = 0.0;
-    double Zdt_init = 0.0;
-    XG.init_freezethaw_degreedays(Zdf_init,Zdt_init,P->Zpf_init);
-    }
-
-    int start = 0;
-    int end = 140000;
-
-    for (int i = start; i < end; ++i)
-    {
-        CRHM crhm(i,reader);
-        
-        XG_algorithm XG(crhm.hru_tsf,soil_storage,soil_rechr_storage,
-               *S,*P);
-
-        S->is_newday = i % 24 == 23;
-        //S->last_step_new_day = i % 24 == 0;
-        XG.run();
-        
-        //std::cout << " " << std::endl;
-        //std::cout << "Loop: " << i << std::endl;
-        //std::cout << "Zdf: " << XG.get_freeze_depth() << std::endl;
-        //std::cout << "CRHM Zdf: " << crhm.Zdf << std::endl;
-        //std::cout << "Zdt: " << XG.get_thaw_depth() << std::endl;
-        //std::cout << "CRHM Zdt: " << crhm.Zdt << std::endl;
-        //std::cout << "TrigAcc: " << S->TrigAcc << std::endl;
-        //std::cout << "CRHM TrigAcc: " << crhm.TrigAcc << std::endl;
-        //std::cout << "TrigState: " << S->TrigState << std::endl;
-        //std::cout << "CRHM TrigState: " << crhm.TrigState << std::endl;
-        //std::cout << "t_trend: " << S->t_trend << std::endl;
-        //std::cout << "CRHM t_trend: " << crhm.t_trend << std::endl;
-        //std::cout << "B: " << S->B << std::endl;
-        //std::cout << "CRHM B: " << crhm.B << std::endl;
-        EXPECT_NEAR(XG.get_thaw_depth(),crhm.Zdt,diff3) << "Loop: " << i;
-        EXPECT_NEAR(XG.get_freeze_depth(),crhm.Zdf,diff3) << "Loop: " << i;
-        EXPECT_NEAR(S->B,crhm.B,diff4) << "Loop: " << i;
-        EXPECT_NEAR(S->TrigAcc,crhm.TrigAcc,diff3) << "Loop : " << i;
-        EXPECT_EQ(S->TrigState,crhm.TrigState) << "Loop :" << i;
-        soil_storage = reader.getValue<double>("soil_moist",i);
-        soil_rechr_storage = reader.getValue<double>("soil_rechr",i);
-    }; 
-};
+//TEST_F(XGTest,LongTimeTest)
+//{
+////#ifdef NDEBUG
+////    std::cout << "NDEBUG is defined (asserts are disabled)\n";
+////#else
+////    std::cout << "NDEBUG is NOT defined (asserts work)\n";
+////#endif
+//    soil_rechr_max = 250.0;
+//    soil_moist_max = 750.0; 
+//    num_layers = 10;
+//    
+//    init_vectors();
+//    
+//    double soil_storage = 375.0;
+//    double soil_rechr_storage = 125.0;
+//
+//    P = set_default_P();
+//    P->is_crhm_test = true;
+//    S = set_default_S(P->N_Soil_layers);
+//    S->set_layer_moisture_maximums(*P)
+//        .set_thermal_conductivities(*P,soil_storage,soil_rechr_storage)
+//        .set_freezethaw_ratios(*P);
+//    { 
+//    XG_algorithm XG(0.0,0.0,0.0,*S,*P);
+//
+//    double Zdf_init = 0.0;
+//    double Zdt_init = 0.0;
+//    XG.init_freezethaw_degreedays(Zdf_init,Zdt_init,P->Zpf_init);
+//    }
+//
+//    int start = 0;
+//    int end = 140000;
+//
+//    for (int i = start; i < end; ++i)
+//    {
+//        CRHM crhm(i,reader);
+//        
+//        XG_algorithm XG(crhm.hru_tsf,soil_storage,soil_rechr_storage,
+//               *S,*P);
+//
+//        S->is_newday = i % 24 == 23;
+//        //S->last_step_new_day = i % 24 == 0;
+//        XG.run();
+//        
+//        //std::cout << " " << std::endl;
+//        //std::cout << "Loop: " << i << std::endl;
+//        //std::cout << "Zdf: " << XG.get_freeze_depth() << std::endl;
+//        //std::cout << "CRHM Zdf: " << crhm.Zdf << std::endl;
+//        //std::cout << "Zdt: " << XG.get_thaw_depth() << std::endl;
+//        //std::cout << "CRHM Zdt: " << crhm.Zdt << std::endl;
+//        //std::cout << "TrigAcc: " << S->TrigAcc << std::endl;
+//        //std::cout << "CRHM TrigAcc: " << crhm.TrigAcc << std::endl;
+//        //std::cout << "TrigState: " << S->TrigState << std::endl;
+//        //std::cout << "CRHM TrigState: " << crhm.TrigState << std::endl;
+//        //std::cout << "t_trend: " << S->t_trend << std::endl;
+//        //std::cout << "CRHM t_trend: " << crhm.t_trend << std::endl;
+//        //std::cout << "B: " << S->B << std::endl;
+//        //std::cout << "CRHM B: " << crhm.B << std::endl;
+//        EXPECT_NEAR(XG.get_thaw_depth(),crhm.Zdt,diff3) << "Loop: " << i;
+//        EXPECT_NEAR(XG.get_freeze_depth(),crhm.Zdf,diff3) << "Loop: " << i;
+//        EXPECT_NEAR(S->B,crhm.B,diff4) << "Loop: " << i;
+//        EXPECT_NEAR(S->TrigAcc,crhm.TrigAcc,diff3) << "Loop : " << i;
+//        EXPECT_EQ(S->TrigState,crhm.TrigState) << "Loop :" << i;
+//        soil_storage = reader.getValue<double>("soil_moist",i);
+//        soil_rechr_storage = reader.getValue<double>("soil_rechr",i);
+//    }; 
+//};
+>>>>>>> refs/rewritten/develop

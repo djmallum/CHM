@@ -90,10 +90,6 @@ void XG_algorithm::run()
         
         S.last_step_new_day = true;
     }
-    else
-    {
-        //nothing
-    } 
     thaw_front_depth = S.Zdt;
     freeze_front_depth = S.Zdf;
     first_front_depth = S.Zd_front[0];
@@ -107,7 +103,7 @@ void XG_algorithm::freeze(void)
 
     S.Zdf = 0.0;
     
-	double ftc;
+    double ftc;
     if (P.k_update == 2)
         ftc = Interpolated_ftc(S.Zdf, layer);
     else
