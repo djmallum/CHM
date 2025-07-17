@@ -99,7 +99,7 @@ class preprocessingTriangulation : public triangulation
         _is_standalone = false;
         _is_partition = true;
         _write_ghost_neighbors_to_vtu = true;
-        _write_parameters_to_vtu = false;
+        _write_parameters = false;
     }
 
     void write_vtu(std::string file_name, std::vector<std::string> output_variables ={} )
@@ -398,8 +398,8 @@ class preprocessingTriangulation : public triangulation
                     _vertexes.push_back(Vh);
                 }
 
-                _num_vertex = _vertexes.size();
-                SPDLOG_DEBUG("# nodes created = {}",_num_vertex);
+                _num_local_vertex = _vertexes.size();
+                SPDLOG_DEBUG("# nodes created = {}",_num_local_vertex);
             }
 
             {
@@ -443,12 +443,12 @@ class preprocessingTriangulation : public triangulation
 
                 _num_faces = _faces.size();
 
-                if(size_faces() == 0)
+                if(size_local_faces() == 0)
                 {
                     CHM_THROW_EXCEPTION(mesh_error, "Created a mesh with 0 elements!");
                 }
 
-                SPDLOG_DEBUG("Created a mesh with {} triangles", size_faces());
+                SPDLOG_DEBUG("Created a mesh with {} triangles", size_local_faces());
 
             }
 
