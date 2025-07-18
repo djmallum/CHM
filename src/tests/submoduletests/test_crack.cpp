@@ -11,6 +11,7 @@
  * Initialization of CrackTest assumes that the frozen period has just begun. 
  * 
  */
+
 class CrackTest : public testing::Test
 {
 protected:
@@ -334,7 +335,7 @@ protected:
     {
         status.init();
     };
-    CSVReader reader;
+    //reader comes from CSVReader.hpp as inline
     Crack::info status;
     static constexpr double seconds_per_hour = 3600.0;
     double steps_per_day = 24;
@@ -388,7 +389,7 @@ TEST_F(CrackImplTest,FullImplementTest)
         double rainfall = reader.getValue<double>("net_rain",i);
         double snowmelt = reader.getValue<double>("snowmeltD",i) / 24;
         double swe = reader.getValue<double>("SWE",i);
-        double soil_storage_at_freeze = 50;
+        double soil_storage_at_freeze = reader.getValue<double>("fallstat_V",i);
         double airtemp = reader.getValue<double>("hru_t",i);
         bool crackon = reader.getValue<bool>("crackon",i);
         std::string datetime = reader.getValue<std::string>("datetime",i);
