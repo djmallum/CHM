@@ -422,7 +422,6 @@ void soil_module::init_param_state_XG(mesh_elem& face, soil_module::data& d)
                 C.time_step_per_day,
                 C.calc_conductivity);
         
-        d.P->is_crhm_test = true;
         d.S = std::make_unique<XG_algorithm::state>(d.P->N_Soil_layers,*(d.P));
 
         d.S->set_layer_moisture_maximums(*(d.P))
