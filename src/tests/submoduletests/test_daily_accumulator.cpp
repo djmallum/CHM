@@ -123,24 +123,15 @@ TEST_F(DailyAccumulatorTest,Test)
 		temperature = T[i];
 		accumulate_temperature.execute(d);
 		d.step_forward();
-        std::cout << "test: " << i % steps << "," << i << std::endl;
 		if (i < steps)
         {
             ASSERT_EQ(accumulate_temperature.get_last_mean(),0.0) << "Loop: " << i;
         }
         else if (i % steps == 0)
 		{
-            std::cout << "har" <<std::endl;
             //on new day, see if sum computed
 			double sum_total = sum_to_step(i,steps,T);
 			ASSERT_DOUBLE_EQ(sum_total / steps,accumulate_temperature.get_last_mean()) << "Loop: " << i;
 		}
-		//else
-		//{
-        //    std::cout << "here" << std::endl;
-	//		// Length of array fixed at 2*steps
-	//		double sum_total = (T[0] + T[1] + T[2] + T[3])/steps;
-//			ASSERT_EQ(accumulate_temperature.get_last_mean(),sum_total) << "Loop: " << i;
-//		}
 	}
 };
