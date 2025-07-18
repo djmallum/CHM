@@ -30,7 +30,8 @@ public:
 		mutable double snow_density = std::numeric_limits<double>::quiet_nan();
 		mutable double ground_heat_flux = std::numeric_limits<double>::quiet_nan();
 		mutable double net_radiation = std::numeric_limits<double>::quiet_nan();
-		
+		mutable double daily_mean_temperature = std::numeric_limits<double>::quiet_nan();
+
 		// Outputs
 		double surface_temperature = 0.0; 
 		double snow_thermal_conductivity = 0.0;
@@ -42,6 +43,7 @@ public:
 		double& snow_depth() const;
 	    double& snow_density() const;
         double& ground_heat_flux() const;
+        double& daily_mean_temperature() const;
 	    double& net_radiation() const;
 
         //outputs
@@ -65,8 +67,7 @@ public:
 	{
 	public:
         std::unique_ptr<RCC_surface_temperature<API>> RCC;
-        std::unique_ptr<luce_tarboton_surface_temperature<API>> luce_tarboton;
-
+        
         API api;
 	};
 
@@ -74,6 +75,9 @@ public:
     {
         return cache_handler<API::TempCache>::scoped_init(); 
     };
+
+private:
+    luce_tarboton_surface_temperature<API> luce_tarboton;
 
 };
 

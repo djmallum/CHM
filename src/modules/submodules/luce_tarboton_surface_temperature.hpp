@@ -15,82 +15,74 @@ concept luce_tarboton_data = requires(T& t,const double& out)
 
 	{ t.ground_heat_flux() } -> std::convertible_to<double&>;
 
+    { t.daily_mean_temperature() } -> std::convertible_to<double&>;
+
 	{ t.surface_temperature(out) } -> std::same_as<void>;
 
 	{ t.snow_thermal_conductivity(out) } -> std::same_as<void>;
 };
 
-
-
 template<luce_tarboton_data data>
 class luce_tarboton_surface_temperature : public base_step<data>
 {
 public:
-	explicit luce_tarboton_surface_temperature(data& _d);
+	explicit luce_tarboton_surface_temperature(data& d);
 	~luce_tarboton_surface_temperature() {};
 
-	void execute() override final;
+	void execute(data& d) override final;
 
 private:
-	struct Constants
-	{
-		constexpr static double density_threshold = 156.0;
-		constexpr static double temperature_threshold = -70.0;
-		constexpr static double kg_per_m3_to_g_per_m3 = 1.0 / 1000.0;
-	};
 
-	struct dense_const
-	{
-		constexpr static double a = 0.138;
-		constexpr static double b = 1.01;
-		constexpr static double c = 3.233;
-	};
-
-	struct sparse_const
-	{
-		constexpr static double a = 0.023;
-		constexpr static double b = 0.234;
-	};
-
-	daily_accumulator<data> temperature_accumulator;
+    static constexpr inline double kg_per_m3_to_g_per_m3 = 1.0 / 1000.0;
 
 };
 
 template<luce_tarboton_data data>
-luce_tarboton_surface_temperature<data>::luce_tarboton_surface_temperature(data& _d) 
-    : base_step<data>(_d), temperature_accumulator(_d)
+void luce_tarboton_surface_temperature<data>::execute(data& d)
 {
-	temperature_accumulator.bind_to_var(this->d.air_temperature());
-};
+    static const double density_threshold = 156.0;
+    static const double temperature_threshold = -70.0;
 
-
-
-template<luce_tarboton_data data>
-void luce_tarboton_surface_temperature<data>::execute()
-{
 	double tc,T;
-	if (this->d.snow_density() < Constants::densty_threshold)
+	if (d.snow_density() < densty_threshold)
 	{
-		tc = sparse_const::a + this->d.sparse_const::b * this->d.snow_density() * Constants::kg_per_m3_to_g_per_cm3;
+        tc = low_density_thermal_conductivity(d);
 	}
 	else
 	{
-		double snow_density = this->d.snow_density() * 
-			Constants::kg_per_m3_to_g_per_cm3;
-		tc = dense_const::a - dense_const::b * snow_density + dense_const::c * std::pow(snow_density,2);
+		tc = high_density_thermal_conductivity(d); 
 	}
 
-	this->d.snow_thermal_conductivity(tc);
+	d.snow_thermal_conductivity(tc);
 
-	if (temperature_accumulator.get_last_mean() < Constants::temperature_threshold)
-		T = this->d.air_temperature();
+	if (d.daily_mean_temperature() < temperature_threshold)
+		T = d.air_temperature();
 	else
 	{
-		T = temperature_accumulator.get_last_mean() + 
-			this->d.ground_heat_flux() * 0.5 * this->d.snow_depth() / tc;
+		T = d.daily_mean_temperature() + 
+			d.ground_heat_flux() * 0.5 * d.snow_depth() / tc;
 	}
 
-	this->d.surface_temperature(T);
+	d.surface_temperature(T);
+};
 
-	temperature_accumulator.execute();
+template<luce_tarboton_data data>
+double luce_tarboton_surface_temperature<data>::low_density_thermal_conductivity(data& d)
+{
+    static const double a = 0.023;
+    static const double b = 0.234;
+
+    return a + b * d.snow_density() * kg_per_m3_to_g_per_cm3;
+};
+
+template<luce_tarboton_data data>
+double luce_tarboton_surface_temperature<data>::high_density_thermal_conductivity(data& d)
+{
+    static const double a = 0.138;
+    static const double b = 1.01;
+    static const double c = 3.233;
+
+    double snow_density = d.snow_density() * kg_per_m3_to_g_per_cm3;
+
+    return a - b * snow_density + c * std::pow(snow_density,2);
 };
