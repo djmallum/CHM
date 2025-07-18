@@ -59,6 +59,7 @@ protected:
 	};
 
     data d;
+    daily_accumulator<data> accumulate_temperature;
 };
 
 TEST_F(DailyAccumulatorTest,HelperFunctionSumToStepTest)
@@ -113,7 +114,6 @@ TEST_F(DailyAccumulatorTest,Test)
     int steps_copy = steps;
 	d.set_steps(steps_copy);
 
-	daily_accumulator<data> accumulate_temperature(d);
 	accumulate_temperature.bind_to_var(temperature);
 
 	std::array<double,2*steps> T{-1.0,-3.2,4.0,1.2,-2.9,-10.1,-5.1,5.0};
@@ -121,7 +121,7 @@ TEST_F(DailyAccumulatorTest,Test)
 	for (int i = 0; i < 2 * steps; ++i)
 	{
 		temperature = T[i];
-		accumulate_temperature.execute();
+		accumulate_temperature.execute(d);
 		d.step_forward();
         std::cout << "test: " << i % steps << "," << i << std::endl;
 		if (i < steps)
