@@ -131,6 +131,7 @@ set (HEADER_FILES
         modules/EvapotranspirationModels/
         modules/soil_submodules/
         modules/infil_submodules/
+        modules/submodules/
         math
         libmaw
         interpolation
