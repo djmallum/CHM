@@ -59,7 +59,7 @@ protected:
 	};
 
     data d;
-    daily_accumulator<data> accumulate_temperature;
+    daily_accumulator mean_temperature;
 };
 
 TEST_F(DailyAccumulatorTest,HelperFunctionSumToStepTest)
@@ -114,24 +114,24 @@ TEST_F(DailyAccumulatorTest,Test)
     int steps_copy = steps;
 	d.set_steps(steps_copy);
 
-	accumulate_temperature.bind_to_var(temperature);
+	mean_temperature.bind_target(temperature);
 
 	std::array<double,2*steps> T{-1.0,-3.2,4.0,1.2,-2.9,-10.1,-5.1,5.0};
 
 	for (int i = 0; i < 2 * steps; ++i)
 	{
 		temperature = T[i];
-		accumulate_temperature.execute(d);
+		mean_temperature.accumulate(d.is_new_day(),d.steps_per_day());
 		d.step_forward();
 		if (i < steps)
         {
-            ASSERT_EQ(accumulate_temperature.get_last_mean(),0.0) << "Loop: " << i;
+            ASSERT_EQ(mean_temperature.get_last_mean(),0.0) << "Loop: " << i;
         }
         else if (i % steps == 0)
 		{
             //on new day, see if sum computed
 			double sum_total = sum_to_step(i,steps,T);
-			ASSERT_DOUBLE_EQ(sum_total / steps,accumulate_temperature.get_last_mean()) << "Loop: " << i;
+			ASSERT_DOUBLE_EQ(sum_total / steps,mean_temperature.get_last_mean()) << "Loop: " << i;
 		}
 	}
 };
