@@ -13,12 +13,10 @@ template<class data>
 class base_step
 {
 public:
-	explicit base_step(data& _d) : d(_d) {};
+	explicit base_step() {}; 
 	virtual ~base_step() = default;
 
-	virtual void execute() = 0;
-protected:
-	data& d;
+	virtual void execute(data& d) = 0;
 };
 
 
