@@ -30,25 +30,6 @@ public:
 
     void CalcEvapT(var_base& vars, model_output& output) override;
     
-    // TODO These should be references
-    // double Veg_height;
-    // double Veg_height_max;
-    
-    const double& leaf_area_index;
-    //double LAImin;
-    //double seasonal_growth;
-    const double& leaf_area_index_max;
-    const double& Veg_height;
-    const double& wind_measurement_height; // This one might be uniform...
-    const double& stomatal_resistance_min; // Also might be domain wide
-    const double& soil_depth;
-    const double& Frac_to_ground;
-    const double heat_capacity_air;
-    const double kappa; // also might be domain wide
-    const double air_entry_tension;
-    const double pore_size_dist; 
-    const double wilt_point;
-    const double porosity; 
 private:
 
     // dont delete
@@ -62,7 +43,21 @@ private:
     bool has_vegetation;
     bool IsFirstRun = true;
     static constexpr double water_density = 1000; //kg/m^3
+
+    const double& leaf_area_index;
+    const double& leaf_area_index_max;
+    const double& Veg_height;
+    const double& wind_measurement_height; // This one might be uniform...
+    const double& stomatal_resistance_min; // Also might be domain wide
+    const double& soil_depth;
+    const double& Frac_to_ground;
     const double& s_per_time_step;  
+    const double heat_capacity_air;
+    const double kappa; // also might be domain wide
+    const double air_entry_tension;
+    const double pore_size_dist; 
+    const double wilt_point;
+    const double porosity;
 };
 
 
