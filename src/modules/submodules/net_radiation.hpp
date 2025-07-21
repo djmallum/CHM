@@ -34,7 +34,7 @@ concept NetRadiationData = requires(D d) {
 };
 
 template<NetRadiationData data>
-class net_radiation : public base_step
+class net_radiation : public base_step<data>
 {
 public:
 	explicit net_radiation() {};
@@ -78,7 +78,8 @@ private:
  *		- How easy would a refactor be?
  */
 
-void net_radiation::execute(data& d)
+template<NetRadiationData data>
+void net_radiation<data>::execute(data& d)
 {
 	/*
 	 * Computes long-wave and short-wave radiation and outputs.
@@ -102,7 +103,8 @@ void net_radiation::execute(data& d)
 	set_net_all_wave(net);
 };
 
-double net_radiation::get_long_wave(data& d) const
+template<NetRadiationData data>
+double net_radiation<data>::get_long_wave(data& d) const
 {
 	/*
 	 * Computes long-wave radiation based on a semi-empirical equation 
@@ -138,7 +140,8 @@ double net_radiation::get_long_wave(data& d) const
 	return long_wave;
 };
 
-double net_radiation::get_short_wave(data& d) const
+template<NetRadiationData data>
+double net_radiation<data>::get_short_wave(data& d) const
 {
 	/*
 	 * Computes short-wave radiation sub-divided into direct and diffuse radiation
@@ -177,14 +180,16 @@ double net_radiation::get_short_wave(data& d) const
 	return short_wave;
 };
 
-void net_radiation::set_net_all_wave(data& d,Net& net)
+template<NetRadiationData data>
+void net_radiation<data>::set_net_all_wave(data& d,Net& net)
 {
 	double net_all = net.get(d.albedo()); 
 	
 	d.net_all_wave(net_all);
 };
 
-double net_radiation::stefan_boltzmann_law(const double& T) const
+template<NetRadiationData data>
+double net_radiation<data>::stefan_boltzmann_law(const double& T) const
 {
 	/*
 	 * Computes \sigma T^4
@@ -199,8 +204,9 @@ double net_radiation::stefan_boltzmann_law(const double& T) const
 
 	return sigma * std::pow(T + convert_to_kelvin,4);
 };
-	
-double net_radiation::net_clear_long_wave(data& d) const
+
+template<NetRadiationData data>
+double net_radiation<data>::net_clear_long_wave(data& d) const
 {
 	/*
 	 * Net long-wave radiation
@@ -240,7 +246,8 @@ double net_radiation::net_clear_long_wave(data& d) const
 		(a + b * std::sqrt(d.vapour_pressure()));
 };
 
-double net_radiation::cloud_cover_long(data& d) const
+template<NetRadiationData data>
+double net_radiation<data>::cloud_cover_long(data& d) const
 {
 	/*
 	 * Equal to 
@@ -254,7 +261,8 @@ double net_radiation::cloud_cover_long(data& d) const
 	return a + b * d.bright_sun_ratio();	
 };
 
-double net_radiation::direct_radiation(data& d) const
+template<NetRadiationData data>
+double net_radiation<data>::direct_radiation(data& d) const
 {
 	/* 
 	 * Q_{d}/Q_{d0} - a
@@ -275,7 +283,8 @@ double net_radiation::direct_radiation(data& d) const
 		std::pow(d.bright_sun_ratio(),c);
 };
 
-double net_radiation::diffuse_radiation(data& d) const
+template<NetRadiationData data>
+double net_radiation<data>::diffuse_radiation(data& d) const
 {
 	/* 
 	 * Q_{d}/Q_{d0} - a
