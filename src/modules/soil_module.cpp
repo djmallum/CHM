@@ -48,7 +48,7 @@ void soil_module::init(mesh& domain)
 
     SoilDataObj = std::make_unique<Soil::soils_na>();
 
-    for (size_t i = 0; i < domain->size_faces(); i++)
+    for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<soil_module::data>(ID);
