@@ -19,9 +19,9 @@ class PenmanMonteith : public evapT_base
 {
 public:
 
-    PenmanMonteith(double& LAI, double& LAImax, double& veg_Ht, double& wind_height, 
-            double& stomatal_res_min, double& soil_d, double& F_to_g, const double Cp, 
-            const double K, const double tension, const double pore_sz, 
+    PenmanMonteith(const double& LAI, const double& LAImax, const double& veg_Ht, const double& wind_height, 
+            const double& stomatal_res_min, const double& soil_d, const double& F_to_g, const double& s_per_step,
+			const double Cp, const double K, const double tension, const double pore_sz, 
             const double theta_pwp, const double phi); 
    
                      
@@ -34,15 +34,15 @@ public:
     // double Veg_height;
     // double Veg_height_max;
     
-    double& leaf_area_index;
+    const double& leaf_area_index;
     //double LAImin;
     //double seasonal_growth;
-    double& leaf_area_index_max;
-    double& Veg_height;
-    double& wind_measurement_height; // This one might be uniform...
-    double& stomatal_resistance_min; // Also might be domain wide
-    double& soil_depth;
-    double& Frac_to_ground;
+    const double& leaf_area_index_max;
+    const double& Veg_height;
+    const double& wind_measurement_height; // This one might be uniform...
+    const double& stomatal_resistance_min; // Also might be domain wide
+    const double& soil_depth;
+    const double& Frac_to_ground;
     const double heat_capacity_air;
     const double kappa; // also might be domain wide
     const double air_entry_tension;
@@ -62,7 +62,7 @@ private:
     bool has_vegetation;
     bool IsFirstRun = true;
     static constexpr double water_density = 1000; //kg/m^3
-    static constexpr long m_per_s_to_mm_per_day = 1000 * 86400; 
+    const double& s_per_time_step;  
 };
 
 
@@ -78,13 +78,8 @@ struct PM_vars : public var_base
     double& P_atm;
 
     PM_vars(double& U, double& Qsw, double& Qnet, double& temp, double& soil, double& ea, double& ea_star, double& P) 
-        : wind_speed(U), short_wave_in(Qsw), all_wave_net(Qnet), t(temp), soil_storage(soil), vapour_pressure(ea), saturated_vapour_pressure(ea_star), P_atm(P) {};   // TODO Add a constructor, make these references.
-    // maybe not needed, remember it is normal to make a local copy of values on faces, which these are.
+        : wind_speed(U), short_wave_in(Qsw), all_wave_net(Qnet), t(temp), soil_storage(soil), vapour_pressure(ea), saturated_vapour_pressure(ea_star), P_atm(P) {};
 };
-
-
-    // Make this a variable passed to evap? double ShortWave_in;
-    // Same as above double t;
 
 
 struct PM_output : public model_output
