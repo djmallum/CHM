@@ -95,12 +95,12 @@ void net_radiation<data>::execute(data& d)
 	static const double MJ_per_day_to_W = 1e6/86400;
 	Net net;
 	
-	net.long_wave = get_long_wave(data& d) * 
+	net.long_wave = get_long_wave(d) * 
 		MJ_per_day_to_W;
 
-	net.short_wave = get_short_wave(data& d);
+	net.short_wave = get_short_wave(d);
 
-	set_net_all_wave(net);
+	set_net_all_wave(d,net);
 };
 
 template<NetRadiationData data>
@@ -127,7 +127,7 @@ double net_radiation<data>::get_long_wave(data& d) const
 
 	if (d.max_sun_hours() > 0.0)
 	{
-		long_wave = C1 + C2*net_clear_long_wave(data& d) * cloud_cover_long(data& d);
+		long_wave = C1 + C2*net_clear_long_wave(d) * cloud_cover_long(d);
 	}
 	else
 	{
@@ -162,14 +162,14 @@ double net_radiation<data>::get_short_wave(data& d) const
 	 *
 	 *
 	 */ 
-	static const double a_direct 0.024;
+	static const double a_direct = 0.024;
 	static const double a_diffuse = 2.68;
 	double short_wave = 0.0;
 
 	if (d.actual_sun_hours() > 0.0 && d.max_sun_hours() > 0.0)
 	{
-		short_wave = (a_direct + direct_radiation(data& d)) * d.direct_short_wave_clear() 
-			+ (a_diffuse + diffuse_radiation(data& d)) * d.diffuse_short_wave_clear();
+		short_wave = (a_direct + direct_radiation(d)) * d.direct_short_wave_clear() 
+			+ (a_diffuse + diffuse_radiation(d)) * d.diffuse_short_wave_clear();
 	}
 	else
 	{
