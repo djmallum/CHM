@@ -50,41 +50,66 @@ public:
     void run(mesh_elem &face) override;
     void init(mesh& domain) override;
 
-	
     class data : public face_info
     {
-		//inputs
-		mutable double max_sun_hours = std::numeric_limits<double>::quiet_nan();
-		mutable double air_temperature = std::numeric_limits<double>::quiet_nan();
-		mutable double vapour_pressure = std::numeric_limits<double>::quiet_nan();
-		mutable double actual_sun_hours = std::numeric_limits<double>::quiet_nan();
-		mutable double direct_short_wave_clear = std::numeric_limits<double>::quiet_nan();
-		mutable double diffuse_short_wave_clear = std::numeric_limits<double>::quiet_nan();
-		mutable double albedo = std::numeric_limits<double>::quiet_nan();
+        
+        struct Cache
+        {
+            //inputs
+            double max_sun_hours = std::numeric_limits<double>::quiet_NaN();
+            double air_temperature = std::numeric_limits<double>::quiet_NaN();
+            double vapour_pressure = std::numeric_limits<double>::quiet_NaN();
+            double actual_sun_hours = std::numeric_limits<double>::quiet_NaN();
+            double bright_sun_ratio = std::numeric_limits<double>::quiet_NaN();
+            double direct_short_wave_clear = std::numeric_limits<double>::quiet_NaN();
+            double diffuse_short_wave_clear = std::numeric_limits<double>::quiet_NaN();
+            double albedo = std::numeric_limits<double>::quiet_NaN();
 
-		//outputs
-		mutable double net_all_wave = 0.0;	
+            //outputs
+            double net_all_wave = 0.0;	
 
-		mesh_elem face{nullptr};
-		global* global_param{nullptr};
-	public:
-		double& max_sun_hours() const;
-		double& air_temperature() const;
-		double& vapour_pressure() const;
-		double& actual_sun_hours() const;
-		double& direct_short_wave_clear() const;
-		double& diffuse_short_wave_clear() const;
-		double& albedo() const;
+            size_t last_timestep = -1;
 
-		void net_all_wave(const double& out);
+            bool is_stale(int tn)
+            { return last_timestep != tn; };
+        }; 
+        mutable std::optional<Cache> cache_;
 
-		void set_outputs_to_face();
-		void set_face(mesh_elem& face_in)
-		{ face = face_in; };
-		void set_global(global* global_param_)
-		{ global_param = global_param_; };
-		void reset_cache();
+        void init_cache() const
+        {
+            size_t current = global_param->timestep_counter;
+            if (!cache_ || cache_->is_stale(current))
+            {
+                cache_.emplace();
+                cache_->last_timestep = current;
+            };
+        };
+
+        template<typename Fetch>
+        void update_field(double& value, Fetch fetch) const;
+
+        mesh_elem face{nullptr};
+        boost::shared_ptr<global> global_param;
+    public:
+        double& max_sun_hours() const;
+        double& air_temperature() const;
+        double& vapour_pressure() const;
+        double& actual_sun_hours() const;
+        double& bright_sun_ratio() const;
+        double& direct_short_wave_clear() const;
+        double& diffuse_short_wave_clear() const;
+        double& albedo() const;
+
+        void net_all_wave(const double& out);
+
+        void set_outputs_to_face();
+        void set_face(mesh_elem& face_in)
+        { face = face_in; };
+        void set_global(boost::shared_ptr<global> param)
+        { global_param = param; };
+        void reset_cache();
     };
+
 private:
 
 	net_radiation net_rad;

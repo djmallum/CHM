@@ -29,92 +29,124 @@ void net_all::run(mesh_elem& face)
 	d.set_outputs_to_face();
 };
 
-double& net_all::data::max_sun_hours() const
+template<typename Fetch>
+void net_all::data::update_field(double& value, Fetch fetch) const
 {
-	if (std::isnan(max_sun_hours))
-		max_sun_hours = (*face)["max_sun_hours"_s];
-
-	return max_sun_hours;
+    if (std::isnan(value))
+        value = fetch();
 };
 
 double& net_all::data::air_temperature() const
 {
-	if (std::isnan(air_temperature))
-		air_temperature = (*face)["air_temperature"_s];
-	
-	if (air_temperature > 150.0)
+    init_cache();
+
+    update_field(
+            cache_->air_temperature,
+            [this]() { return (*face)["air_temperature"_s]; });
+
+	if (cache_->air_temperature > 150.0)
 		CHM_THROW_EXCEPTION(module_error, "net_all: Airtemperature too large, likely unphysical or Kelvin");
 
-	return air_temperature
+	return cache_->air_temperature;
 };
 
 double& net_all::data::vapour_pressure() const
 {
-	if (std::isnan(vapour_pressure))
-	{
-		double relative_humidity = (*face)["relative_humidity"_s];
-		vapour_pressure = relative_humidity * Atmosphere::saturatedVapourPressure(air_temperature() + 273.15);
-	}
+    init_cache();
 
-	return vapour_pressure
+    update_field(
+            cache_->vapour_pressure,
+            [this]() {
+            const static double CtoKelvin = 273.15;
+            double relative_humidity = (*face)["relative_humidity"_s];
+            return relative_humidity * Atmosphere::saturatedVapourPressure(air_temperature() + CtoKelvin);
+            }
+            );
+
+	return cache_->vapour_pressure;
+};
+
+double& net_all::data::max_sun_hours() const
+{
+    init_cache();
+
+    update_field(
+            cache_->max_sun_hours,
+            [this]() { return (*face)["max_sun_hours"_s]; }
+            );
+
+	return cache_->max_sun_hours;;
 };
 
 double& net_all::data::actual_sun_hours() const
 {
-	if (std::isnan(actual_sun_hours))
-		actual_sun_hours = (*face)["actual_sun_hours"_s];
+    init_cache();
 
-	return actual_sun_hours
+    update_field(
+            cache_->actual_sun_hours,
+            [this]() { return (*face)["actual_sun_hours"_s]; }
+            );
+
+	return cache_->actual_sun_hours;
+};
+
+double& net_all::data::bright_sun_ratio() const
+{
+    init_cache();
+
+    update_field(
+            cache_->bright_sun_ratio,
+            [this]() { return actual_sun_hours() / max_sun_hours(); }
+            );
+             
+	return cache_->bright_sun_ratio;
 };
 
 double& net_all::data::direct_short_wave_clear() const
 {
-	if (std::isnan(direct_short_wave_clear))
-		direct_short_wave_clear = (*face)["direct_short_wave_clear"_s];
+    init_cache();
 
-	return direct_short_wave_clear
+    update_field(
+            cache_->direct_short_wave_clear,
+            [this]() { return (*face)["direct_short_wave_clear"_s]; }
+            );
+
+	return cache_->direct_short_wave_clear;
 };
 
 double& net_all::data::diffuse_short_wave_clear() const
 {
-	if (std::isnan(diffuse_short_wave_clear))
-		diffuse_short_wave_clear = (*face)["diffuse_short_wave_clear"_s];
+    init_cache();
 
-	return diffuse_short_wave_clear
+    update_field(
+            cache_->diffuse_short_wave_clear,
+            [this]() { return (*face)["diffuse_short_wave_clear"_s]; }
+            );
+
+	return cache_->diffuse_short_wave_clear;
 };
 
 double& net_all::data::albedo() const
 {
-	if (std::isnan(albedo))
-		albedo = (*face)["albedo"_s];
+    init_cache();
 
-	return albedo
+    update_field(
+            cache_->albedo,
+            [this]() { return (*face)["albedo"_s]; }
+            );
+
+	return cache_->albedo;
 };
 
 void net_all::data::net_all_wave(const double& out)
 {
-	net_all_wave = out;
+    init_cache();
+	cache_->net_all_wave = out;
 };
 
 void net_all::data::set_outputs_to_face()
 {
-	(*face)["net_all_wave"_s] = net_all_wave;
-
-	reset_cache();
+	(*face)["net_all_wave"_s] = cache_->net_all_wave;
+    
+    cache_.reset();
 };
-
-void net_all::data::reset_cache()
-{
-	static const double mynan = std::numeric_limits<double>::quiet_nan();
-
-	max_sun_hours = mynan; 
-
-	air_temperature = mynan;
-	vapour_pressure = mynan;
-	actual_sun_hours = mynan;
-	direct_short_wave_clear = mynan;
-	diffuse_short_wave_clear = mynan;
-	albedo = mynan;
-
-	net_all_wave = 0.0;
-}
