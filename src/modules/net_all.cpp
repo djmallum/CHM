@@ -1,5 +1,5 @@
 #include "net_all.hpp"
-net_all::net_all()
+net_all::net_all(config_file cfg) : module_base("net_all", parallel::data, cfg)
 {
 	depends("t");
 	depends("rh");
@@ -10,10 +10,10 @@ net_all::net_all()
 
 void net_all::init(mesh& domain)
 {
-	for (size_t i = 0; i < domain->size_faces(); i++)
+	for (size_t i = 0; i < domain->size_local_faces(); i++)
 	{
 		auto face = domain->face(i);
-		auto& d = face->make_module_data<net_all:data>(ID);
+		auto& d = face->make_module_data<net_all::data>(ID);
 
 		d.set_face(face);
 		d.set_global(global_param);

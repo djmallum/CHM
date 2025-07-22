@@ -28,6 +28,7 @@
 #include "module_base.hpp"
 #include "net_radiation.hpp"
 #include "TPSpline.hpp"
+#include "Atmosphere.h"
 #include <cmath>
 
 
@@ -112,5 +113,5 @@ public:
 
 private:
 
-	net_radiation net_rad;
+	net_radiation<data> net_rad;
 };
