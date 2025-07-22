@@ -31,7 +31,7 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
 {
     // TODO Constructor is not properly editted with all new inputs (see set vars function at the end)
     depends("iswr");
-    depends("netall");
+    depends("net_all_wave");
     depends("P_atm");
     depends("ea");
     depends("t");
@@ -150,7 +150,6 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d
     const double pore_size_dist = SoilDataObj->pore_size_dist(soil_type);
     const double wilt_point = SoilDataObj->wilt_point(soil_type);
     const double porosity = SoilDataObj->porosity(soil_type);
-	
 
     double soil_storage_max = face->soil_attribute<double>("soil_storage_max"_s);
     // Leaf area index is not used if no vegetation, but LAI and LAImax are references in the PenmanMonteith model, therefore values are needed for initialization. It is ok if these values go out of scope as long as there is no vegetation. 
@@ -163,7 +162,7 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d
 
 PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& t, double& saturated_vapour_pressure,double& vapour_pressure)
 {
-    PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],(*face)["netall"_s],t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"_s]); 
+    PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],(*face)["net_all_wave"_s],t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"_s]); 
     
     return vars;
 }
@@ -172,7 +171,7 @@ PT_vars Evapotranspiration_All::set_PriestleyTaylor_vars(mesh_elem& face)
 {
     // TODO P_atm, is a state variable and should have a copy local to the run function 
     // because it is calculated from the Atmosphere namespace, not done yet
-    PT_vars vars((*face)["netall"_s],(*face)["P_atm"_s],(*face)["t"_s]);
+    PT_vars vars((*face)["net_all_wave"_s],(*face)["P_atm"_s],(*face)["t"_s]);
 
     return vars;
 }
