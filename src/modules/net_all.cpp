@@ -52,7 +52,7 @@ double& net_all::data::vapour_pressure() const
 {
 	if (std::isnan(vapour_pressure))
 	{
-		double relative_humidity = (*face)["vapour_pressure"_s];
+		double relative_humidity = (*face)["relative_humidity"_s];
 		vapour_pressure = relative_humidity * Atmosphere::saturatedVapourPressure(air_temperature() + 273.15);
 	}
 
