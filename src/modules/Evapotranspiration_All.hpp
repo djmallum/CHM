@@ -102,5 +102,5 @@ private:
     PM_vars set_PenmanMonteith_vars(mesh_elem& face, double& t, 
             double& saturated_vapour_pressure, double& vapour_pressure);
     
-    static double get_dt(); 
+    const double& get_dt(); 
 };

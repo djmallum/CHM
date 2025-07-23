@@ -177,13 +177,10 @@ PT_vars Evapotranspiration_All::set_PriestleyTaylor_vars(mesh_elem& face)
     return vars;
 }
 
-static double get_dt()
+const double& Evapotranspiration_All::get_dt()
 {
-    static const double dt = [this]()
-    {
-        double dt_value = this->global_param->dt();
-        return dt_value;
-    };
+    static const double dt = this->global_param->dt();
+       
     return dt;
 };
 
