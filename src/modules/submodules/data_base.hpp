@@ -30,14 +30,22 @@ protected:
     mesh_elem face{nullptr};
     boost::shared_ptr<global> global_param;
 
-    template<typename Fetch>
-    void update_field(double& value, Fetch fetch) const {
+    template<typename Value,typename Fetch>
+    void update_field(Value& value, Fetch&& fetch) const {
         init_cache();
 
         if (std::isnan(value)) {
             value = fetch();
         }
-    }
+    };
+
+    template<typename T>
+    void set_output(T& output,const T& t)
+    {
+        init_cache();
+
+        output = t;
+    };
 
 public:
     void set_face(mesh_elem& face_in) { face = face_in; }
