@@ -26,7 +26,7 @@ template<luce_tarboton_data data>
 class luce_tarboton_surface_temperature : public base_step<data>
 {
 public:
-	explicit luce_tarboton_surface_temperature(data& d);
+	explicit luce_tarboton_surface_temperature();
 	~luce_tarboton_surface_temperature() {};
 
 	void execute(data& d) override final;
