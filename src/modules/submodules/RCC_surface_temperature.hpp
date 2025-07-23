@@ -27,9 +27,6 @@ public:
 	void execute(data& d) override final;
 
 private:
-	struct Constants
-	{
-			};
 };
 
 
@@ -42,10 +39,10 @@ void RCC_surface_temperature<data>::execute()
     constexpr static double d = 0.03;
 
     d.thaw_front_depth_last = std::max(d.thaw_front_depth_last,
-            this->d.thaw_front_depth());
+            d.thaw_front_depth());
 
 	double T = 
-		(a * this->d.air_temperature() + b * this->d.net_radiation()) * 
+		(a * d.air_temperature() + b * d.net_radiation()) * 
 		std::atan(c * (thaw_front_depth_last + d)) * 2.0 / 3.14156265;
-	this->d.surface_temperature(T);
+	d.surface_temperature(T);
 };
