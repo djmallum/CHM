@@ -6,6 +6,8 @@ net_all::net_all(config_file cfg) : module_base("net_all", parallel::data, cfg)
 	depends("iswr_direct");
 	depends("iswr_diffuse");
 
+    provides("net_all_wave");
+
 };
 
 void net_all::init(mesh& domain)
@@ -29,17 +31,8 @@ void net_all::run(mesh_elem& face)
 	d.set_outputs_to_face();
 };
 
-template<typename Fetch>
-void net_all::data::update_field(double& value, Fetch fetch) const
-{
-    if (std::isnan(value))
-        value = fetch();
-};
-
 double& net_all::data::air_temperature() const
 {
-    init_cache();
-
     update_field(
             cache_->air_temperature,
             [this]() { return (*face)["air_temperature"_s]; });
@@ -52,8 +45,6 @@ double& net_all::data::air_temperature() const
 
 double& net_all::data::vapour_pressure() const
 {
-    init_cache();
-
     update_field(
             cache_->vapour_pressure,
             [this]() {
@@ -68,8 +59,6 @@ double& net_all::data::vapour_pressure() const
 
 double& net_all::data::max_sun_hours() const
 {
-    init_cache();
-
     update_field(
             cache_->max_sun_hours,
             [this]() { return (*face)["max_sun_hours"_s]; }
@@ -80,8 +69,6 @@ double& net_all::data::max_sun_hours() const
 
 double& net_all::data::actual_sun_hours() const
 {
-    init_cache();
-
     update_field(
             cache_->actual_sun_hours,
             [this]() { return (*face)["actual_sun_hours"_s]; }
@@ -92,8 +79,6 @@ double& net_all::data::actual_sun_hours() const
 
 double& net_all::data::bright_sun_ratio() const
 {
-    init_cache();
-
     update_field(
             cache_->bright_sun_ratio,
             [this]() { return actual_sun_hours() / max_sun_hours(); }
@@ -104,8 +89,6 @@ double& net_all::data::bright_sun_ratio() const
 
 double& net_all::data::direct_short_wave_clear() const
 {
-    init_cache();
-
     update_field(
             cache_->direct_short_wave_clear,
             [this]() { return (*face)["direct_short_wave_clear"_s]; }
@@ -116,8 +99,6 @@ double& net_all::data::direct_short_wave_clear() const
 
 double& net_all::data::diffuse_short_wave_clear() const
 {
-    init_cache();
-
     update_field(
             cache_->diffuse_short_wave_clear,
             [this]() { return (*face)["diffuse_short_wave_clear"_s]; }
@@ -128,8 +109,6 @@ double& net_all::data::diffuse_short_wave_clear() const
 
 double& net_all::data::albedo() const
 {
-    init_cache();
-
     update_field(
             cache_->albedo,
             [this]() { return (*face)["albedo"_s]; }
@@ -140,13 +119,12 @@ double& net_all::data::albedo() const
 
 void net_all::data::net_all_wave(const double& out)
 {
-    init_cache();
-	cache_->net_all_wave = out;
+    set_output(cache_->net_all_wave, out);
 };
 
 void net_all::data::set_outputs_to_face()
 {
 	(*face)["net_all_wave"_s] = cache_->net_all_wave;
-    
-    cache_.reset();
+
+    reset_cache();    
 };

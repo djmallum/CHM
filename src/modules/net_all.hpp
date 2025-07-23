@@ -26,6 +26,7 @@
 #include "logger.hpp"
 #include "triangulation.hpp"
 #include "module_base.hpp"
+#include "data_base.hpp"
 #include "net_radiation.hpp"
 #include "TPSpline.hpp"
 #include "Atmosphere.h"
@@ -50,47 +51,27 @@ public:
 
     void run(mesh_elem &face) override;
     void init(mesh& domain) override;
+    
+private:
 
-    class data : public face_info
+    struct Cache : public cache_base
     {
-        
-        struct Cache
-        {
-            //inputs
-            double max_sun_hours = std::numeric_limits<double>::quiet_NaN();
-            double air_temperature = std::numeric_limits<double>::quiet_NaN();
-            double vapour_pressure = std::numeric_limits<double>::quiet_NaN();
-            double actual_sun_hours = std::numeric_limits<double>::quiet_NaN();
-            double bright_sun_ratio = std::numeric_limits<double>::quiet_NaN();
-            double direct_short_wave_clear = std::numeric_limits<double>::quiet_NaN();
-            double diffuse_short_wave_clear = std::numeric_limits<double>::quiet_NaN();
-            double albedo = std::numeric_limits<double>::quiet_NaN();
+        //inputs
+        double max_sun_hours = std::numeric_limits<double>::quiet_NaN();
+        double air_temperature = std::numeric_limits<double>::quiet_NaN();
+        double vapour_pressure = std::numeric_limits<double>::quiet_NaN();
+        double actual_sun_hours = std::numeric_limits<double>::quiet_NaN();
+        double bright_sun_ratio = std::numeric_limits<double>::quiet_NaN();
+        double direct_short_wave_clear = std::numeric_limits<double>::quiet_NaN();
+        double diffuse_short_wave_clear = std::numeric_limits<double>::quiet_NaN();
+        double albedo = std::numeric_limits<double>::quiet_NaN();
 
-            //outputs
-            double net_all_wave = 0.0;	
+        //outputs
+        double net_all_wave = 0.0;	
+    };
 
-            size_t last_timestep = -1;
-
-            bool is_stale(int tn)
-            { return last_timestep != tn; };
-        }; 
-        mutable std::optional<Cache> cache_;
-
-        void init_cache() const
-        {
-            size_t current = global_param->timestep_counter;
-            if (!cache_ || cache_->is_stale(current))
-            {
-                cache_.emplace();
-                cache_->last_timestep = current;
-            };
-        };
-
-        template<typename Fetch>
-        void update_field(double& value, Fetch fetch) const;
-
-        mesh_elem face{nullptr};
-        boost::shared_ptr<global> global_param;
+    class data : public face_info, public data_base<Cache>
+    {
     public:
         double& max_sun_hours() const;
         double& air_temperature() const;
@@ -104,11 +85,6 @@ public:
         void net_all_wave(const double& out);
 
         void set_outputs_to_face();
-        void set_face(mesh_elem& face_in)
-        { face = face_in; };
-        void set_global(boost::shared_ptr<global> param)
-        { global_param = param; };
-        void reset_cache();
     };
 
 private:
