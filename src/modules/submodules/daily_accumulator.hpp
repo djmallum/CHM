@@ -4,7 +4,7 @@
 class daily_accumulator
 {
 private:
-    double* _target_var = nullptr;
+    const double* _target_var = nullptr;
     double _accumulator = 0.0;
     double _mean_value = 0.0;
     
