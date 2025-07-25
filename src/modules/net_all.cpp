@@ -35,7 +35,7 @@ double& net_all::data::air_temperature() const
 {
     update_field(
             cache_->air_temperature,
-            [this]() { return (*face)["air_temperature"_s]; });
+            [this]() { return (*face)["t"_s]; });
 
 	if (cache_->air_temperature > 150.0)
 		CHM_THROW_EXCEPTION(module_error, "net_all: Airtemperature too large, likely unphysical or Kelvin");
@@ -49,7 +49,7 @@ double& net_all::data::vapour_pressure() const
             cache_->vapour_pressure,
             [this]() {
             const static double CtoKelvin = 273.15;
-            double relative_humidity = (*face)["relative_humidity"_s];
+            double relative_humidity = (*face)["rh"_s];
             return relative_humidity * Atmosphere::saturatedVapourPressure(air_temperature() + CtoKelvin);
             }
             );
