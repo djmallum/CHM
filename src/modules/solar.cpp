@@ -142,7 +142,10 @@ void solar::run(mesh_elem &face)
 
     (*face)["solar_az"_s]=Az;
     (*face)["solar_el"_s]=El;
-
+	
+	// TODO Use this code to compute the sunshine hours.
+	// Hours with sunshine (clear skies) is when the elevation angle is positive. Or when sin(El) > 0. 
+	// CRHM basically computes this using a discrete integral. We could just actually compute the integral
 }
 void solar::init(mesh& domain)
 {
