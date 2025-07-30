@@ -35,11 +35,11 @@ private:
 
 struct PT_vars : public var_base
 {
-    double& all_wave_net;  
-    double& P_atm;
-    double& air_temperature;
+    const double& all_wave_net;  
+    const double& P_atm;
+    const double& air_temperature;
 
-    PT_vars(double& Q, double& P, double& t) : all_wave_net(Q), P_atm(P), air_temperature(t) {};
+    PT_vars(const double& Q, const double& P, const double& t) : all_wave_net(Q), P_atm(P), air_temperature(t) {};
 };
 
     // Make this a variable passed to evap? double ShortWave_in;

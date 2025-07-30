@@ -31,16 +31,15 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
 {
     // TODO Constructor is not properly editted with all new inputs (see set vars function at the end)
     depends("iswr");
-    depends("netall");
     depends("P_atm");
-    depends("ea");
+    depends("rh"); // relative humidity
     depends("t");
     depends("U_2m_above_srf"); // 
     depends("soil_storage");                      // but is how albedo is used in CHM as of Sept, 2024
 
     provides("ET");
     provides("stomatal_resistance");
-
+    provides("net_all_radiation");
 }
 
 void Evapotranspiration_All::init(mesh& domain)
@@ -55,7 +54,7 @@ void Evapotranspiration_All::init(mesh& domain)
     for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
-        auto& d = face->make_module_data<Evapotranspiration_All::data>(ID);
+        auto& d = face->make_module_data<Evapotranspiration_All::data>(ID,face,global_param,cfg);
         
         // Consider if an if statement is necessary.
 
@@ -97,7 +96,7 @@ void Evapotranspiration_All::run(mesh_elem& face)
     if (is_water(face))
     {
         // Do PriestlyTaylor
-        PT_vars my_PT_vars = set_PriestleyTaylor_vars(face);
+        PT_vars my_PT_vars = set_PriestleyTaylor_vars(face,d);
         model_output output;
         d.MyPriestleyTaylor->CalcEvapT(my_PT_vars,output);
         
@@ -116,8 +115,8 @@ void Evapotranspiration_All::run(mesh_elem& face)
 
         double t = (*face)["t"_s];
         double SVP = Atmosphere::saturatedVapourPressure(t+273.15)/1000; // units of kelvin expected 
-        double VP = (*face)["ea"_s];
-        PM_vars my_PM_vars = set_PenmanMonteith_vars(face,t,SVP,VP);
+        double VP = SVP * (*face)["rh"_s];
+        PM_vars my_PM_vars = set_PenmanMonteith_vars(face,t,SVP,VP,d);
         PM_output output;
         d.MyPenmanMonteith->CalcEvapT(my_PM_vars,output);
 
@@ -126,6 +125,7 @@ void Evapotranspiration_All::run(mesh_elem& face)
         (*face)["ET"_s] = output.ET;
     }
     
+    (*face)["net_all_radiation"_s] = d.net_all_wave();
     // TODO total_ET, as well as PT ET and PM ET as separate. 
 }
 
@@ -161,18 +161,18 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d
     
 }
 
-PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& t, double& saturated_vapour_pressure,double& vapour_pressure)
+PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& t, double& saturated_vapour_pressure,double& vapour_pressure,data& d)
 {
-    PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],(*face)["netall"_s],t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"_s]); 
+    PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],d.net_all_wave(),t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"_s]); 
     
     return vars;
 }
 
-PT_vars Evapotranspiration_All::set_PriestleyTaylor_vars(mesh_elem& face)
+PT_vars Evapotranspiration_All::set_PriestleyTaylor_vars(mesh_elem& face, data& d)
 {
     // TODO P_atm, is a state variable and should have a copy local to the run function 
     // because it is calculated from the Atmosphere namespace, not done yet
-    PT_vars vars((*face)["netall"_s],(*face)["P_atm"_s],(*face)["t"_s]);
+    PT_vars vars(d.net_all_wave(),(*face)["P_atm"_s],(*face)["t"_s]);
 
     return vars;
 }
@@ -184,3 +184,27 @@ const double& Evapotranspiration_All::get_dt()
     return dt;
 };
 
+const double& Evapotranspiration_All::data::albedo()
+{
+    static const double albedo_ = face->veg_attribute("surface_albedo");
+    
+    return albedo_;   
+};
+
+const double& Evapotranspiration_All::data::incoming_short_wave()
+{
+    update_field(cache_->incoming_short_wave,
+            [this]() { return (*face)["iswr"_s]; } );
+
+    return cache_->incoming_short_wave;
+};
+
+void Evapotranspiration_All::data::net_all_wave(const double& val)
+{
+    set_output(cache_->net_all_wave,val);
+};
+
+const double& Evapotranspiration_All::data::net_all_wave()
+{   
+    return cache_->net_all_wave;
+};
