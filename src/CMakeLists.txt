@@ -437,6 +437,7 @@ if (BUILD_TESTS)
 			tests/submoduletests/test_ayers.cpp
             tests/submoduletests/test_CSVreader.cpp
             tests/submoduletests/test_daily_accumulator.cpp
+            tests/submoduletests/test_data_base.cpp
 	)
 
 
