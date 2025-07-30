@@ -111,7 +111,7 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
 
 // TODO make delta, gamma, density fucntions
 
-double PenmanMonteith::AirDensity(double& t, double& ea, double& Pa) // atmospheric density (kg/m^3)
+double PenmanMonteith::AirDensity(const double& t, const double& ea, const double& Pa) // atmospheric density (kg/m^3)
 {
 	static const double R0 = 2870;
 	return (1E4*Pa /(R0*( 273.15 + t))*(1.0 - 0.379*(ea/Pa))); //
