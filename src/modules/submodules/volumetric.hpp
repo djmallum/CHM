@@ -1,6 +1,16 @@
 #pragma once
 #include "base_step.hpp"
 
+template<typename T>
+concept VolumetricData = requires(T& t) {
+    { t.storage_is_total_moisture() } -> std::same_as<bool>;
+    { t.fractional_cutoff() } -> std::same_as<double&>;
+    { t.soil_storage() } -> std::same_as<double&>;
+    { t.soil_storage_max() } -> std::same_as<double&>;
+    { t.porosity() } -> std::same_as<double&>;
+    { t.volumetric_moisture_content(0.0) } -> std::same_as<void>;
+};
+
 template<class data>
 class volumetric : public base_step
 {
@@ -13,73 +23,77 @@ public:
     // Currently constants (e.g., wilt_point) and inputs (e.g., CurrentDay) are indistinguishable
     // TODO Consider in the future if having them be different is necessary.
 private:
-    std::optional<size_t> CalcDay_;
-
-    void set_CalcDay(const size_t& D)
-    {
-        if (CalcDay_.has_value())
-            throw std::runtime_error("CalcDay already set");
-
-        CalcDay_ = D;
-    };
-
-    void get_CalcDay()
-    {
-        if (!CalcDay_.has_value())
-            throw std::runtime_error("CalcDay not yet set");
-
-        return *CalcDay_;
-    };
+    double total_volumetric_moisture(data& d) const;
+    double fractional_volumetric_moisture(double&, lower_bound_fraction, data& d) const;
+    void check_cutoff_validity(double& c) const;
 };
 
 template<class data>
 void volumetric<data>::execute(data& d)
 {
-    if (get_CalcDay() != d.CurrentDay())
-        return;
+    double volumetric_moisture;
+
+    double cutoff = d.fractional_cutoff();
+
+    check_cutoff_validity(cutoff);
    
-    // TODO Verify equation. CRHM has two formulas. One which uses recharge moisture and the other uses the full column.
-    // In CRHM runs I was given, the full soil column was used, not the recharge layer. That said, recharge might be more accurate since infiltration is injected into the top layer, nowhere else. 
-    double volumetric_moisture = recharge_volumetric_moisture(); 
-
-    d.volumetric_moisture_content(volumetric_moisture);
-        
-        (d.soil_recharge_storage() / d.soil_depth() + d.wilt_point()); // TODO Verify units compared to CRHM use
-    double saturation_fraction = get_saturation_fraction();
-    if (d.porosity() > 0.0)
-    {
-        soil_storage = volumetric_moisture / d.porosity(); // TODO Verify units compared to CRHM use      
-    };
-
-    d.degree_of_saturation(saturation_fraction); // TODO verify units as used in CHM
+    if (d.storage_is_total_moisture())
+        volumetric_moisture = total_volumetric_moisture(d); 
+    else
+        volumetric_moisture = fractional_volumetric_moisture(cutoff,d);
+    
+    d.volumetric_moisture_content(volumetric_moisture);    
 };
 
+template<VolumetricData data>
+void volumetric<data>::check_cutoff_validity(double& c) const
+{
+    if (c < 0.0 || c > 1.0)
+        throw std::logic_error("cutoff must be between (inclusive) 0 and 1");
+};
+
+/*
+ * It's common for the soil moisture storage (a depth) to not actually include all moisture in the soil in
+ * the variable. Depending on the processes, not all moisture in all pores can be included in that process. 
+ * For example, transpiration does not occur below the wilt point and so if the important process is not 
+ * about transpiration or there is no transpiration, the soil storage might only track moisture above the 
+ * wilt point.
+ *
+ * Therefore there are two functions to compute the volumetric moisture content:
+ *
+ * 1. total_volumetric_moisture(data& d);
+ * 
+ * This function computes assuming that ALL moisture in the soil is counted in the soil storage varaible 
+ * (here we mean d.soil_storage()).
+ *
+ * 2. fractional_volumetric_moisture(double& lower_bound_fraction, data& d);
+ *
+ * This function assumes that a percentage of the soil moisture content is always full and never used by the
+ * calculation that computes d.soil_storage() and accounts for that to compute the actual volumetric soil 
+ * moisture content. lower_bound_fraction could be the field capacity or wilt point. User who writes the data
+ * class will use their knowledge of where the d.soil_storage() output comes from to determine which version
+ * to use by setting d.storage_is_total_moisture() as true (total_volumetric_moisture) or false (this function).
+ */
+
 template<class data>
-double& volumetric<data>::recharge_volumetric_moisture(data& d)
+double volumetric<data>::total_volumetric_moisture(data& d) const
 {
     /*
-     * Soil moisture s_r in the recharge layer is typically transported as the amount of moisture in mm
-     * above the wilt point. Volumetric moisture content does not make a distinction between above
-     * or below the wilt point or field capacity. Therefore, we must first convert the soil moisture 
-     * content from a depth above the wilt point in mm to a percentage, and then convert this percentage
-     * to the actual moisture that it represents in a volume fraction.
-     *
-     * TODO Finish note
-     */ 
-    double available_moisture_max = d.porosity() - d.wilt_point();
-    double available_moisture = d.soil_recharge_storage() / d.soil_recharge_depth();
-
-    return actual_moisture * available_moisture_max + d.wilt_point(); 
-
-
-    return d.soil_recharge_storage() / d.soil_recharge_depth();   
+     * Volumetric moisture content if d.soil_storage() is all of the moisture in the soil.
+     */
+    return d.soil_storage()/d.soil_storage_max() * d.porosity();
 };
 
 template<class data>
-double& volumetric<data>::get_saturation_fraction(data& d)
+double volumetric<data>::fractional_volumetric_moisture(double& lower_bound_fraction, data& d) const
 {
-    
+    /*
+     * Volumetric moisture content for a case where d.soil_storage() is not the actual total moisture
+     * in the soil but rather it is the moisture above a specific threshold, set by lower_bound_fraction.
+     *
+     * NOTE: this function reduces to total_volumetric_moisture if lower_bound_fraction = 0
+     */ 
+
+    return lower_bound_fraction + d.soil_storage()/d.soil_storage_max() 
+        * (d.porosity() - lower_bound_fraction);
 };
-
-
-
