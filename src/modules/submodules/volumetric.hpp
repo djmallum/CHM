@@ -11,7 +11,7 @@ concept VolumetricData = requires(T& t) {
     { t.volumetric_moisture_content(0.0) } -> std::same_as<void>;
 };
 
-template<class data>
+template<VolumetricData data>
 class volumetric : public base_step
 {
 public:
@@ -28,7 +28,7 @@ private:
     void check_cutoff_validity(double& c) const;
 };
 
-template<class data>
+template<VolumetricData data>
 void volumetric<data>::execute(data& d)
 {
     double volumetric_moisture;
@@ -75,7 +75,7 @@ void volumetric<data>::check_cutoff_validity(double& c) const
  * to use by setting d.storage_is_total_moisture() as true (total_volumetric_moisture) or false (this function).
  */
 
-template<class data>
+template<VolumetricData data>
 double volumetric<data>::total_volumetric_moisture(data& d) const
 {
     /*
@@ -84,7 +84,7 @@ double volumetric<data>::total_volumetric_moisture(data& d) const
     return d.soil_storage()/d.soil_storage_max() * d.porosity();
 };
 
-template<class data>
+template<VolumetricData data>
 double volumetric<data>::fractional_volumetric_moisture(double& lower_bound_fraction, data& d) const
 {
     /*
