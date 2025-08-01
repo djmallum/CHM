@@ -1,5 +1,6 @@
 #pragma once
 #include "base_step.hpp"
+#include <utility>
 
 template<typename T>
 concept VolumetricData = requires(T& t) {
@@ -8,14 +9,14 @@ concept VolumetricData = requires(T& t) {
     { t.soil_storage() } -> std::same_as<double&>;
     { t.soil_storage_max() } -> std::same_as<double&>;
     { t.porosity() } -> std::same_as<double&>;
-    { t.volumetric_moisture_content(0.0) } -> std::same_as<void>;
+    { t.volumetric_moisture_content(std::declval<const double&>()) } -> std::same_as<void>;
 };
 
 template<VolumetricData data>
-class volumetric : public base_step
+class volumetric : public base_step<data>
 {
 public:
-    explicit volumetric(Soil::soils_na& S) : SoilDataObj(S) {};
+    explicit volumetric() {};
     ~volumetric() {};
 
     void execute(data& d) override final;
@@ -24,7 +25,7 @@ public:
     // TODO Consider in the future if having them be different is necessary.
 private:
     double total_volumetric_moisture(data& d) const;
-    double fractional_volumetric_moisture(double&, lower_bound_fraction, data& d) const;
+    double fractional_volumetric_moisture(double& lower_bound_fraction, data& d) const;
     void check_cutoff_validity(double& c) const;
 };
 
