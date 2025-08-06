@@ -131,7 +131,7 @@ protected:
     void update_field(Value& value, Fetch&& fetch) const;
 
     template<typename T>
-    void set_output(T& output,const T& t);
+    void set_output(T& output,const T& t) const;
 
 public:
     void reset_cache() { cache_.reset(); };
@@ -171,9 +171,10 @@ void data_base<CacheType>::update_field(Value& value, Fetch&& fetch) const {
 
 template<CacheRules CacheType>
 template<typename T>
-void data_base<CacheType>::set_output(T& output,const T& t)
+void data_base<CacheType>::set_output(T& output,const T& t) const
 {
     init_cache();
 
     output = t;
 };
+
