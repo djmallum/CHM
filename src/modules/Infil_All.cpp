@@ -129,16 +129,16 @@ void Infil_All::run(mesh_elem &face)
     if (thaw_type == GREENAMPT)
         d.soil_storage = (*face)["soil_storage"_s];
    
-    if (!d.soil_storage_at_freeze && global_param->day() == day_of_year_to_freeze )
-       d.soil_storage_at_freeze.emplace((*face)["soil_saturation"_s]);
+    if (!d.soil_saturation_at_freeze && global_param->day() == day_of_year_to_freeze )
+       d.soil_saturation_at_freeze.emplace((*face)["soil_saturation"_s]);
     
     if (swe > min_swe_to_freeze && !d.crack_model_status.frozen && is_new_day())
     {
         d.crack_model_status.begin_freeze();
         d.crack_model_status.end_freeze_tomorrow = false;
 
-        if (!d.soil_storage_at_freeze)
-            d.soil_storage_at_freeze.emplace((*face)["soil_saturation"_s]);
+        if (!d.soil_saturation_at_freeze)
+            d.soil_saturation_at_freeze.emplace((*face)["soil_saturation"_s]);
     }
     
     if (d.crack_model_status.frozen) // Gray's infiltration, 1985
@@ -147,7 +147,7 @@ void Infil_All::run(mesh_elem &face)
         Crack crack(major, min_swe_to_freeze, infDays, 
                 AllowPriorInf, lenstemp,steps_per_day,d.crack_model_status);
         
-        crack.init_inputs(snowmelt, rainfall, swe, d.soil_storage_at_freeze.value(),
+        crack.init_inputs(snowmelt, rainfall, swe, d.soil_saturation_at_freeze.value(),
                 airtemp, is_new_day()); 
         d.crack_model_status.daily_melt_total = snowmelt * steps_per_day;
         crack.run();
@@ -165,7 +165,7 @@ void Infil_All::run(mesh_elem &face)
         {
             d.crack_model_status.end_freeze();
             d.crack_model_status.end_freeze_tomorrow = true;
-            soil_storage_at_freeze.reset();
+            d.soil_saturation_at_freeze.reset();
         } 
         //if (swe <= 0.0 && d.crack_model_status.major_melt_count > 0)
         //     d.crack_model_status.end_freeze_tomorrow = true;
