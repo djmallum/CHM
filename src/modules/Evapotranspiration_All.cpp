@@ -23,6 +23,7 @@
 
 
 #include "Evapotranspiration_All.hpp"
+#include "Atmosphere.h"
 
 REGISTER_MODULE_CPP(Evapotranspiration_All);
 
@@ -208,3 +209,4 @@ const double& Evapotranspiration_All::data::net_all_wave()
 {   
     return cache_->net_all_wave;
 };
+
