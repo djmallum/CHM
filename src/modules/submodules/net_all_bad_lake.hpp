@@ -7,10 +7,10 @@
 template<typename T>
 concept NetAllData = requires(T t)
 {
-    { t.albedo() } -> std::same_as<const double&>;
-    { t.incoming_short_wave() } -> std::same_as<const double&>;
+    { t.albedo() } -> std::same_as<double>;
+    { t.incoming_short_wave() } -> std::same_as<double>;
     
-    { t.net_all_wave(std::declval<const double&>()) } ->std::same_as<void>;
+    { t.net_all_wave(std::declval<const double>()) } ->std::same_as<void>;
 };
 
 template<NetAllData data>
@@ -36,3 +36,4 @@ void net_all_bad_lake<data>::execute(data& d)
 
     d.net_all_wave(net_all_wave);
 };
+
