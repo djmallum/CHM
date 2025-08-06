@@ -1,23 +1,26 @@
 #pragma once
 #include "base_step.hpp"
+#include <concepts>
 #include <utility>
 
 template<typename T>
-concept VolumetricData = requires(T& t) {
-    { t.storage_is_total_moisture() } -> std::same_as<bool>;
-    { t.fractional_cutoff() } -> std::same_as<double&>;
-    { t.soil_storage() } -> std::same_as<double&>;
-    { t.soil_storage_max() } -> std::same_as<double&>;
-    { t.porosity() } -> std::same_as<double&>;
-    { t.volumetric_moisture_content(std::declval<const double&>()) } -> std::same_as<void>;
+concept SoilMoistureConverterData = requires(T& t) {
+    { t.storage_is_total_moisture() } -> std::convertible_to<bool>;
+    { t.fractional_cutoff() } -> std::convertible_to<double>;
+    { t.soil_storage() } -> std::convertible_to<double>;
+    { t.soil_storage_max() } -> std::convertible_to<double>;
+    { t.porosity() } -> std::convertible_to<double>;
+    { t.volumetric_moisture_content(std::declval<const double>()) } -> std::same_as<void>;
+    { t.volumetric_moisture_content() } -> std::convertible_to<double>;
+    { t.saturation(std::declval<const double>()) } -> std::same_as<void>;
 };
 
-template<VolumetricData data>
-class volumetric : public base_step<data>
+template<SoilMoistureConverterData data>
+class soil_moisture_converter : public base_step<data>
 {
 public:
-    explicit volumetric() {};
-    ~volumetric() {};
+    explicit soil_moisture_converter() {};
+    ~soil_moisture_converter() {};
 
     void execute(data& d) override final;
 
@@ -25,16 +28,16 @@ public:
     // TODO Consider in the future if having them be different is necessary.
 private:
     double total_volumetric_moisture(data& d) const;
-    double fractional_volumetric_moisture(double& lower_bound_fraction, data& d) const;
-    void check_cutoff_validity(double& c) const;
+    double fractional_volumetric_moisture(const double lower_bound_fraction, data& d) const;
+    void check_cutoff_validity(double c) const;
 };
 
-template<VolumetricData data>
-void volumetric<data>::execute(data& d)
+template<SoilMoistureConverterData data>
+void soil_moisture_converter<data>::execute(data& d)
 {
     double volumetric_moisture;
 
-    double cutoff = d.fractional_cutoff();
+    const double cutoff = d.fractional_cutoff();
 
     check_cutoff_validity(cutoff);
    
@@ -43,11 +46,13 @@ void volumetric<data>::execute(data& d)
     else
         volumetric_moisture = fractional_volumetric_moisture(cutoff,d);
     
-    d.volumetric_moisture_content(volumetric_moisture);    
+    d.volumetric_moisture_content(volumetric_moisture);   
+
+    d.saturation(volumetric_moisture / d.porosity()); 
 };
 
-template<VolumetricData data>
-void volumetric<data>::check_cutoff_validity(double& c) const
+template<SoilMoistureConverterData data>
+void soil_moisture_converter<data>::check_cutoff_validity(double c) const
 {
     if (c < 0.0 || c > 1.0)
         throw std::logic_error("cutoff must be between (inclusive) 0 and 1");
@@ -67,7 +72,7 @@ void volumetric<data>::check_cutoff_validity(double& c) const
  * This function computes assuming that ALL moisture in the soil is counted in the soil storage varaible 
  * (here we mean d.soil_storage()).
  *
- * 2. fractional_volumetric_moisture(double& lower_bound_fraction, data& d);
+ * 2. fractional_volumetric_moisture(double lower_bound_fraction, data& d);
  *
  * This function assumes that a percentage of the soil moisture content is always full and never used by the
  * calculation that computes d.soil_storage() and accounts for that to compute the actual volumetric soil 
@@ -76,8 +81,8 @@ void volumetric<data>::check_cutoff_validity(double& c) const
  * to use by setting d.storage_is_total_moisture() as true (total_volumetric_moisture) or false (this function).
  */
 
-template<VolumetricData data>
-double volumetric<data>::total_volumetric_moisture(data& d) const
+template<SoilMoistureConverterData data>
+double soil_moisture_converter<data>::total_volumetric_moisture(data& d) const
 {
     /*
      * Volumetric moisture content if d.soil_storage() is all of the moisture in the soil.
@@ -85,8 +90,8 @@ double volumetric<data>::total_volumetric_moisture(data& d) const
     return d.soil_storage()/d.soil_storage_max() * d.porosity();
 };
 
-template<VolumetricData data>
-double volumetric<data>::fractional_volumetric_moisture(double& lower_bound_fraction, data& d) const
+template<SoilMoistureConverterData data>
+double soil_moisture_converter<data>::fractional_volumetric_moisture(const double lower_bound_fraction, data& d) const
 {
     /*
      * Volumetric moisture content for a case where d.soil_storage() is not the actual total moisture
@@ -98,3 +103,4 @@ double volumetric<data>::fractional_volumetric_moisture(double& lower_bound_frac
     return lower_bound_fraction + d.soil_storage()/d.soil_storage_max() 
         * (d.porosity() - lower_bound_fraction);
 };
+
