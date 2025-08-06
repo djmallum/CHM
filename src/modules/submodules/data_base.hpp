@@ -131,7 +131,7 @@ protected:
     void update_field(Value& value, Fetch&& fetch) const;
 
     template<typename T>
-    void set_output(T& output,const T& t);
+    void set_output(T& output,const T& t) const;
 
 public:
     void reset_cache() { cache_.reset(); };
@@ -148,7 +148,7 @@ void data_base<CacheType>::init_cache() const {
 
 template<CacheRules CacheType>
 data_base<CacheType>::data_base(const mesh_elem& face_in, const boost::shared_ptr<global> param, 
-        const pt::ptree& cfg, const bool istest = false) : face(face_in), global_param(param), cfg_(cfg)
+        const pt::ptree& cfg, const bool istest) : face(face_in), global_param(param), cfg_(cfg)
 {
 	// Optional istest parameter only exists to skip these tests during tests of this class where we aren't testing whether the face object has been set correctly.
 	// This means tests show that the underlying functions work as intended
@@ -157,12 +157,6 @@ data_base<CacheType>::data_base(const mesh_elem& face_in, const boost::shared_pt
 
     if (!global_param && !istest)
         throw std::invalid_argument("global parameter holder is null");
-};
-
-template<CacheRules CacheType>
-data_base<CacheType>::data_base(const mesh_elem& face_in, const boost::shared_ptr<global> param, 
-        const pt::ptree& cfg,bool istest) : face(face_in), global_param(param), cfg_(cfg)
-{
 };
 
 template<CacheRules CacheType>
@@ -177,9 +171,10 @@ void data_base<CacheType>::update_field(Value& value, Fetch&& fetch) const {
 
 template<CacheRules CacheType>
 template<typename T>
-void data_base<CacheType>::set_output(T& output,const T& t)
+void data_base<CacheType>::set_output(T& output,const T& t) const
 {
     init_cache();
 
     output = t;
 };
+

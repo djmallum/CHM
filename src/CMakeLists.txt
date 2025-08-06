@@ -53,6 +53,7 @@ set(MODULE_SRCS
 		modules/Gray_inf.cpp
         modules/Infil_All.cpp
         modules/soil_module.cpp
+        modules/soil_water_unit_conversion.cpp
         modules/Simple_Canopy.cpp
 		modules/scale_wind_vert.cpp
 		modules/sub_grid.cpp
@@ -438,6 +439,7 @@ if (BUILD_TESTS)
             tests/submoduletests/test_CSVreader.cpp
             tests/submoduletests/test_daily_accumulator.cpp
             tests/submoduletests/test_data_base.cpp
+            tests/submoduletests/test_soil_moisture_converter.cpp
 	)
 
 
