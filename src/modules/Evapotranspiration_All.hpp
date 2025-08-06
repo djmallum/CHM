@@ -23,14 +23,10 @@
 
 #pragma once
 
-#include "logger.hpp"
 #include "triangulation.hpp"
 #include "module_base.hpp"
-#include "Atmosphere.h"
 #include "Soil.h"
 #include <cstdlib>
-#include <string>
-#include <cmath>
 #include <armadillo>
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -125,3 +121,4 @@ private:
 
     net_all_bad_lake<data> net_radiation; 
 };
+
