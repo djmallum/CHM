@@ -3,9 +3,12 @@
 #include <concepts>
 #include <utility>
 
+/*
+ * Submodule to compute volumetric moisture content and degree of saturation assuming 
+ */ 
+
 template<typename T>
 concept SoilMoistureConverterData = requires(T& t) {
-    { t.storage_is_total_moisture() } -> std::convertible_to<bool>;
     { t.fractional_cutoff() } -> std::convertible_to<double>;
     { t.soil_storage() } -> std::convertible_to<double>;
     { t.soil_storage_max() } -> std::convertible_to<double>;
@@ -27,28 +30,20 @@ public:
     // Currently constants (e.g., wilt_point) and inputs (e.g., CurrentDay) are indistinguishable
     // TODO Consider in the future if having them be different is necessary.
 private:
-    double total_volumetric_moisture(data& d) const;
-    double fractional_volumetric_moisture(const double lower_bound_fraction, data& d) const;
+    double volumetric_moisture(data& d) const;
     void check_cutoff_validity(double c) const;
 };
 
 template<SoilMoistureConverterData data>
 void soil_moisture_converter<data>::execute(data& d)
 {
-    double volumetric_moisture;
+    double value;
 
-    const double cutoff = d.fractional_cutoff();
-
-    check_cutoff_validity(cutoff);
-   
-    if (d.storage_is_total_moisture())
-        volumetric_moisture = total_volumetric_moisture(d); 
-    else
-        volumetric_moisture = fractional_volumetric_moisture(cutoff,d);
+    value = volumetric_moisture(d);
     
-    d.volumetric_moisture_content(volumetric_moisture);   
+    d.volumetric_moisture_content(value);   
 
-    d.saturation(volumetric_moisture / d.porosity()); 
+    d.saturation(value / d.porosity()); 
 };
 
 template<SoilMoistureConverterData data>
@@ -65,40 +60,27 @@ void soil_moisture_converter<data>::check_cutoff_validity(double c) const
  * about transpiration or there is no transpiration, the soil storage might only track moisture above the 
  * wilt point.
  *
- * Therefore there are two functions to compute the volumetric moisture content:
+ * Therefore, volumetric moisture accouts for it by using the following equation:
  *
- * 1. total_volumetric_moisture(data& d);
- * 
- * This function computes assuming that ALL moisture in the soil is counted in the soil storage varaible 
- * (here we mean d.soil_storage()).
+ * $$\theta = \gamma + S/S_{\max} * (\phi - \gamma)$$
  *
- * 2. fractional_volumetric_moisture(double lower_bound_fraction, data& d);
+ * where $\theta$ is the volumetric moisture content, $\gamma$ is the lower bound percentage of moisture 
+ * that is included in $S$ (soil moisture storage), $\phi$ is the porosity (e.g., volumetric moisture content 
+ * at saturation).
  *
- * This function assumes that a percentage of the soil moisture content is always full and never used by the
- * calculation that computes d.soil_storage() and accounts for that to compute the actual volumetric soil 
- * moisture content. lower_bound_fraction could be the field capacity or wilt point. User who writes the data
- * class will use their knowledge of where the d.soil_storage() output comes from to determine which version
- * to use by setting d.storage_is_total_moisture() as true (total_volumetric_moisture) or false (this function).
+ * This equation basically says that the moisture below the wilt point is always full.
  */
 
 template<SoilMoistureConverterData data>
-double soil_moisture_converter<data>::total_volumetric_moisture(data& d) const
-{
-    /*
-     * Volumetric moisture content if d.soil_storage() is all of the moisture in the soil.
-     */
-    return d.soil_storage()/d.soil_storage_max() * d.porosity();
-};
-
-template<SoilMoistureConverterData data>
-double soil_moisture_converter<data>::fractional_volumetric_moisture(const double lower_bound_fraction, data& d) const
+double soil_moisture_converter<data>::volumetric_moisture(data& d) const
 {
     /*
      * Volumetric moisture content for a case where d.soil_storage() is not the actual total moisture
      * in the soil but rather it is the moisture above a specific threshold, set by lower_bound_fraction.
-     *
-     * NOTE: this function reduces to total_volumetric_moisture if lower_bound_fraction = 0
      */ 
+    
+    double lower_bound_fraction = d.fractional_cutoff();
+    check_cutoff_validity(lower_bound_fraction);
 
     return lower_bound_fraction + d.soil_storage()/d.soil_storage_max() 
         * (d.porosity() - lower_bound_fraction);
