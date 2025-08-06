@@ -1,0 +1,88 @@
+#pragma once
+#include "base_step.hpp"
+#include <concepts>
+#include <utility>
+
+/*
+ * Submodule to compute volumetric moisture content and degree of saturation assuming 
+ */ 
+
+template<typename T>
+concept SoilMoistureConverterData = requires(T& t) {
+    { t.fractional_cutoff() } -> std::convertible_to<double>;
+    { t.soil_storage() } -> std::convertible_to<double>;
+    { t.soil_storage_max() } -> std::convertible_to<double>;
+    { t.porosity() } -> std::convertible_to<double>;
+    { t.volumetric_moisture_content(std::declval<const double>()) } -> std::same_as<void>;
+    { t.volumetric_moisture_content() } -> std::convertible_to<double>;
+    { t.saturation(std::declval<const double>()) } -> std::same_as<void>;
+};
+
+template<SoilMoistureConverterData data>
+class soil_moisture_converter : public base_step<data>
+{
+public:
+    explicit soil_moisture_converter() {};
+    ~soil_moisture_converter() {};
+
+    void execute(data& d) override final;
+
+    // Currently constants (e.g., wilt_point) and inputs (e.g., CurrentDay) are indistinguishable
+    // TODO Consider in the future if having them be different is necessary.
+private:
+    double volumetric_moisture(data& d) const;
+    void check_cutoff_validity(double c) const;
+};
+
+template<SoilMoistureConverterData data>
+void soil_moisture_converter<data>::execute(data& d)
+{
+    double value;
+
+    value = volumetric_moisture(d);
+    
+    d.volumetric_moisture_content(value);   
+
+    d.saturation(value / d.porosity()); 
+};
+
+template<SoilMoistureConverterData data>
+void soil_moisture_converter<data>::check_cutoff_validity(double c) const
+{
+    if (c < 0.0 || c > 1.0)
+        throw std::logic_error("cutoff must be between (inclusive) 0 and 1");
+};
+
+/*
+ * It's common for the soil moisture storage (a depth) to not actually include all moisture in the soil in
+ * the variable. Depending on the processes, not all moisture in all pores can be included in that process. 
+ * For example, transpiration does not occur below the wilt point and so if the important process is not 
+ * about transpiration or there is no transpiration, the soil storage might only track moisture above the 
+ * wilt point.
+ *
+ * Therefore, volumetric moisture accouts for it by using the following equation:
+ *
+ * $$\theta = \gamma + S/S_{\max} * (\phi - \gamma)$$
+ *
+ * where $\theta$ is the volumetric moisture content, $\gamma$ is the lower bound percentage of moisture 
+ * that is included in $S$ (soil moisture storage), $\phi$ is the porosity (e.g., volumetric moisture content 
+ * at saturation).
+ *
+ * This equation basically says that the moisture below the wilt point is always full.
+ */
+
+template<SoilMoistureConverterData data>
+double soil_moisture_converter<data>::volumetric_moisture(data& d) const
+{
+    /*
+     * Volumetric moisture content for a case where d.soil_storage() is not the actual total moisture
+     * in the soil but rather it is the moisture above a specific threshold, set by lower_bound_fraction.
+     */ 
+    
+    double lower_bound_fraction = d.fractional_cutoff();
+    check_cutoff_validity(lower_bound_fraction);
+
+    return lower_bound_fraction + d.soil_storage()/d.soil_storage_max() 
+        * (d.porosity() - lower_bound_fraction);
+};
+
