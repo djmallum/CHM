@@ -23,6 +23,7 @@
 
 
 #include "Evapotranspiration_All.hpp"
+#include "Atmosphere.h"
 
 REGISTER_MODULE_CPP(Evapotranspiration_All);
 
@@ -184,14 +185,14 @@ const double& Evapotranspiration_All::get_dt()
     return dt;
 };
 
-const double& Evapotranspiration_All::data::albedo()
+double Evapotranspiration_All::data::albedo() const
 {
     static const double albedo_ = face->veg_attribute("surface_albedo");
     
     return albedo_;   
 };
 
-const double& Evapotranspiration_All::data::incoming_short_wave()
+double Evapotranspiration_All::data::incoming_short_wave() const
 {
     update_field(cache_->incoming_short_wave,
             [this]() { return (*face)["iswr"_s]; } );
@@ -204,7 +205,8 @@ void Evapotranspiration_All::data::net_all_wave(const double& val)
     set_output(cache_->net_all_wave,val);
 };
 
-const double& Evapotranspiration_All::data::net_all_wave()
+double Evapotranspiration_All::data::net_all_wave() const
 {   
     return cache_->net_all_wave;
 };
+
