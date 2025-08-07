@@ -16,14 +16,12 @@ surface_temperature::surface_temperature(config_file cfg) : module_base("surface
 
 void surface_temperature::init(mesh& domain)
 {
-    for (size_t i = 0; i < domain->size_faces(); i++)
+    for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<surface_temperature::data>(ID,face,global_param,cfg);
         
         d.mean_temperature.bind_target((*face)["air_temperature"_s]);
-        d.set_face(face);
-        d.set_global(global_param_);
     };
 };
 
@@ -88,7 +86,7 @@ double& surface_temperature::data::ground_heat_flux() const
     return cache_->ground_heat_flux;
 };
 
-double& surface_temperature::data::daily_mean_temperature() const
+const double surface_temperature::data::daily_mean_temperature() const
 {
     return mean_temperature.get_last_mean();
 };
@@ -114,9 +112,9 @@ void surface_temperature::data::snow_thermal_conductivity(const double& value)
 
 void surface_temperature::data::set_outputs_to_face()
 {
-	(*face)["surface_temp"_s] = surface_temperature;
+	(*face)["surface_temp"_s] = cache_->surface_temperature;
 	
-	(*face)["snow_thermal_conductivity"_s] = snow_thermal_conductivity;
+	(*face)["snow_thermal_conductivity"_s] = cache_->snow_thermal_conductivity;
 	
 	reset_cache();
 };
@@ -150,3 +148,7 @@ int surface_temperature::steps_per_day()
     
 	return S / D;
 };
+
+surface_temperature::data::data(mesh_elem& face_in, boost::shared_ptr<global> param, config_file cfg)
+    : data_base<Cache>(face_in, param, cfg) {};
+
