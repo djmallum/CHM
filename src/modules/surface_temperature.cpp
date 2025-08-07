@@ -19,7 +19,7 @@ void surface_temperature::init(mesh& domain)
     for (size_t i = 0; i < domain->size_faces(); i++)
     {
         auto face = domain->face(i);
-        auto& d = face->make_module_data<surface_temperature::data>(ID);
+        auto& d = face->make_module_data<surface_temperature::data>(ID,face,global_param,cfg);
         
         d.mean_temperature.bind_target((*face)["air_temperature"_s]);
         d.set_face(face);
@@ -29,7 +29,7 @@ void surface_temperature::init(mesh& domain)
 
 void surface_temperature::run(mesh_elem& face)
 {
-    auto& d = face->make_module_data<surface_temperature::data>(ID);
+    auto& d = face->get_module_data<surface_temperature::data>(ID);
 
     double swe = (*face)["swe"_s];
 

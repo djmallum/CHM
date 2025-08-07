@@ -53,6 +53,7 @@ private:
         // used by module    
         void set_outputs_to_face();   
 
+		using data_base<Cache>::data_base;
     private:
         daily_accumulator mean_temperature;
 	};
