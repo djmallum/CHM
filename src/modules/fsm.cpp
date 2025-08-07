@@ -74,7 +74,7 @@ FSM::FSM(config_file cfg)
     provides("Tsoil[1]");
     provides("Tsoil[2]");
     provides("Tsoil[3]");
-
+	provides("surface_temp");
 
     provides("LWout");
 
@@ -315,6 +315,7 @@ void FSM::run(mesh_elem& face)
     (*face)["Tsoil[1]"_s] = d.state.Tsoil[1];
     (*face)["Tsoil[2]"_s] = d.state.Tsoil[2];
     (*face)["Tsoil[3]"_s] = d.state.Tsoil[3];
+	(*face)["surface_temp"_s] = d.state.Tsrf;
 
     (*face)["Nsnow"_s] = d.state.Nsnow;
 
@@ -335,7 +336,7 @@ void FSM::checkpoint(mesh& domain,  netcdf& chkpt)
     chkpt.create_variable1D("fsm:sum_snowpack_subl", domain->size_local_faces());
 
     chkpt.create_variable1D("fsm:albs", domain->size_local_faces());
-    chkpt.create_variable1D("fsm:Tsrf", domain->size_local_faces());
+    chkpt.create_variable1D("fsm:surface_temperature", domain->size_local_faces());
 
     chkpt.create_variable1D("fsm:Dsnw[0]", domain->size_local_faces());
     chkpt.create_variable1D("fsm:Dsnw[1]", domain->size_local_faces());
@@ -400,7 +401,7 @@ void FSM::checkpoint(mesh& domain,  netcdf& chkpt)
         chkpt.put_var1D("fsm:sum_snowpack_subl", i, d.diag.sum_snowpack_subl);
 
         chkpt.put_var1D("fsm:albs", i, d.state.albs);
-        chkpt.put_var1D("fsm:Tsrf", i, d.state.Tsrf);
+        chkpt.put_var1D("fsm:surface_temperature", i, d.state.Tsrf);
 
         chkpt.put_var1D("fsm:Dsnw[0]", i, d.state.Dsnw[0]);
         chkpt.put_var1D("fsm:Dsnw[1]", i, d.state.Dsnw[1]);
@@ -468,7 +469,7 @@ void FSM::load_checkpoint(mesh& domain, netcdf& chkpt)
         d.diag.sum_snowpack_subl =  chkpt.get_var1D("fsm:sum_snowpack_subl", i);
 
         d.state.albs = chkpt.get_var1D("fsm:albs", i);
-        d.state.Tsrf = chkpt.get_var1D("fsm:Tsrf", i);
+        d.state.Tsrf = chkpt.get_var1D("fsm:surface_temperature", i);
 
         d.state.Dsnw[0] = chkpt.get_var1D("fsm:Dsnw[0]", i);
         d.state.Dsnw[1] = chkpt.get_var1D("fsm:Dsnw[1]", i);
