@@ -74,7 +74,7 @@ FSM::FSM(config_file cfg)
     provides("Tsoil[1]");
     provides("Tsoil[2]");
     provides("Tsoil[3]");
-	provides("surface_temperature");
+	provides("surface_temp");
 
     provides("LWout");
 
@@ -315,7 +315,7 @@ void FSM::run(mesh_elem& face)
     (*face)["Tsoil[1]"_s] = d.state.Tsoil[1];
     (*face)["Tsoil[2]"_s] = d.state.Tsoil[2];
     (*face)["Tsoil[3]"_s] = d.state.Tsoil[3];
-	(*face)["surface_temperature"_s] = d.state.Tsrf;
+	(*face)["surface_temp"_s] = d.state.Tsrf;
 
     (*face)["Nsnow"_s] = d.state.Nsnow;
 

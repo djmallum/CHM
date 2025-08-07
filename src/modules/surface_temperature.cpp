@@ -10,7 +10,7 @@ surface_temperature::surface_temperature(config_file cfg) : module_base("surface
     depends("G"); //ground heat flux
     depends("snow_density");
 
-    provides("surface_temperature");
+    provides("surface_temp");
     provides("snow_thermal_conductivity");
 };
 
@@ -114,7 +114,7 @@ void surface_temperature::data::snow_thermal_conductivity(const double& value)
 
 void surface_temperature::data::set_outputs_to_face()
 {
-	(*face)["surface_temperature"_s] = surface_temperature;
+	(*face)["surface_temp"_s] = surface_temperature;
 	
 	(*face)["snow_thermal_conductivity"_s] = snow_thermal_conductivity;
 	
