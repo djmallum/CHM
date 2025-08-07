@@ -31,18 +31,20 @@ private:
 
 
 template<RCC_data data>
-void RCC_surface_temperature<data>::execute()
+void RCC_surface_temperature<data>::execute(data& d)
 {
     constexpr static double a = 0.77;
     constexpr static double b = 0.02;
     constexpr static double c = 7.0;
-    constexpr static double d = 0.03;
+    constexpr static double e = 0.03; // d is taken by input argument
+                                      //
 
     d.thaw_front_depth_last = std::max(d.thaw_front_depth_last,
             d.thaw_front_depth());
 
 	double T = 
 		(a * d.air_temperature() + b * d.net_radiation()) * 
-		std::atan(c * (thaw_front_depth_last + d)) * 2.0 / 3.14156265;
+		std::atan(c * (d.thaw_front_depth_last + e)) * 2.0 / 3.14156265;
 	d.surface_temperature(T);
 };
+
