@@ -54,6 +54,7 @@ set(MODULE_SRCS
         modules/Infil_All.cpp
         modules/soil_module.cpp
         modules/soil_water_unit_conversion.cpp
+        modules/surface_temperature.cpp
         modules/Simple_Canopy.cpp
 		modules/scale_wind_vert.cpp
 		modules/sub_grid.cpp
