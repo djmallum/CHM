@@ -8,7 +8,7 @@ soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel:
     depends("ET");
     depends("inf");
     depends("runoff");
-    depends("surface_temperature");
+    depends("surface_temp");
     //    depends("routing_residual");
 
     provides("condensation");
@@ -450,7 +450,7 @@ XG_algorithm soil_module::get_XG(mesh_elem& face,soil_module::data& d)
         d.S->is_newday = is_new_day();
      
 
-    XG_algorithm XG((*face)["surface_temperature"_s],d.soil_storage,d.soil_rechr_storage,*(d.S),*(d.P));
+    XG_algorithm XG((*face)["surface_temp"_s],d.soil_storage,d.soil_rechr_storage,*(d.S),*(d.P));
 
     return XG;
 };
