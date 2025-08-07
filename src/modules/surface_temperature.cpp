@@ -7,13 +7,13 @@ surface_temperature::surface_temperature(config_file cfg) : module_base("surface
     depends("swe");
     depends("air_temperature");
     depends("snow_depth");
-    depends("ground_heat_flux");
+    depends("G"); //ground heat flux
     depends("snow_density");
 
     provides("surface_temperature");
     provides("snow_thermal_conductivity");
-    
 };
+
 void surface_temperature::init(mesh& domain)
 {
     for (size_t i = 0; i < domain->size_faces(); i++)
@@ -82,7 +82,7 @@ double& surface_temperature::data::snow_density() const
 double& surface_temperature::data::ground_heat_flux() const
 {
     update_field(cache_->ground_heat_flux,
-            [this]() { return (*face)["ground_heat_flux"_s]; }
+            [this]() { return (*face)["G"_s]; }
             );
 
     return cache_->ground_heat_flux;
