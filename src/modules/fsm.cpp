@@ -74,7 +74,7 @@ FSM::FSM(config_file cfg)
     provides("Tsoil[1]");
     provides("Tsoil[2]");
     provides("Tsoil[3]");
-
+	provides("surface_temperature");
 
     provides("LWout");
 
