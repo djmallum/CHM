@@ -79,4 +79,15 @@ namespace Atmosphere
         return Es;
     }
 
-}
+    double air_pressure(const double& elevation)
+    {
+        static const double T0 = 288.15; // Temperature at sea level, average, Kelvin
+        static const double alpha = -0.0065; // Mean lapse rate, https://www.thephysicalenvironment.com/Book/atmospheric_moisture/lapse_rates_1.html
+        static const double c = 5.26;  // TODO this is g/(Rs*alpha) rewrite it as such
+        static const double d = 101.3; // TODO rename to P0
+
+        return d * pow((T0 + alpha * elevation) / T0, c);
+    };
+    
+} // namespace Atmosphere
+
