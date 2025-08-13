@@ -474,9 +474,6 @@ public:
 
 //    void set_module_data(const std::string &module, face_info *fi);
 
-    template<typename T>
-    T& make_module_data(const std::string &module);
-
     // Overload for module data constructor
     template<typename T, typename... Args>
     T& make_module_data(const std::string &module, Args... args);
@@ -1906,21 +1903,6 @@ timeseries::iterator face<Gt, Fb>::now()
 }
 
 
-template < class Gt, class Vb>
-template<typename T>
-T& face<Gt, Vb>::make_module_data(const std::string &module)
-{
-
-    //we don't already have this, make a new one.
-    if(!_module_face_data[module])
-    {
-//        T* data = new T;
-        _module_face_data[module] = std::make_unique<T>();
-    }
-
-    return get_module_data<T&>(module);
-}
-
 // Overloaded for construtor that requires arguments
 template < class Gt, class Vb>
 template<typename T, typename... Args>
@@ -2043,3 +2025,4 @@ T determine_owner_of_global_index(T index, std::vector<T> num_faces_in_partition
   }
   return owner;
 }
+
