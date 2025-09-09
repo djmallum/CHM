@@ -185,16 +185,16 @@ const double& Evapotranspiration_All::get_dt()
     return dt;
 };
 
-double Evapotranspiration_All::data::albedo() const
+double Evapotranspiration_All::data::albedo()
 {
     static const double albedo_ = face->veg_attribute("surface_albedo");
     
     return albedo_;   
 };
 
-double Evapotranspiration_All::data::incoming_short_wave() const
+double Evapotranspiration_All::data::incoming_short_wave()
 {
-    update_field(cache_->incoming_short_wave,
+    update_field([this]() -> auto& { return cache_->incoming_short_wave;} ,
             [this]() { return (*face)["iswr"_s]; } );
 
     return cache_->incoming_short_wave;
@@ -202,10 +202,10 @@ double Evapotranspiration_All::data::incoming_short_wave() const
 
 void Evapotranspiration_All::data::net_all_wave(const double& val)
 {
-    set_output(cache_->net_all_wave,val);
+    set_output([this]() -> auto& { return cache_->net_all_wave;} ,val);
 };
 
-double Evapotranspiration_All::data::net_all_wave() const
+double Evapotranspiration_All::data::net_all_wave()
 {   
     return cache_->net_all_wave;
 };

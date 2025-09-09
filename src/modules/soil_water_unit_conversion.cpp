@@ -11,9 +11,9 @@ soil_water_unit_converter::soil_water_unit_converter(config_file cfg)
     provides("soil_storage_at_freeze");
 };
 
-double soil_water_unit_converter::data::soil_storage() const 
+double soil_water_unit_converter::data::soil_storage() 
 {
-    update_field(cache_->soil_storage,
+    update_field([this]() -> auto& { return cache_->soil_storage;},
            [this]() { return (*face)["soil_storage"_s]; } );
 
     return cache_->soil_storage;
@@ -58,34 +58,34 @@ double soil_water_unit_converter::data::porosity()
     return SoilDataObj.porosity(get_soil_type());
 };
 
-void soil_water_unit_converter::data::volumetric_moisture_content(const double out) const
+void soil_water_unit_converter::data::volumetric_moisture_content(const double out)
 {
-    set_output(cache_->volumetric_moisture_content,out); 
+    set_output([this]() -> auto& { return cache_->volumetric_moisture_content; },out); 
 };
 
-double soil_water_unit_converter::data::volumetric_moisture_content() const
+double soil_water_unit_converter::data::volumetric_moisture_content()
 {
     auto static err = 
         []() {  throw std::runtime_error("volumetric_moisture_content accessed before being set");
                 return 1.0; };
     
-    update_field(cache_->volumetric_moisture_content,err);
+    update_field([this]() -> auto& { return cache_->volumetric_moisture_content; },err);
 
     return cache_->volumetric_moisture_content;
 };
 
-void soil_water_unit_converter::data::saturation(const double out) const 
+void soil_water_unit_converter::data::saturation(const double out) 
 {
-    set_output(cache_->saturation,out); 
+    set_output([this]() -> auto& { return cache_->saturation; },out); 
 };
 
-double soil_water_unit_converter::data::saturation() const
+double soil_water_unit_converter::data::saturation()
 {
     auto static err = 
        []() { throw std::runtime_error("saturation accessed before being set");
               return 1.0;   };
 
-    update_field(cache_->saturation,err);
+    update_field([this]() -> auto& { return cache_->saturation; },err);
 
     return cache_->saturation;
 };

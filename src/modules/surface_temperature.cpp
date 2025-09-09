@@ -41,59 +41,59 @@ void surface_temperature::run(mesh_elem& face)
     d.set_outputs_to_face();
 };
 
-double& surface_temperature::data::air_temperature() const
+double& surface_temperature::data::air_temperature()
 {
-    update_field(cache_->air_temperature,
+    update_field([this]() -> auto& {return cache_->air_temperature;},
             [this]() { return (*face)["air_temperature"_s]; }
             );
 
     return cache_->air_temperature;
 };
 
-double& surface_temperature::data::thaw_front_depth() const
+double& surface_temperature::data::thaw_front_depth()
 {
-    update_field(cache_->thaw_front_depth,
+    update_field([this]() -> auto& { return cache_->thaw_front_depth;},
             [this]() { return (*face)["thaw_front_depth"_s]; }
             );
 
     return cache_->thaw_front_depth;
 };
 
-double& surface_temperature::data::snow_depth() const
+double& surface_temperature::data::snow_depth()
 {
-    update_field(cache_->snow_depth,
+    update_field([this]() -> auto& { return cache_->snow_depth;},
             [this]() { return (*face)["snow_depth"_s]; }
             );
 
     return cache_->snow_depth;
 };
 
-double& surface_temperature::data::snow_density() const
+double& surface_temperature::data::snow_density()
 {
-    update_field(cache_->snow_density,
+    update_field([this]() -> auto& { return cache_->snow_density;},
             [this]() { return (*face)["snow_density"_s]; }
             );
 
     return cache_->snow_density;
 };
 
-double& surface_temperature::data::ground_heat_flux() const
+double& surface_temperature::data::ground_heat_flux()
 {
-    update_field(cache_->ground_heat_flux,
+    update_field([this]() -> auto& { return cache_->ground_heat_flux;},
             [this]() { return (*face)["G"_s]; }
             );
 
     return cache_->ground_heat_flux;
 };
 
-const double surface_temperature::data::daily_mean_temperature() const
+const double surface_temperature::data::daily_mean_temperature()
 {
     return mean_temperature.get_last_mean();
 };
 
-double& surface_temperature::data::net_radiation() const
+double& surface_temperature::data::net_radiation()
 {
-    update_field(cache_->net_radiation,
+    update_field([this]() -> auto& { return cache_->net_radiation;},
             [this]() { return (*face)["net_radiation"_s]; }
             );
 
@@ -102,12 +102,12 @@ double& surface_temperature::data::net_radiation() const
 
 void surface_temperature::data::surface_temperature(const double& value)
 {
-    set_output(cache_->surface_temperature,value);
+    set_output([this]() -> auto& { return cache_->surface_temperature;},value);
 };
 
 void surface_temperature::data::snow_thermal_conductivity(const double& value)
 {
-    set_output(cache_->snow_thermal_conductivity, value);
+    set_output([this]() -> auto& { return cache_->snow_thermal_conductivity;}, value);
 };
 
 void surface_temperature::data::set_outputs_to_face()

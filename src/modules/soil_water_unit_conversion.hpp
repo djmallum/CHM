@@ -65,13 +65,13 @@ public:
 
         bool storage_is_total_moisture();
         double fractional_cutoff();
-        double soil_storage() const;
+        double soil_storage();
         const double soil_storage_max();
         double porosity();
-        void volumetric_moisture_content(const double out) const;
-        double volumetric_moisture_content() const;
-        void saturation(const double out) const;
-        double saturation() const;
+        void volumetric_moisture_content(const double out);
+        double volumetric_moisture_content();
+        void saturation(const double out);
+        double saturation();
         void reset_local_cache();
     };
     

@@ -38,13 +38,13 @@ private:
 	{
 	public:
           explicit data(mesh_elem& face_in, boost::shared_ptr<global> param, config_file cfg);
-          double& air_temperature() const;
-          double& thaw_front_depth() const;
-          double& snow_depth() const;
-          double& snow_density() const;
-          double& ground_heat_flux() const;
-          const double daily_mean_temperature() const;
-          double& net_radiation() const;
+          double& air_temperature();
+          double& thaw_front_depth();
+          double& snow_depth();
+          double& snow_density();
+          double& ground_heat_flux();
+          const double daily_mean_temperature();
+          double& net_radiation();
 
           double thaw_front_depth_last = 0.0;
           // outputs

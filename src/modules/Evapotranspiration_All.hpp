@@ -85,10 +85,10 @@ public:
         double vegetation_height;
         double soil_depth;
 
-        double albedo() const;
-        double incoming_short_wave() const;
+        double albedo();
+        double incoming_short_wave();
         void net_all_wave(const double& val);
-        double net_all_wave() const;
+        double net_all_wave();
 
         data(const mesh_elem& face_in, const boost::shared_ptr<global> param,
                 const config_file cfg) : data_base<Cache>(face_in,param,cfg) {};
