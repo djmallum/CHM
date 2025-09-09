@@ -259,7 +259,6 @@ add_executable(
 		${FILTER_SRCS}	
         ${MODEL_SRCS}
         ${MODULE_SRCS}
-		${LIBMAW_SRCS}
 )
 
 
