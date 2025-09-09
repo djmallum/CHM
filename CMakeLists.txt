@@ -25,6 +25,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Set these off for kokkos compatibility
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Creates a compilation database that can be used by certain IDEs for code completion and diagnostics
+set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
+
 set(Boost_NO_WARN_NEW_VERSIONS ON)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
