@@ -2,14 +2,17 @@
 
 #include "global.hpp"
 #include "triangulation.hpp"
+#include <limits>
 #include <optional>
 #include <boost/shared_ptr.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <cstddef>
-#include <cmath>
+//#include <cmath>
 #include <stdexcept>
 #include <cassert>
 #include <cstdint>
+#include <concepts>
+#include <type_traits>
 
 /*
  * Base class for data objects defined in each module to cache and acess triangle specific data.
@@ -35,7 +38,10 @@
  * class Cache : public cache_base
  * {
  * 	   // Has to be NaN does not have to be this version of NaN
- * 	   double input_variable = std::numeric_limits::quiet_NaN();
+ * 	   double input_variable = std::numeric_limits<double>::quiet_NaN();
+ * 	   int input2 = std::numeric_limits<int>::min();
+ *
+ * 	   double output_variable = 0.0;
  * };
  * 
  * //
@@ -52,18 +58,17 @@
  * 	   void output_variable(const double& in);
  *	   // Example of a parameter that varies on each face
  *	   double& spatial_parameter();
- * private:
- *
- *	   double spatial_parameter_ = face->veg_attribute("spatial_parameter"_s);
  * };
  * 
  * double& data::input_variable() const
  * {
- * 	   update_field(cache_->input_variable,
+ * 	   update_field([this]() -> auto& { return cache_->input_variable;},
  * 	   		[this]() { return (*face)["input_variable"_s];} );
  * 
  * 	   return cache_->input_variable;
  * };
+ * 
+ * input2() would be the same as above (with variables and string changed)
  * 
  * double& data::config_parameter() const
  * {
@@ -74,7 +79,9 @@
  *
  * double& data::spatial_parameter() const
  * {
- *	   return spatial_parameter_;
+ *     update_field([this]() -> auto& { return cache_->spatial_parameter; },
+ *         [this]() -> { return face->veg_parameter("spatial_parameter"_s); } );
+ *	   return cache_->spatial_parameter;
  * };       
  * 
  * int& data::get_dt() const
@@ -87,7 +94,7 @@
  * 
  * void data::output_variables(const double& out)
  * {
- * 	   set_output(cache_->output_variable,out);
+ * 	   set_output([this]() -> auto& { return cache_->output_variable; },out);
  * };
  * 
  * void module_name::run(mesh_elem& face)
@@ -104,17 +111,58 @@ struct cache_base
 {
     int64_t last_timestep = -1;
     bool is_stale(int64_t tn) const { return last_timestep != tn; };
+
+    template<typename T>
+    static inline T default_value() {
+        if constexpr (std::is_floating_point_v<T>)
+            return std::numeric_limits<T>::quiet_NaN();
+        else if constexpr (std::is_integral_v<T>)
+            return std::numeric_limits<T>::min();
+        else 
+            return T{};
+    };
+
 };
+
+//template<typename T>
+//class input
+//{
+//    static_assert(std::is_arithmetic_v<T>
+//private:
+//    T value_;
+//};
 
 template<typename C>
 concept CacheRules = std::derived_from<C,cache_base>;
+
+template<typename V>
+concept ValueRules = 
+    requires(V v) {
+    {v()} -> std::same_as<std::add_lvalue_reference_t<decltype(v())>>;
+};
+
+template<typename O,typename T>
+concept OutputRules = ValueRules<O> &&
+requires(O o)
+{
+    {o()} -> std::convertible_to<T>;
+};
 
 namespace pt = boost::property_tree;
 
 template<CacheRules CacheType>
 class data_base {
+    void init_cache();
     
-    void init_cache() const;
+    template<typename T>
+    bool check_if_set(T t)
+    {
+        if constexpr (!std::is_floating_point_v<T>)
+            return t == cache_base::default_value<T>();
+        else 
+            return std::isnan(t);
+    };
+
 
 protected:
     
@@ -127,11 +175,11 @@ protected:
     const pt::ptree& cfg_;
     mutable std::optional<CacheType> cache_;
 
-    template<typename Value,typename Fetch>
-    void update_field(Value& value, Fetch&& fetch) const;
+    template<ValueRules Value,typename Fetch>
+    void update_field(Value&& value, const Fetch& fetch);
 
-    template<typename T>
-    void set_output(T& output,const T& t) const;
+    template<typename T,OutputRules<T> Output>
+    void set_output(Output&& output,const T& t);
 
 public:
     void reset_cache() { cache_.reset(); };
@@ -139,7 +187,7 @@ public:
 };
 
 template<CacheRules CacheType>
-void data_base<CacheType>::init_cache() const {
+void data_base<CacheType>::init_cache() {
     if (!cache_ || cache_->is_stale(global_param->timestep_counter)) {
         cache_.emplace();
         cache_->last_timestep = global_param->timestep_counter;
@@ -160,21 +208,24 @@ data_base<CacheType>::data_base(const mesh_elem& face_in, const boost::shared_pt
 };
 
 template<CacheRules CacheType>
-template<typename Value,typename Fetch>
-void data_base<CacheType>::update_field(Value& value, Fetch&& fetch) const {
+template<ValueRules Value,typename Fetch>
+void data_base<CacheType>::update_field(Value&& value, const Fetch& fetch) {
     init_cache();
-
-    if (std::isnan(value)) {
-        value = fetch();
+    
+    auto& V = value(); 
+    if ( check_if_set(V) )
+    {
+        V = fetch();
     }
+
 };
 
 template<CacheRules CacheType>
-template<typename T>
-void data_base<CacheType>::set_output(T& output,const T& t) const
+template<typename T,OutputRules<T> Output>
+void data_base<CacheType>::set_output(Output&& output,const T& t)
 {
     init_cache();
 
-    output = t;
+    output() += t;
 };
 
