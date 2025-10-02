@@ -42,7 +42,15 @@ namespace Atmosphere {
    // See Fig 1 and 2 of Kienzle (2010, Hydrological Processes)
     double corr_precip_slope(double p, double slope);
 
-    double saturatedVapourPressure(const double& T);
+    double saturatedVapourPressure(const double T);
+
+    double saturatedVapourPressure_slope(const double T);
+
+    double latent_heat_vapour_air(const double T);
+
+    double psychrometric_constant(const double P_a, const double T);
+
+    double air_density(const double T,const double e_a, const double P_a);
 
     const double Cp = 1005; // (J/kg/K) volumetric heat capcity of dry air.
     const double kappa = 0.4; // proportionality constant, used at least for the PenmanMonteith ET. 

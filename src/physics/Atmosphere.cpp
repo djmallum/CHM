@@ -25,7 +25,6 @@
 
 namespace Atmosphere
 {
-
     // Logrithmic, assuming no snow cover and no canopy bewteen Z_in and Z_out
     // Because filter is before runtime, we do not know what the snowdepth will be, thus this
     // introduces some error latter when wind is scaled down taking into account the snowdepth.
@@ -59,7 +58,7 @@ namespace Atmosphere
     * @param T air temperature (K)
     * @return Saturated vapour pressure (Pa)
     */
-    double saturatedVapourPressure(const double& T)
+    double saturatedVapourPressure(const double T)
     {
         double TA = T - 273.15;
         double Es, E, Rhi, Rhw, Rh;                         //saturation and current water vapro pressure
@@ -79,4 +78,51 @@ namespace Atmosphere
         return Es;
     }
 
-}
+    /**
+     * @brief Slope of saturated vapour pressure vs temperature
+     * @param T air temperature (DEGREE_CELSIUS)
+     * @return Delta (kPa/DEGREE_CELSIUS)
+     */  
+    double saturatedVapourPressure_slope(const double T) // Slope of sat vap p vs t, kPa/DEGREE_CELSIUS
+    {
+        if (T > 0.0)
+            return(2504.0*exp(17.27 * T/(T+237.3)) / pow(T+237.3,2));
+        else
+            return(3549.0*exp( 21.88 * T/(T+265.5)) / pow(T+265.5,2));
+    }
+
+    /**
+     * @brief latent heat of vaporization of water
+     * @param T air temperature (DEGREE_CELSIUS)
+     * @return latent heat of vaporization of water (J/kg)
+     */ 
+    double latent_heat_vapour_air(const double T) // Latent heat of vaporization (J/kg)
+    {
+        // Equation 7-8 Dingman (2002) Second Edition
+        return (2.501 - 0.002361 * T) * 1e6; // original is MegaJoules/kg, 1e6 returns it to joules/kg
+    }
+
+    /**
+     * @brief Psychrometric constant
+     * @param P_a air pressure (kPa)
+     * @param T air temperature (DEGREE_CELSIUS)
+     * @return gamma (kPa/DEGREE_CELSIUS)
+     */ 
+    double psychrometric_constant(const double P_a, const double T) // Psychrometric constant (kPa/DEGREE_CELSIUS)
+    {
+        // Equation 7-13 Dingman Second Edition 2002
+        return Cp * P_a / (0.622 * latent_heat_vapour_air(T)); // lambda (J/kg)
+    }
+
+    /**
+     * @brief Density of air
+     * @param T air_temperature (DEGREE_CELSIUS)
+     * @param e_a vapour pressure (kPa)
+     * @param P_a air pressure (kPa)
+     */  
+    double air_density(const double T,const double e_a,const double P_a)
+    {
+        static constexpr double R0 = 2870.0;
+        return 1E4 * P_a / (R0 * (273.15 + T)) * (1.0 - 0.379*(e_a/P_a));
+    }
+};
