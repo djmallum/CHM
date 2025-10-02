@@ -9,5 +9,3 @@ public:
 
 	virtual void execute(data& d) = 0;
 };
-
-
