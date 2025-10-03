@@ -250,6 +250,7 @@ void XG_algorithm::find_thaw_D(double dt) { // XG-Algorithm - Thawing - used by 
             return;
         }
     }
+
   //TODO Throw CHM exception here, indicates that Zdt is too large
 };
 

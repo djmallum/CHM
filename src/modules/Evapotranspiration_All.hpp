@@ -23,21 +23,18 @@
 
 #pragma once
 
-#include "logger.hpp"
 #include "triangulation.hpp"
 #include "module_base.hpp"
-#include "Atmosphere.h"
 #include "Soil.h"
 #include <cstdlib>
-#include <string>
-#include <cmath>
 #include <armadillo>
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include "EvapotranspirationModels/evapbase.hpp"
 #include "EvapotranspirationModels/PenmanMonteith.hpp"
 #include "EvapotranspirationModels/PriestleyTaylor.hpp"
-
+#include "data_base.hpp"
+#include "net_all_bad_lake.hpp"
 
 /**
  * \ingroup modules exp evap
@@ -68,16 +65,34 @@ public:
     void init(mesh& domain);
     void run(mesh_elem& face);
 
-    class data : public face_info
+    class Cache : public cache_base
     {
-        public:
-            std::unique_ptr<evapT_base> MyPenmanMonteith; 
-            std::unique_ptr<evapT_base> MyPriestleyTaylor;
-            
-            double LAI;
-            double LAImax;
-            double vegetation_height;
-            double soil_depth;
+    public:
+        //Inputs
+        double incoming_short_wave = std::numeric_limits<double>::quiet_NaN();
+        //Outputs
+        double net_all_wave = 0.0;
+    };
+
+    class data : public face_info, public data_base<Cache>
+    {
+    public:
+        std::unique_ptr<evapT_base> MyPenmanMonteith; 
+        std::unique_ptr<evapT_base> MyPriestleyTaylor;
+        
+        double LAI;
+        double LAImax;
+        double vegetation_height;
+        double soil_depth;
+
+        double albedo();
+        double incoming_short_wave();
+        void net_all_wave(const double& val);
+        double net_all_wave();
+
+        data(const mesh_elem& face_in, const boost::shared_ptr<global> param,
+                const config_file cfg) : data_base<Cache>(face_in,param,cfg) {};
+        ~data() {}; 
     };
 
 private:
@@ -89,17 +104,20 @@ private:
     // TODO add PT methods here 
 
     void init_PriestleyTaylor(Evapotranspiration_All::data& d,double& alpha);
-    PT_vars set_PriestleyTaylor_vars(mesh_elem& face);
+    PT_vars set_PriestleyTaylor_vars(mesh_elem& face,data& d);
    
     // PenmanMonteith
     double wind_height;
     double stomatal_resistance_min;
     double Frac_to_ground;
-     
+
     void init_PenmanMonteith(Evapotranspiration_All::data& d, mesh_elem& face, double& wind_height, 
             double& stomatal_resistance_min, double& Frac_to_ground);
     
     PM_vars set_PenmanMonteith_vars(mesh_elem& face, double& t, 
-            double& saturated_vapour_pressure, double& vapour_pressure);
+            double& saturated_vapour_pressure, double& vapour_pressure, data& d);
     
+    const double& get_dt();
+
+    net_all_bad_lake<data> net_radiation; 
 };

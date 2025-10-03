@@ -53,6 +53,8 @@ set(MODULE_SRCS
 		modules/Gray_inf.cpp
         modules/Infil_All.cpp
         modules/soil_module.cpp
+        modules/soil_water_unit_conversion.cpp
+        modules/surface_temperature.cpp
         modules/Simple_Canopy.cpp
 		modules/scale_wind_vert.cpp
 		modules/sub_grid.cpp
@@ -76,20 +78,15 @@ set(MODEL_SRCS
         modules/EvapotranspirationModels/PenmanMonteith.cpp
         modules/EvapotranspirationModels/PriestleyTaylor.cpp
         
-        modules/submodule_base.hpp   
-        modules/soil_submodules/soil_base.hpp
         modules/soil_submodules/soil_two_layer.cpp
         modules/soil_submodules/soil_ET.cpp
-        modules/soil_submodules/soil_DTO.hpp
         modules/soil_submodules/soil_classes.cpp
 
-        modules/soil_submodules/I_K_estimate.hpp
         modules/soil_submodules/K_estimate.cpp
 
         modules/soil_submodules/XG_algorithm.cpp
     
         modules/infil_submodules/Crack.cpp
-		modules/infil_submodules/Ayers.hpp
         CACHE INTERNAL "" FORCE )
 
 set(CHM_SRCS
@@ -103,7 +100,7 @@ set(CHM_SRCS
         physics/Soil.cpp
 
 		mesh/triangulation.cpp
-#		mesh/ugrid.cpp
+        mesh/ugrid_writer.cpp
 
 		interpolation/inv_dist.cpp
 		interpolation/TPSpline.cpp
@@ -136,6 +133,7 @@ set (HEADER_FILES
         modules/EvapotranspirationModels/
         modules/soil_submodules/
         modules/infil_submodules/
+        modules/submodules/
         math
         libmaw
         interpolation
@@ -193,10 +191,9 @@ set(EXT_TARGETS
 
 		CACHE INTERNAL "" FORCE)
 
-
 #handle the optionals
-if(OpenMP_FOUND)
-	list( APPEND EXT_TARGETS	OpenMP::OpenMP_CXX)
+if(USE_OMP)
+	list( APPEND EXT_TARGETS OpenMP::OpenMP_CXX)
 endif()
 
 if(USE_OCL AND OPENCL_FOUND)
@@ -248,6 +245,12 @@ set_target_properties(CHMmath
 		PROPERTIES
 		COMPILE_FLAGS ${CHM_BUILD_FLAGS})
 
+# If OpenMP is disabled and the compiler supports it, explicitly disable
+# OpenMP pragmas for this target to neutralize any inherited -fopenmp.
+if(NOT USE_OMP AND CHM_HAS_FNO_OPENMP)
+  target_compile_options(CHMmath PRIVATE -fno-openmp)
+endif()
+
 
 add_executable(
 		CHM
@@ -283,6 +286,11 @@ set_target_properties(CHM
 		UNITY_BUILD OFF
 		UNITY_BUILD_BATCH_SIZE 2
 		)
+
+# Explicitly disable OpenMP on CHM if requested and supported.
+if(NOT USE_OMP AND CHM_HAS_FNO_OPENMP)
+  target_compile_options(CHM PRIVATE -fno-openmp)
+endif()
 
 if(BUILD_WITH_CONAN)
 	# the patches suggested by conan https://docs.conan.io/en/latest/howtos/manage_shared_libraries/rpaths.html
@@ -369,6 +377,11 @@ set_target_properties(partition
 		COMPILE_FLAGS ${CHM_BUILD_FLAGS}
 		)
 
+# Explicitly disable OpenMP on partition tool if requested and supported.
+if(NOT USE_OMP AND CHM_HAS_FNO_OPENMP)
+  target_compile_options(partition PRIVATE -fno-openmp)
+endif()
+
 if(BUILD_WITH_CONAN)
 	if(APPLE)
 		add_custom_command(TARGET partition POST_BUILD
@@ -422,7 +435,6 @@ endif()
 
 if (BUILD_TESTS)
 	message(STATUS "Tests enabled. Run with make check")
-	add_subdirectory (tests/googletest)
 
 	set(TEST_SRCS
         #tests/test_station.cpp
@@ -444,15 +456,16 @@ if (BUILD_TESTS)
             tests/submoduletests/CSVreader.hpp
             tests/submoduletests/test_CSVreader.cpp
             tests/submoduletests/test_daily_accumulator.cpp
+            tests/submoduletests/test_data_base.cpp
+            tests/submoduletests/test_soil_moisture_converter.cpp
+            tests/submoduletests/test_net_all_bad_lake.cpp
 	)
 
 
-	set( GTEST_LINK
-			gtest
-            gmock
+
+	set(GTEST_LINK
+			GTest::gtest
 			)
-
-
 
 	add_executable(
 			runUnitTests
@@ -485,38 +498,17 @@ if (BUILD_TESTS)
 			RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests"
 			)
 
+	# Explicitly disable OpenMP on unit tests if requested and supported.
+	if(NOT USE_OMP AND CHM_HAS_FNO_OPENMP)
+	  target_compile_options(runUnitTests PRIVATE -fno-openmp)
+	endif()
+
 	#add the `make check` target that runs the unit tests
 	set(TEST_DIR ${CMAKE_BINARY_DIR}/tests)
 	add_custom_target(check COMMAND ${TEST_DIR}/runUnitTests
 						DEPENDS runUnitTests
 						WORKING_DIRECTORY ${TEST_DIR})
 
-	if(BUILD_WITH_CONAN)
-		if(APPLE)
-			add_custom_command(TARGET runUnitTests POST_BUILD
-					#patch CHM to look for @rpath/ for all dylibs that aren't looking for @rpath
-					COMMAND bash -c "otool -l ${TEST_DIR}/runUnitTests | grep name | grep -v segname |  grep -v sectname | grep -v @rpath  | awk '{print $2}' | grep -v '^/' | while read x; do install_name_tool -change $x @rpath/`echo $x | grep -Eo '[a-zA-Z0-9_\.-]+\.dylib'` ${TEST_DIR}/runUnitTests; done"
-					#strip all LC_RPATH from our non-install binary
-					COMMAND bash -c "otool -l ${TEST_DIR}/runUnitTests | grep LC_RPATH -A2 | grep path | awk '{print $2}' | while read x; do install_name_tool -delete_rpath $x ${TEST_DIR}/runUnitTests; done"
-					#update LC_RPATH for our non-install binary
-					COMMAND bash -c "install_name_tool -add_rpath @executable_path/../lib ${TEST_DIR}/runUnitTests"
-					VERBATIM)
-		else()
-			target_link_options(runUnitTests
-					PUBLIC "LINKER:--disable-new-dtags" )
-
-			add_custom_command(TARGET runUnitTests POST_BUILD
-					#			# Some .so will have runpaths, some do not. Just remove them all. The RUNPATHS override the binarie's rpath (I don't know why)
-					COMMAND bash -c "cd ${CMAKE_BINARY_DIR}/lib ; ls | while read x; do patchelf --remove-rpath $x; done"
-					#
-					#			# RPATH correctly works, so unlikely to be needed but kept just in case.
-					#			# This removes all runpaths , and then here we will patch each .so to have the correct RUNPATH
-					COMMAND bash -c "cd ${CMAKE_BINARY_DIR}/lib ; ls | while read x; do patchelf --set-rpath '\$ORIGIN/../lib' $x; done"
-
-					VERBATIM
-					)
-		endif()
-	endif()
 
 	#copy the data files from test_data to the dir that holds the test binary
 	add_custom_command(TARGET runUnitTests PRE_BUILD
@@ -524,7 +516,6 @@ if (BUILD_TESTS)
 			${CMAKE_SOURCE_DIR}/test_data
 			$<TARGET_FILE_DIR:runUnitTests>
 			COMMENT "Copying files to $<TARGET_FILE_DIR:runUnitTests> from ${CMAKE_SOURCE_DIR}/test_data/")
-
 
 
 endif()

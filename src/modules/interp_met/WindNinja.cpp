@@ -78,7 +78,7 @@ WindNinja::WindNinja(config_file cfg)
 void WindNinja::init(mesh& domain)
 {
     #pragma omp parallel for
-    for (size_t i = 0; i < domain->size_faces(); i++)
+    for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<data>(ID);
@@ -244,6 +244,7 @@ void WindNinja::init(mesh& domain)
     H_forc = cfg.get("H_forc",40.0);
     Max_spdup = cfg.get("Max_spdup",3.);
     Min_spdup = cfg.get("Min_spdup",0.1);
+    scale_factor = cfg.get("scale_factor",1.0);
     ninja_recirc = cfg.get("ninja_recirc",false);
     Sx_crit = cfg.get("Sx_crit", 30.);
 
@@ -271,7 +272,7 @@ void WindNinja::run(mesh& domain)
         double delta_angle = 360. / N_windfield;
 
         #pragma omp parallel for
-        for (size_t i = 0; i < domain->size_faces(); i++)
+        for (size_t i = 0; i < domain->size_local_faces(); i++)
         {
             auto face = domain->face(i);
 
@@ -418,7 +419,7 @@ void WindNinja::run(mesh& domain)
            }
 
         #pragma omp parallel for
-        for (size_t i = 0; i < domain->size_faces(); i++)
+        for (size_t i = 0; i < domain->size_local_faces(); i++)
        {
 
             auto face = domain->face(i);
@@ -465,8 +466,8 @@ void WindNinja::run(mesh& domain)
                                            Atmosphere::Z_U_R,  // UR is at our reference height
                                            0); // no canopy, no snow, but uses a snow roughness
 
-            (*face)["U_R"_s]= W;
-
+            // scale_factor can be used to correct any low bias. Heavy handed approach
+            (*face)["U_R"_s]= W * scale_factor;
 
             (*face)["zonal_u"_s]= U; // these are still H_forc
             (*face)["zonal_v"_s]= V;
@@ -483,7 +484,7 @@ void WindNinja::run(mesh& domain)
 //	domain->ghost_neighbors_communicate_variable("U_R"_s);
 //
 //        #pragma omp parallel for
-//        for (size_t i = 0; i < domain->size_faces(); i++)
+//        for (size_t i = 0; i < domain->size_local_faces(); i++)
 //        {
 //
 //            auto face = domain->face(i);
@@ -508,7 +509,7 @@ void WindNinja::run(mesh& domain)
 //
 //        }
 //        #pragma omp parallel for
-//        for (size_t i = 0; i < domain->size_faces(); i++)
+//        for (size_t i = 0; i < domain->size_local_faces(); i++)
 //        {
 //            auto face = domain->face(i);
 //            (*face)["U_R"_s]= std::max(0.1, face->get_module_data<data>(ID).temp_u);

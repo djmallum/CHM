@@ -80,6 +80,8 @@ namespace po = boost::program_options;
 //gls
 #include <gsl/gsl_errno.h>
 
+#include <fmt/core.h>
+
 //includes from CHM
 #include "exception.hpp"
 #include "filter_base.hpp"
@@ -87,6 +89,7 @@ namespace po = boost::program_options;
 #include "interpolation.hpp"
 #include "logger.hpp"
 #include "math/coordinates.hpp"
+#include "mesh/ugrid_writer.hpp"
 #include "metdata.hpp"
 #include "module_base.hpp"
 #include "readjson.hpp"
@@ -453,9 +456,12 @@ protected:
         // at a specific time
         boost::optional<boost::posix_time::ptime> specific_time;
 
-
         //Only output the last n timesteps. -1 = all
         boost::optional<size_t> only_last_n;
+
+        // bespoke writer to write this output
+        // the ugrid contains non-copyable MPI objects so needs to be ptr
+        boost::variant< boost::shared_ptr<ugrid_writer>> writer;
 
     };
 

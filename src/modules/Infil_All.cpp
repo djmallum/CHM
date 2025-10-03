@@ -30,7 +30,7 @@ Infil_All::Infil_All(config_file cfg) : module_base("Infil_All", parallel::data,
     depends("swe");
     depends("snowmelt_int");
     depends("rainfall_int"); // NEW
-    depends("soil_storage_at_freeze"); // NEW, depends on Volumetric model, equivalent to fallstat in crhm
+    depends("soil_saturation"); // NEW, depends on Volumetric model, equivalent to fallstat in crhm
     depends("soil_storage");
     depends("t");
 
@@ -56,8 +56,18 @@ Infil_All::~Infil_All()
 void Infil_All::init(mesh& domain)
 {
     //store all of snobals global variables from this timestep to be used as ICs for the next timestep
+
+    // Model Parameters
+    infDays = cfg.get("max_inf_days",6);
+    min_swe_to_freeze = cfg.get("min_swe_to_freeze",25);
+    major = cfg.get("major",5); 
+    AllowPriorInf = cfg.get("AllowPriorInf",true);
+    thaw_type = cfg.get("thaw_type",0); // Default is Ayers
+    lenstemp = cfg.get("temperature_ice_lens",-10.0);
+    day_of_year_to_freeze = cfg.get("day_of_year_to_freeze",300); 
+
 #pragma omp parallel for
-    for (size_t i = 0; i < domain->size_faces(); i++)
+    for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<Infil_All::data>(ID);
@@ -75,13 +85,6 @@ void Infil_All::init(mesh& domain)
         d.soil_storage = face->soil_attribute<double>("soil_storage");
         d.last_day = 0;
 
-        // Model Parameters
-        infDays = cfg.get("max_inf_days",6);
-        min_swe_to_freeze = cfg.get("min_swe_to_freeze",25);
-        major = cfg.get("major",5); 
-        AllowPriorInf = cfg.get("AllowPriorInf",true);
-        thaw_type = cfg.get("thaw_type",0); // Default is Ayers
-
         if (thaw_type == AYERS)
         {    
             d.texture = face->soil_attribute<std::string>("soil_texture","soils");
@@ -92,14 +95,12 @@ void Infil_All::init(mesh& domain)
             d.soil_type = face->soil_attribute<std::string>("soil_type","soils");
             d.ksaturated = SoilDataObj.saturated_conductivity(d.soil_type);
         }
-        lenstemp = cfg.get("temperature_ice_lens",-10.0);
 
 
         d.soil_storage_max = face->parameter("soil_storage_max"_s);
-
-
    }
 }
+
 void Infil_All::run(mesh_elem &face)
 {
     // TODO if its water it should probably take all rain as "infil", there will be no snowmelt... sorta, snow melting and leaking into the water under the ice in spring??
@@ -123,30 +124,36 @@ void Infil_All::run(mesh_elem &face)
     double snowmelt = (*face)["snowmelt_int"_s];
     double rainfall = (*face)["rainfall_int"_s]; // NEW
     double swe = (*face)["swe"_s]; 
-    double soil_storage_at_freeze = (*face)["soil_storage_at_freeze"_s];
     double airtemp = (*face)["t"_s];
 
     if (thaw_type == GREENAMPT)
         d.soil_storage = (*face)["soil_storage"_s];
-    
-    
-
+   
+    // soil_saturation_at_freeze is std::optional, only set if not yet set
+    if (!d.soil_saturation_at_freeze && global_param->day() == day_of_year_to_freeze )
+       d.soil_saturation_at_freeze.emplace(get_soil_saturation(face));
+   
+    // Checks if its time to start the crack model 
     if (swe > min_swe_to_freeze && !d.crack_model_status.frozen && is_new_day())
     {
         d.crack_model_status.begin_freeze();
         d.crack_model_status.end_freeze_tomorrow = false;
+
+        // In a situation where a simulation starts after day_of_year_to_freeze, set soil_saturation_at_freeze
+        // right away
+        if (!d.soil_saturation_at_freeze)
+            d.soil_saturation_at_freeze.emplace(get_soil_saturation(face));
     }
     
     if (d.crack_model_status.frozen) // Gray's infiltration, 1985
     {
-        double steps_per_day = 86400.0 / global_param->dt(); 
+        static double steps_per_day = 86400.0 / global_param->dt(); 
         Crack crack(major, min_swe_to_freeze, infDays, 
                 AllowPriorInf, lenstemp,steps_per_day,d.crack_model_status);
         
-        crack.init_inputs(snowmelt, rainfall, swe, soil_storage_at_freeze,
+        crack.init_inputs(snowmelt, rainfall, swe, d.soil_saturation_at_freeze.value(),
                 airtemp, is_new_day()); 
         d.crack_model_status.daily_melt_total = snowmelt * steps_per_day;
-        crack.is_CRHM_compare_test = true;
         crack.run();
 
         runoff = crack.get_runoff() / steps_per_day;
@@ -162,6 +169,7 @@ void Infil_All::run(mesh_elem &face)
         {
             d.crack_model_status.end_freeze();
             d.crack_model_status.end_freeze_tomorrow = true;
+            d.soil_saturation_at_freeze.reset();
         } 
         //if (swe <= 0.0 && d.crack_model_status.major_melt_count > 0)
         //     d.crack_model_status.end_freeze_tomorrow = true;
@@ -327,7 +335,11 @@ bool Infil_All::is_new_day()
         return false;
 };
 
-
+const double Infil_All::get_soil_saturation(mesh_elem& face) const
+{
+    static const double DECIMAL_TO_PERCENT = 100.0;
+    return (*face)["soil_saturation"_s] * DECIMAL_TO_PERCENT;
+};
 // Ayers
 
 // Green-Ampt Functions

@@ -746,7 +746,6 @@ TEST_F(XGTest,FullZdFrontOrganizeTest)
 #define diff4 0.0001
 #define diff3 0.001
 #define diff5 0.00001
-
 //TEST_F(XGTest,LongTimeTest)
 //{
 ////#ifdef NDEBUG
@@ -814,4 +813,3 @@ TEST_F(XGTest,FullZdFrontOrganizeTest)
 //        soil_rechr_storage = reader.getValue<double>("soil_rechr",i);
 //    }; 
 //};
->>>>>>> refs/rewritten/develop

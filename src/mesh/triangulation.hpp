@@ -129,18 +129,16 @@ using namespace H5;
 #include <netcdf>
 
 // CHM includes
-#include "interpolation.hpp"
 #include "gis.hpp"
-#include "station.hpp"
 #include "global.hpp"
-#include "vertex.hpp"
-#include "timeseries.hpp"
+#include "interpolation.hpp"
 #include "math/coordinates.hpp"
-#include "utility/xxh64.hpp"
-#include "timeseries/variablestorage.hpp"
-#include "ugrid.hpp"
+#include "station.hpp"
 #include "timer.hpp"
-
+#include "timeseries.hpp"
+#include "timeseries/variablestorage.hpp"
+#include "utility/xxh64.hpp"
+#include "vertex.hpp"
 
 /**
 * \struct face_info
@@ -476,9 +474,10 @@ public:
 
 //    void set_module_data(const std::string &module, face_info *fi);
 
-    template<typename T>
-    T& make_module_data(const std::string &module);
-
+    // Overload for module data constructor
+    template<typename T, typename... Args>
+    T& make_module_data(const std::string &module, Args... args);
+    
     std::string _debug_name; //for debugging to find the elem that we want
     int _debug_ID; //also for debugging. ID == the position in the output order, starting at 0
     size_t cell_global_id;
@@ -759,7 +758,7 @@ public:
     * Return the number of faces in the local triangluation
     * \return Number of triangle faces
     */
-    size_t size_faces();
+    size_t size_local_faces();
 
     /**
     * Return the number of faces in the global triangluation
@@ -768,10 +767,10 @@ public:
     size_t size_global_faces();
 
     /**
-    * Return the number of verticies in the triangulation
+    * Return the number of local vertexes in the triangulation
     * \return Number of vertices
     */
-    size_t size_vertex();
+    size_t size_local_vertex();
 
     /**
      * Locates the closest triangle (based on centers) that the point x y lies on in 2 dimensions.
@@ -869,14 +868,6 @@ public:
      */
     void init_vtkUnstructured_Grid(std::vector<std::string> output_variables);
 
-    void init_ugrid(std::vector<std::string> output_variables, std::string fname);
-
-    // opens an existing ugrid, such as when resuming from checkpoint
-    // assumes the main topology structure has been written
-    void open_ugrid(std::vector<std::string> output_variables, std::string fname);
-    void write_ugrid(std::vector<std::string> output_variables, std::string fname);
-    void close_ugrid(); // unlike vtu, we have to close the ugrid before mpi finalize has been called
-
     /// Initializes all the face timeseries to hold the selected variables
     /// @param variables
     void init_timeseries(std::set< std::string > variables);
@@ -924,29 +915,34 @@ public:
     /**
     * Saves the mesh with this timesteps values to a vtu file for visualization in Paraview
     */
-	void write_vtu(std::string fname);
+    void write_vtu(std::string fname);
 
 
-	/**
-	 * Returns true if this is a geogrphic mesh
-	 * @return
-	 */
-	bool is_geographic();
+    /**
+     * Returns true if this is a geogrphic mesh
+     * @return
+     */
+    bool is_geographic();
 
     /**
      * Returns the proj4 description of the projection used
      * @return
      */
-	std::string proj4();
+    std::string proj4();
 
-	//holds the spatial search tree
-	//http://doc.cgal.org/latest/Spatial_searching/index.html
-	boost::shared_ptr<Tree> dD_tree;
+    //holds the spatial search tree
+    //http://doc.cgal.org/latest/Spatial_searching/index.html
+    boost::shared_ptr<Tree> dD_tree;
 
+    /**
+     * Should parameters on triangles be written to output files (vtu / ugrid)
+     * @return
+     */
+    bool write_param_to_output();
     /**
      * Set the the private variable for writing parameters in vtu output
      */
-    void write_param_to_vtu(bool write_param);
+    void write_param_to_output(bool write_param);
     /**
      * Set the the private variable for writing the ghost neighbor data in vtu output
      */
@@ -1114,16 +1110,9 @@ protected:
     //should we write ghost neighbor faces to the vtu file?
     bool _write_ghost_neighbors_to_vtu;
 
-    //holds the file id for the ugrid output netcdf
-    int _ugrid_fid;
-
-    //maps the variable string to the netcdf id to write to file
-    std::map<std::string, int> _ugrid_id_var;
-
     // min and max elevations
     double _min_z;
     double _max_z;
-
 
 
     //If the triangulation is traversed using the finite_faces_begin/end iterators, the determinism of the order of traversal is not guaranteed
@@ -1914,21 +1903,21 @@ timeseries::iterator face<Gt, Fb>::now()
 }
 
 
+// Overloaded for construtor that requires arguments
 template < class Gt, class Vb>
-template<typename T>
-T& face<Gt, Vb>::make_module_data(const std::string &module)
+template<typename T, typename... Args>
+T& face<Gt, Vb>::make_module_data(const std::string &module, Args... args)
 {
 
     //we don't already have this, make a new one.
     if(!_module_face_data[module])
     {
 //        T* data = new T;
-        _module_face_data[module] = std::make_unique<T>();
+        _module_face_data[module] = std::make_unique<T>(args...);
     }
 
     return get_module_data<T&>(module);
 }
-
 
 template < class Gt, class Fb>
 template < typename T>
@@ -2036,3 +2025,4 @@ T determine_owner_of_global_index(T index, std::vector<T> num_faces_in_partition
   }
   return owner;
 }
+

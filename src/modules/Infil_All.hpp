@@ -23,15 +23,12 @@
 
 #pragma once
 
-#include "logger.hpp"
 #include "triangulation.hpp"
 #include "module_base.hpp"
-#include "TPSpline.hpp"
-#include <cmath>
 #include "Soil.h"
 #include "Crack.hpp"
 #include "Ayers.hpp"
-#include "boost/date_time/posix_time/posix_time_types.hpp"
+#include <optional>
 /**
  * \ingroup modules infil soils exp
  * @{
@@ -107,6 +104,7 @@ public:
         Crack::info crack_model_status;
         int last_day;
         bool end_freeze_tomorrow = false; // Delays end of freeze by one day so that we can get the melt distributed over the day.
+        std::optional<const double> soil_saturation_at_freeze;
 
         // Ayers
         std::string texture;
@@ -133,7 +131,7 @@ private:
     unsigned int infDays;
     bool AllowPriorInf;   
     double lenstemp;
-
+    int day_of_year_to_freeze;
     // General, thawed soil
     enum ThawOptions { AYERS, GREENAMPT};
     unsigned int thaw_type;
@@ -152,7 +150,9 @@ private:
     // General Functions
     void Increment_Totals(data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
     void melt_to_infil(double& inf,double& snowinf,double& snowmelt);
-
+    
+    // Crack functions
+    const double get_soil_saturation(mesh_elem& face) const;
 
     // Green-Ampt Functions
     double convert_to_rate_hourly(double &rainfall); 

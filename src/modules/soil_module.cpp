@@ -8,7 +8,7 @@ soil_module::soil_module(config_file cfg) : module_base("soil_module", parallel:
     depends("ET");
     depends("inf");
     depends("runoff");
-    depends("surface_temperature");
+    depends("surface_temp");
     //    depends("routing_residual");
 
     provides("condensation");
@@ -48,11 +48,10 @@ void soil_module::init(mesh& domain)
 
     SoilDataObj = std::make_unique<Soil::soils_na>();
 
-    for (size_t i = 0; i < domain->size_faces(); i++)
+    for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<soil_module::data>(ID);
-        SPDLOG_DEBUG("Top front var: {}",d.freeze_thaw_first_front);
         // I do some evil things here to allow for the submodules to access module_base functions like is_water
         // A pointer to face is put in d, likewise a pointer to this instance of this class is also added, see the overridden functions
         // get_dt and is_lake below.
@@ -452,7 +451,7 @@ XG_algorithm soil_module::get_XG(mesh_elem& face,soil_module::data& d)
         d.S->is_newday = is_new_day();
      
 
-    XG_algorithm XG((*face)["surface_temperature"_s],d.soil_storage,d.soil_rechr_storage,*(d.S),*(d.P));
+    XG_algorithm XG((*face)["surface_temp"_s],d.soil_storage,d.soil_rechr_storage,*(d.S),*(d.P));
 
     return XG;
 };
