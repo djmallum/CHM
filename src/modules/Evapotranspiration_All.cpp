@@ -187,9 +187,7 @@ const double& Evapotranspiration_All::get_dt()
 
 double Evapotranspiration_All::data::albedo()
 {
-    static const double albedo_ = face->veg_attribute("surface_albedo");
-    
-    return albedo_;   
+    return face->veg_attribute("surface_albedo");
 };
 
 double Evapotranspiration_All::data::incoming_short_wave()
