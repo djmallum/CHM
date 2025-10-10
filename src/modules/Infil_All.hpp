@@ -104,7 +104,7 @@ public:
         Crack::info crack_model_status;
         int last_day;
         bool end_freeze_tomorrow = false; // Delays end of freeze by one day so that we can get the melt distributed over the day.
-        std::optional<double> soil_saturation_at_freeze;
+        std::optional<const double> soil_saturation_at_freeze;
 
         // Ayers
         std::string texture;
@@ -150,7 +150,9 @@ private:
     // General Functions
     void Increment_Totals(data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
     void melt_to_infil(double& inf,double& snowinf,double& snowmelt);
-
+    
+    // Crack functions
+    const double get_soil_saturation(mesh_elem& face) const;
 
     // Green-Ampt Functions
     double convert_to_rate_hourly(double &rainfall); 
