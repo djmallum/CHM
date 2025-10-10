@@ -9,13 +9,16 @@
 
 template<typename T>
 concept SoilMoistureConverterData = requires(T& t) {
-    { t.fractional_cutoff() } -> std::convertible_to<double>;
-    { t.soil_storage() } -> std::convertible_to<double>;
-    { t.soil_storage_max() } -> std::convertible_to<double>;
-    { t.porosity() } -> std::convertible_to<double>;
-    { t.volumetric_moisture_content(std::declval<const double>()) } -> std::same_as<void>;
-    { t.volumetric_moisture_content() } -> std::convertible_to<double>;
+    // Inputs
+    { t.fractional_cutoff() } -> std::floating_point;
+    { t.soil_storage() } -> std::floating_point;
+    { t.soil_storage_max() } -> std::floating_point;
+    { t.porosity() } -> std::floating_point;
+    { t.volumetric_moisture_content() } -> std::floating_point;
+    
+    // Outputs
     { t.saturation(std::declval<const double>()) } -> std::same_as<void>;
+    { t.volumetric_moisture_content(std::declval<const double>()) } -> std::same_as<void>;
 };
 
 template<SoilMoistureConverterData data>
