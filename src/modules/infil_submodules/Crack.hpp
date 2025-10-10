@@ -1,4 +1,3 @@
-
 #include "submodule_base.hpp"
 
 class Crack : submodule_base

@@ -10,6 +10,11 @@ void Crack::init_inputs(double _snowmelt,double _rainfall, double _swe, double _
     snowmelt = _snowmelt;
     rainfall = _rainfall;
     swe = _swe;
+    if (_soil_saturation_at_freeze < 0.0 || _soil_saturation_at_freeze > 100.0)
+        throw std::logic_error(
+                "Soil saturation not a percentage: " + 
+                std::to_string(_soil_saturation_at_freeze) + 
+                " - must be between 0 and 100");
     soil_saturation_at_freeze = _soil_saturation_at_freeze;
     airtemp = _airtemp;
     is_newday = _newday;
