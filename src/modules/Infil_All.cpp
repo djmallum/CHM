@@ -134,11 +134,14 @@ void Infil_All::run(mesh_elem &face)
     if (!d.soil_saturation_at_freeze && global_param->day() == day_of_year_to_freeze )
        d.soil_saturation_at_freeze.emplace(get_soil_saturation(face));
    
+    // Checks if its time to start the crack model 
     if (swe > min_swe_to_freeze && !d.crack_model_status.frozen && is_new_day())
     {
         d.crack_model_status.begin_freeze();
         d.crack_model_status.end_freeze_tomorrow = false;
 
+        // In a situation where a simulation starts after day_of_year_to_freeze, set soil_saturation_at_freeze
+        // right away
         if (!d.soil_saturation_at_freeze)
             d.soil_saturation_at_freeze.emplace(get_soil_saturation(face));
     }
