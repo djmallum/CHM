@@ -132,15 +132,15 @@ void Infil_All::run(mesh_elem &face)
    
     // soil_saturation_at_freeze is std::optional, only set if not yet set
     if (!d.soil_saturation_at_freeze && global_param->day() == day_of_year_to_freeze )
-       d.soil_saturation_at_freeze.emplace((*face)["soil_saturation"_s]);
-    
+       d.soil_saturation_at_freeze.emplace(get_soil_saturation(face));
+   
     if (swe > min_swe_to_freeze && !d.crack_model_status.frozen && is_new_day())
     {
         d.crack_model_status.begin_freeze();
         d.crack_model_status.end_freeze_tomorrow = false;
 
         if (!d.soil_saturation_at_freeze)
-            d.soil_saturation_at_freeze.emplace((*face)["soil_saturation"_s]);
+            d.soil_saturation_at_freeze.emplace(get_soil_saturation(face));
     }
     
     if (d.crack_model_status.frozen) // Gray's infiltration, 1985
@@ -333,7 +333,11 @@ bool Infil_All::is_new_day()
         return false;
 };
 
-
+const double Infil_All::get_soil_saturation(mesh_elem& face) const
+{
+    constexpr double DECIMAL_TO_PERCENT = 100.0;
+    return (*face)["soil_saturation"_s] * DECIMAL_TO_PERCENT;
+};
 // Ayers
 
 // Green-Ampt Functions

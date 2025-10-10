@@ -150,7 +150,9 @@ private:
     // General Functions
     void Increment_Totals(data &d, double &runoff, double &melt_runoff, double &inf, double &snowinf, double &rain_on_snow);
     void melt_to_infil(double& inf,double& snowinf,double& snowmelt);
-
+    
+    // Crack functions
+    const double get_soil_saturation(mesh_elem& face) const;
 
     // Green-Ampt Functions
     double convert_to_rate_hourly(double &rainfall); 
