@@ -72,7 +72,7 @@ public:
         double volumetric_moisture_content();
         void saturation(const double out);
         double saturation();
-        void reset_local_cache();
+        void set_outputs_to_face();
     };
     
 private:

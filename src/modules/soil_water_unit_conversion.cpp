@@ -35,6 +35,8 @@ void soil_water_unit_converter::run(mesh_elem& face)
     auto& d = face->get_module_data<soil_water_unit_converter::data>(ID);
 
     converter.execute(d);
+
+    d.set_outputs_to_face();
 };
 
 bool soil_water_unit_converter::data::storage_is_total_moisture() { return false; };
@@ -98,5 +100,12 @@ std::string& soil_water_unit_converter::data::get_soil_type()
     }
 
     return *soil_type;
+};
+
+void soil_water_unit_converter::data::set_outputs_to_face()
+{
+    (*face)["soil_volumetric_content"_s] = volumetric_moisture_content();
+    (*face)["soil_saturation"_s] = saturation();
+    reset_cache();
 };
 
