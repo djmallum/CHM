@@ -101,6 +101,7 @@ void Infil_All::init(mesh& domain)
         d.soil_storage_max = face->parameter("soil_storage_max"_s);
    }
 }
+
 void Infil_All::run(mesh_elem &face)
 {
     // TODO if its water it should probably take all rain as "infil", there will be no snowmelt... sorta, snow melting and leaking into the water under the ice in spring??
@@ -129,6 +130,7 @@ void Infil_All::run(mesh_elem &face)
     if (thaw_type == GREENAMPT)
         d.soil_storage = (*face)["soil_storage"_s];
    
+    // soil_saturation_at_freeze is std::optional, only set if not yet set
     if (!d.soil_saturation_at_freeze && global_param->day() == day_of_year_to_freeze )
        d.soil_saturation_at_freeze.emplace((*face)["soil_saturation"_s]);
     
