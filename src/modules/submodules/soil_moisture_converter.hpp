@@ -1,6 +1,7 @@
 #pragma once
 #include "base_step.hpp"
 #include <concepts>
+#include <stdexcept>
 #include <utility>
 
 /*
@@ -9,13 +10,16 @@
 
 template<typename T>
 concept SoilMoistureConverterData = requires(T& t) {
-    { t.fractional_cutoff() } -> std::convertible_to<double>;
-    { t.soil_storage() } -> std::convertible_to<double>;
-    { t.soil_storage_max() } -> std::convertible_to<double>;
-    { t.porosity() } -> std::convertible_to<double>;
-    { t.volumetric_moisture_content(std::declval<const double>()) } -> std::same_as<void>;
-    { t.volumetric_moisture_content() } -> std::convertible_to<double>;
+    // Inputs
+    { t.fractional_cutoff() } -> std::floating_point;
+    { t.soil_storage() } -> std::floating_point;
+    { t.soil_storage_max() } -> std::floating_point;
+    { t.porosity() } -> std::floating_point;
+    { t.volumetric_moisture_content() } -> std::floating_point;
+    
+    // Outputs
     { t.saturation(std::declval<const double>()) } -> std::same_as<void>;
+    { t.volumetric_moisture_content(std::declval<const double>()) } -> std::same_as<void>;
 };
 
 template<SoilMoistureConverterData data>
@@ -31,7 +35,7 @@ public:
     // TODO Consider in the future if having them be different is necessary.
 private:
     double volumetric_moisture(data& d) const;
-    void check_cutoff_validity(double c) const;
+    class Cutoff; // Forward declaration
 };
 
 template<SoilMoistureConverterData data>
@@ -46,11 +50,23 @@ void soil_moisture_converter<data>::execute(data& d)
     d.saturation(value / d.porosity()); 
 };
 
+/*
+ * As described below, the output of d.fraction_cutoff() must be between [0,1] for physical constraints. 
+ * I created this simple type 'Cutoff' which performs automatic conversions to double while checking the
+ * value upon construction.
+ */
 template<SoilMoistureConverterData data>
-void soil_moisture_converter<data>::check_cutoff_validity(double c) const
+class soil_moisture_converter<data>::Cutoff
 {
-    if (c < 0.0 || c > 1.0)
-        throw std::logic_error("cutoff must be between (inclusive) 0 and 1");
+    double _c;
+public:
+    Cutoff(const double c) : _c(c)
+    {
+        if (c < 0.0 || c > 1.0)
+            throw std::logic_error("cutoff must be between (inclusive) 0 and 1");
+    };
+    ~Cutoff() = default;
+    operator double() const { return _c; }
 };
 
 /*
@@ -68,21 +84,20 @@ void soil_moisture_converter<data>::check_cutoff_validity(double c) const
  * that is included in $S$ (soil moisture storage), $\phi$ is the porosity (e.g., volumetric moisture content 
  * at saturation).
  *
- * This equation basically says that the moisture below the wilt point is always full.
+ * This equation basically says that $S$ and $S_{\max}$ only capture soil soil moisture content above the 
+ * percentage set by $\gamma$.
  */
-
 template<SoilMoistureConverterData data>
 double soil_moisture_converter<data>::volumetric_moisture(data& d) const
 {
+
     /*
      * Volumetric moisture content for a case where d.soil_storage() is not the actual total moisture
-     * in the soil but rather it is the moisture above a specific threshold, set by lower_bound_fraction.
+     * in the soil but rather it is the moisture above a specific threshold, set by fractional_cutoff().
      */ 
     
-    double lower_bound_fraction = d.fractional_cutoff();
-    check_cutoff_validity(lower_bound_fraction);
+    Cutoff lower_bound_fraction = d.fractional_cutoff();
 
     return lower_bound_fraction + d.soil_storage()/d.soil_storage_max() 
         * (d.porosity() - lower_bound_fraction);
 };
-
