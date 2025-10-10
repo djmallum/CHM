@@ -8,7 +8,7 @@ soil_water_unit_converter::soil_water_unit_converter(config_file cfg)
 
     provides("soil_volumetric_content");
     provides("soil_saturation");
-    provides("soil_storage_at_freeze");
+    provides("soil_saturation_at_freeze");
 };
 
 double soil_water_unit_converter::data::soil_storage() 
