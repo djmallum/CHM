@@ -5,12 +5,12 @@ Crack::Crack(double& _major, double& _min_swe_to_freeze, unsigned int& _infDays,
 
 };
 
-void Crack::init_inputs(double _snowmelt,double _rainfall, double _swe, double _soil_storage_at_freeze, double _airtemp, bool _newday)
+void Crack::init_inputs(double _snowmelt,double _rainfall, double _swe, double _soil_saturation_at_freeze, double _airtemp, bool _newday)
 {
     snowmelt = _snowmelt;
     rainfall = _rainfall;
     swe = _swe;
-    soil_storage_at_freeze = _soil_storage_at_freeze;
+    soil_saturation_at_freeze = _soil_saturation_at_freeze;
     airtemp = _airtemp;
     is_newday = _newday;
 };
@@ -26,12 +26,12 @@ void Crack::run()
         if (d.daily_melt_total > 0.0)
         {
             
-            if (soil_storage_at_freeze == 0) // Unlimited
+            if (soil_saturation_at_freeze == 0) // Unlimited
             {
                 inf += d.daily_melt_total;
                 d.major_melt_count = 1; 
             }
-            else if (soil_storage_at_freeze > 0 && soil_storage_at_freeze < 100) // Limited
+            else if (soil_saturation_at_freeze > 0 && soil_saturation_at_freeze < 100) // Limited
             {
                 
                 increment_major_count();
@@ -59,7 +59,7 @@ void Crack::run()
                 }
 
             }
-            else if (soil_storage_at_freeze == 100) // Restricted
+            else if (soil_saturation_at_freeze == 100) // Restricted
             {
                 inf = 0.;
                 d.major_melt_count = 1;
@@ -112,7 +112,7 @@ void Crack::run()
 
 
 void Crack::Calc_Index() {
-    d.index = 5 * (1 - soil_storage_at_freeze/100.0) * std::pow(swe,0.584);
+    d.index = 5 * (1 - soil_saturation_at_freeze/100.0) * std::pow(swe,0.584);
     // d.major_major_per_melt is obtained by dividing d.index by the 
     // total number of time steps to get to d.index
     // This only works if 86400 / dt is a fraction which turns infDays into an integer

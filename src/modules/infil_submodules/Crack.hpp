@@ -9,7 +9,7 @@ public:
     ~Crack() {};
 
     virtual void run() override;
-    void init_inputs(double _snowmelt,double _rainfall, double _swe, double _soil_storage_at_freeze, double _airtemp, bool _newday);
+    void init_inputs(double _snowmelt,double _rainfall, double _swe, double _soil_saturation_at_freeze, double _airtemp, bool _newday);
    
     double runoff = 0.0;
     double get_runoff() { return runoff; };
@@ -25,7 +25,7 @@ public:
     double snowmelt;
     double rainfall;
     double swe;
-    double soil_storage_at_freeze;
+    double soil_saturation_at_freeze;
     double airtemp;
     bool is_newday;
     bool is_CRHM_compare_test = false;
