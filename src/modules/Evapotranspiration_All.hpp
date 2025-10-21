@@ -97,8 +97,8 @@ public:
 
 private:
 
-    std::unique_ptr<Soil::_soils_base> SoilDataObj;
-    
+    const Soil::soils_na& SoilDataObj = Soil::get_soil_obj<Soil::soils_na>();
+ 
     // PriestleyTaylor
     double alpha;
     // TODO add PT methods here 

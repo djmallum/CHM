@@ -50,8 +50,6 @@ void Evapotranspiration_All::init(mesh& domain)
     stomatal_resistance_min = cfg.get("stomatal_resistance_min",62.0);
     Frac_to_ground = cfg.get<double>("Frac_to_ground",1.0); // iswr_subcanopy exists.
 
-    SoilDataObj = std::make_unique<Soil::soils_na>();
-
     for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
@@ -147,10 +145,10 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d
     
     const double Cp = Atmosphere::Cp;
     const double kappa = Atmosphere::kappa;
-    const double air_entry_tension = SoilDataObj->air_entry_tension(soil_type);
-    const double pore_size_dist = SoilDataObj->pore_size_dist(soil_type);
-    const double wilt_point = SoilDataObj->wilt_point(soil_type);
-    const double porosity = SoilDataObj->porosity(soil_type);
+    const double air_entry_tension = SoilDataObj.air_entry_tension(soil_type);
+    const double pore_size_dist = SoilDataObj.pore_size_dist(soil_type);
+    const double wilt_point = SoilDataObj.wilt_point(soil_type);
+    const double porosity = SoilDataObj.porosity(soil_type);
 	
 
     double soil_storage_max = face->soil_attribute<double>("soil_storage_max"_s);
