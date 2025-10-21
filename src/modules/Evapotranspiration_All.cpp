@@ -35,7 +35,7 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
     depends("P_atm");
     depends("rh"); // relative humidity
     depends("t");
-    depends("U_2m_above_srf"); // 
+    depends("U_R"); // 
     depends("soil_storage");                      // but is how albedo is used in CHM as of Sept, 2024
 
     provides("ET");
@@ -46,7 +46,6 @@ Evapotranspiration_All::Evapotranspiration_All(config_file cfg)
 void Evapotranspiration_All::init(mesh& domain)
 {
     alpha = cfg.get("alpha_PriestleyTaylor",1.26);
-    wind_height = cfg.get("wind_measurement_height",2.0);
     stomatal_resistance_min = cfg.get("stomatal_resistance_min",62.0);
     Frac_to_ground = cfg.get<double>("Frac_to_ground",1.0); // iswr_subcanopy exists.
 
@@ -81,7 +80,7 @@ void Evapotranspiration_All::init(mesh& domain)
         // TODO add wetlands
         else 
         {
-            init_PenmanMonteith(d, face, wind_height, stomatal_resistance_min, Frac_to_ground);
+            init_PenmanMonteith(d, face, Atmosphere::Z_U_R, stomatal_resistance_min, Frac_to_ground);
         }
         
     }
@@ -165,7 +164,7 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d
 
 PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,const double t, const double saturated_vapour_pressure, const double vapour_pressure,data& d)
 {
-    PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],d.net_all_wave(),t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"_s]); 
+    PM_vars vars((*face)["U_R"_s],(*face)["iswr"_s],d.net_all_wave(),t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"_s]); 
     
     return vars;
 }
