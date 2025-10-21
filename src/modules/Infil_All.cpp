@@ -62,7 +62,7 @@ void Infil_All::init(mesh& domain)
     min_swe_to_freeze = cfg.get("min_swe_to_freeze",25);
     major = cfg.get("major",5); 
     AllowPriorInf = cfg.get("AllowPriorInf",true);
-    thaw_type = cfg.get("thaw_type",0); // Default is Ayers
+    thaw_type = cfg.get("thaw_type",ThawOptions::AYERS); // Default is Ayers
     lenstemp = cfg.get("temperature_ice_lens",-10.0);
     day_of_year_to_freeze = cfg.get("day_of_year_to_freeze",300); 
 
@@ -86,12 +86,12 @@ void Infil_All::init(mesh& domain)
         d.last_day = 0;
 
         
-        if (thaw_type == AYERS)
+        if (thaw_type == ThawOptions::AYERS)
         {    
             d.texture = face->soil_attribute<std::string>("soil_texture","soils");
             d.ground_cover = face->soil_attribute<std::string>("soil_groundcover","soils");
         }
-        else if (thaw_type == GREENAMPT)
+        else if (thaw_type == ThawOptions::GREENAMPT)
         {
             d.soil_type = face->soil_attribute<std::string>("soil_type","soils");
             d.ksaturated = SoilDataObj.saturated_conductivity(d.soil_type);
@@ -127,7 +127,7 @@ void Infil_All::run(mesh_elem &face)
     double swe = (*face)["swe"_s]; 
     double airtemp = (*face)["t"_s];
 
-    if (thaw_type == GREENAMPT)
+    if (thaw_type == ThawOptions::GREENAMPT)
         d.soil_storage = (*face)["soil_storage"_s];
    
     // soil_saturation_at_freeze is std::optional, only set if not yet set
@@ -180,7 +180,7 @@ void Infil_All::run(mesh_elem &face)
         //     d.last_day = global_param->day();
         //}
     }
-    else if (thaw_type == AYERS) // if not frozen, do Ayers
+    else if (thaw_type == ThawOptions::AYERS) // if not frozen, do Ayers
     {
         Ayers<Soil::soils_na,&Soil::soils_na::ayers_texture> ayers(rainfall, snowmelt, d.texture, d.ground_cover, SoilDataObj);
    
@@ -210,7 +210,7 @@ void Infil_All::run(mesh_elem &face)
         // Increment totals
         Increment_Totals(d,runoff,melt_runoff,inf,snowinf,rain_on_snow);
     }
-    else if (thaw_type == GREENAMPT) // if not frozen, do GreenAmpt
+    else if (thaw_type == ThawOptions::GREENAMPT) // if not frozen, do GreenAmpt
     {
         d.GA_temp = std::make_unique<data::tempvars>();
 
@@ -296,7 +296,7 @@ void Infil_All::run(mesh_elem &face)
     (*face)["frozen"_s]=static_cast<int>(d.crack_model_status.frozen);
     (*face)["major_melt_count"_s]=d.crack_model_status.major_melt_count;
 
-    if (thaw_type == GREENAMPT)
+    if (thaw_type == ThawOptions::GREENAMPT)
         (*face)["soil_storage"_s]=d.soil_storage;
 }
 

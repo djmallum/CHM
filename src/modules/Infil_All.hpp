@@ -113,14 +113,16 @@ public:
         // GreenAmpt
         double soil_storage;
 	double soil_storage_max;
-	double ksaturated;
+	double ksaturated; // TODO currently units are mm/hr 
+                       // Need to have the units change depending 
+                       // on the actual time step
         std::unique_ptr<tempvars> GA_temp{nullptr};
         
     };
 
 private:
     
-    const Soil::soils_na& SoilDataObj = Soil::get_soil_obj<const Soil::soils_na>();
+    const Soil::soils_na& SoilDataObj = Soil::get_soil_obj<Soil::soils_na>();
 
 	// General
 	bool is_new_day(void);
@@ -133,16 +135,16 @@ private:
     double lenstemp;
     int day_of_year_to_freeze;
     // General, thawed soil
-    enum ThawOptions { AYERS, GREENAMPT};
-    unsigned int thaw_type;
+    enum class ThawOptions {NONE, AYERS, GREENAMPT};
+    ThawOptions thaw_type = ThawOptions::NONE;
 
 
     // GreenAmpt
     // double max_soil_storage;
     // double soil_depth;
     // double porosity;
-    enum GATable {PSI, KSAT, WILT, FCAP, PORG, PORE, AIENT, PORESZ, AVAIL}; // Used for mapping the soil table, PSI and KSAT are used, the others are unused but may but used in the future or other modules.    
-    enum GAVars {TOTINF, RATEINF, SUCTION, THETA};
+    enum class GATable {PSI, KSAT, WILT, FCAP, PORG, PORE, AIENT, PORESZ, AVAIL}; // Used for mapping the soil table, PSI and KSAT are used, the others are unused but may but used in the future or other modules.    
+    enum  class GAVars {TOTINF, RATEINF, SUCTION, THETA};
     //double soilproperties[][9];
     //double textureproperties[][6];
      
