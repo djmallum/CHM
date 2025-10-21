@@ -1,7 +1,6 @@
 #pragma once
 
 #include "evapbase.hpp"
-#include <algorithm>
 
 // Implementation:
 // include the header
@@ -17,7 +16,7 @@ class PriestleyTaylor : public evapT_base
 {
 public:
 
-    PriestleyTaylor(const double& alpha_const, const double& Cp); 
+    PriestleyTaylor(const double& alpha_const, const double& Cp, const int s_per_time_step); 
                      
     ~PriestleyTaylor(void) override; // Deconstructor
                      
@@ -26,7 +25,8 @@ public:
 
     double Frac_to_ground;
     const double& alpha; 
-    const double heat_capacity_air;    
+    const double heat_capacity_air;
+    const int s_per_time_step;    
 private:
 
 
@@ -38,7 +38,6 @@ struct PT_vars : public var_base
     const double& all_wave_net;  
     const double& P_atm;
     const double& air_temperature;
-
     PT_vars(const double& Q, const double& P, const double& t) : all_wave_net(Q), P_atm(P), air_temperature(t) {};
 };
 

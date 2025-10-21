@@ -76,7 +76,7 @@ void Evapotranspiration_All::init(mesh& domain)
         // It wouldn't work if PT model is used for normal soils when they are saturated.
         if (is_water(face))
         {
-            init_PriestleyTaylor(d,alpha);
+            init_PriestleyTaylor(d,alpha,global_param->dt());
         }
         // TODO add wetlands
         else 
@@ -136,9 +136,9 @@ Evapotranspiration_All::~Evapotranspiration_All()
 
 }
 
-void Evapotranspiration_All::init_PriestleyTaylor(Evapotranspiration_All::data& d,const double alpha)
+void Evapotranspiration_All::init_PriestleyTaylor(Evapotranspiration_All::data& d,const double alpha, const int dt)
 {
-    d.MyPriestleyTaylor = std::make_unique<PriestleyTaylor>(alpha,Atmosphere::Cp);
+    d.MyPriestleyTaylor = std::make_unique<PriestleyTaylor>(alpha,Atmosphere::Cp, dt);
 }
 
 void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d,mesh_elem& face, const double wind_height, double stomatal_resistance_min, double Frac_to_ground)

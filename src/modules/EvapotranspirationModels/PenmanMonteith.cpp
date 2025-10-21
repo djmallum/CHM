@@ -102,6 +102,8 @@ void PenmanMonteith::CalcEvapT(var_base& basevar, model_output& output)
 	out.ET = (radiation + mass) / 
 		( delta(var.t) + gamma(var.P_atm, var.t, heat_capacity_air) * ( 1 + stomatal_resistance / aero_resistance ));
 		// Units are W/m^2
+    
+    // TODO PM and PT methods should both stop at W/m^2 and conversion done in module
 
 	out.ET *= 1.0 / (water_density * lambda(var.t)); // Converts units to m/s 
 	

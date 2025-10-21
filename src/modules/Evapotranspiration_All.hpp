@@ -103,11 +103,10 @@ private:
     double alpha;
     // TODO add PT methods here 
 
-    void init_PriestleyTaylor(Evapotranspiration_All::data& d, const double alpha);
+    void init_PriestleyTaylor(Evapotranspiration_All::data& d, const double alpha,const int dt);
     PT_vars set_PriestleyTaylor_vars(mesh_elem& face,data& d);
    
     // PenmanMonteith
-    double wind_height;
     double stomatal_resistance_min;
     double Frac_to_ground;
     
