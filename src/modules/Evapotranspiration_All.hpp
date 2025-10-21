@@ -103,7 +103,7 @@ private:
     double alpha;
     // TODO add PT methods here 
 
-    void init_PriestleyTaylor(Evapotranspiration_All::data& d,double& alpha);
+    void init_PriestleyTaylor(Evapotranspiration_All::data& d, const double alpha);
     PT_vars set_PriestleyTaylor_vars(mesh_elem& face,data& d);
    
     // PenmanMonteith
@@ -111,13 +111,13 @@ private:
     double stomatal_resistance_min;
     double Frac_to_ground;
     
-    void init_PenmanMonteith(Evapotranspiration_All::data& d, mesh_elem& face, double& wind_height, 
-            double& stomatal_resistance_min, double& Frac_to_ground);
+    void init_PenmanMonteith(Evapotranspiration_All::data& d, mesh_elem& face, const double wind_height, 
+            const double stomatal_resistance_min, const double Frac_to_ground);
     
-    PM_vars set_PenmanMonteith_vars(mesh_elem& face, double& t, 
-            double& saturated_vapour_pressure, double& vapour_pressure, data& d);
+    PM_vars set_PenmanMonteith_vars(mesh_elem& face, const double t, 
+            const double saturated_vapour_pressure, const double vapour_pressure, data& d);
     
-    const double& get_dt();
+    const double get_dt();
 
     net_all_bad_lake<data> net_radiation; 
 };

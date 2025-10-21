@@ -34,7 +34,7 @@ private:
     void CalcHeights(void);
     double CalcAeroResistance(const PM_vars& var);
     double CalcStomatalResistance(const PM_vars& var);
-    double AirDensity(const double& t, const double& ea, const double& Pa);
+    double AirDensity(const double t, const double ea, const double Pa);
 
     double Z0;
     double d;

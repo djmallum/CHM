@@ -136,12 +136,12 @@ Evapotranspiration_All::~Evapotranspiration_All()
 
 }
 
-void Evapotranspiration_All::init_PriestleyTaylor(Evapotranspiration_All::data& d,double& alpha)
+void Evapotranspiration_All::init_PriestleyTaylor(Evapotranspiration_All::data& d,const double alpha)
 {
     d.MyPriestleyTaylor = std::make_unique<PriestleyTaylor>(alpha,Atmosphere::Cp);
 }
 
-void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d,mesh_elem& face, double& wind_height, double& stomatal_resistance_min, double& Frac_to_ground)
+void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d,mesh_elem& face, const double wind_height, double stomatal_resistance_min, double Frac_to_ground)
 {
     
     const std::string soil_type = face->soil_attribute<std::string>("soil_type"_s,"soils");
@@ -163,7 +163,7 @@ void Evapotranspiration_All::init_PenmanMonteith(Evapotranspiration_All::data& d
     
 }
 
-PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,double& t, double& saturated_vapour_pressure,double& vapour_pressure,data& d)
+PM_vars Evapotranspiration_All::set_PenmanMonteith_vars(mesh_elem& face,const double t, const double saturated_vapour_pressure, const double vapour_pressure,data& d)
 {
     PM_vars vars((*face)["U_2m_above_srf"_s],(*face)["iswr"_s],d.net_all_wave(),t,(*face)["soil_storage"_s],vapour_pressure,saturated_vapour_pressure,(*face)["P_atm"_s]); 
     
@@ -179,7 +179,7 @@ PT_vars Evapotranspiration_All::set_PriestleyTaylor_vars(mesh_elem& face, data& 
     return vars;
 }
 
-const double& Evapotranspiration_All::get_dt()
+const double Evapotranspiration_All::get_dt()
 {
     static const double dt = this->global_param->dt();
        
