@@ -1,8 +1,6 @@
 #pragma once
 
 #include "evapbase.hpp"
-#include <algorithm>
-#include <iostream>
 // Implementation:
 // include the header
 // std::unique_ptr<evapT_base> mymodel = std::make_unqiue<PenmanMonteith>();

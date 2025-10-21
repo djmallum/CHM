@@ -1,4 +1,5 @@
 #include "PenmanMonteith.hpp"
+#include <algorithm>
 
 
 PenmanMonteith::PenmanMonteith(const double& LAI, const double& LAImax, const double& veg_Ht, const double& wind_height, const double& stomatal_res_min, const double& soil_d, const double& F_to_g, const double& s_per_step, const double Cp, const double K, const double tension, const double pore_sz, const double theta_pwp, const double phi) 
