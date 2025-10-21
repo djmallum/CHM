@@ -1,9 +1,10 @@
 #include "Soil.h"
 #include <iostream>
+#include "exception.hpp"
 
 namespace Soil
 {
-    double _soils_base::lookup(const mymap& map, const std::string key) const
+    double _soils_base::lookup(const mymap& map, const std::string& key) const
     {
         auto it = map.find(key);
         if (it != map.end())
@@ -27,37 +28,37 @@ namespace Soil
 
     }
 
-    double soils_na::porosity(std::string soil_type) const
+    double soils_na::porosity(const std::string& soil_type) const
     {
         return lookup(_porosity,soil_type);
     }
 
-    double soils_na::pore_size_dist(std::string soil_type) const
+    double soils_na::pore_size_dist(const std::string& soil_type) const
     {
         return lookup(_pore_size_dist,soil_type);//_pore_size_dist[soil_type];
     }
 
-    double soils_na::wilt_point(std::string soil_type) const
+    double soils_na::wilt_point(const std::string& soil_type) const
     {
         return lookup(_wilt_point,soil_type); //_wilt_point[soil_type];
     }
 
-    double soils_na::air_entry_tension(std::string soil_type) const
+    double soils_na::air_entry_tension(const std::string& soil_type) const
     {
         return lookup(_air_entry_tension,soil_type); //_air_entry_tension[soil_type];
     }
 
-    double soils_na::capillary_suction(std::string soil_type) const
+    double soils_na::capillary_suction(const std::string& soil_type) const
     {
         return lookup(_capillary_suction,soil_type);//_capillary_suction[soil_type];
     }
 
-    double soils_na::saturated_conductivity(std::string soil_type) const
+    double soils_na::saturated_conductivity(const std::string& soil_type) const
     {
         return lookup(_saturated_conductivity,soil_type);
     }
     
-    double soils_na::ayers_texture(std::string texture, std::string ground_cover) const
+    double soils_na::ayers_texture(const std::string& texture, const std::string& ground_cover) const
     {
         auto it = _ayers_texture.find(texture);
         if (it != _ayers_texture.end())

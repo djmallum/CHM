@@ -26,9 +26,7 @@
 
 #pragma once
 
-#include <iostream>
 #include <sparsehash/dense_hash_map>
-#include "exception.hpp"
 
 namespace Soil {
     /********* Soil ************/
@@ -42,15 +40,15 @@ namespace Soil {
     class _soils_base
     {
     public:
-        virtual double porosity(std::string) const = 0;
-        virtual double pore_size_dist(std::string) const = 0;
-        virtual double wilt_point(std::string) const = 0;
-        virtual double air_entry_tension(std::string) const = 0;
-        virtual double capillary_suction(std::string) const = 0;
-        virtual double saturated_conductivity(std::string) const = 0;
+        virtual double porosity(const std::string&) const = 0;
+        virtual double pore_size_dist(const std::string&) const = 0;
+        virtual double wilt_point(const std::string&) const = 0;
+        virtual double air_entry_tension(const std::string&) const = 0;
+        virtual double capillary_suction(const std::string&) const = 0;
+        virtual double saturated_conductivity(const std::string&) const = 0;
 
-        virtual double ayers_texture(std::string texture, std::string ground_cover) const = 0;
-        double lookup(const mymap& map, const std::string key) const;
+        virtual double ayers_texture(const std::string& texture, const std::string& ground_cover) const = 0;
+        double lookup(const mymap& map, const std::string& key) const;
         virtual ~_soils_base() = default;
 
     private:
@@ -63,13 +61,13 @@ namespace Soil {
         soils_na();
         ~soils_na();
 
-        double porosity(std::string soil_type) const override;
-        double pore_size_dist(std::string soil_type) const override;
-        double wilt_point(std::string soil_type) const override;
-        double air_entry_tension(std::string soil_type) const override;
-        double capillary_suction(std::string soil_type) const override;
-        double saturated_conductivity(std::string soil_type) const override;
-        double ayers_texture(std::string texture, std::string ground_cover) const override;
+        double porosity(const std::string& soil_type) const override;
+        double pore_size_dist(const std::string& soil_type) const override;
+        double wilt_point(const std::string& soil_type) const override;
+        double air_entry_tension(const std::string& soil_type) const override;
+        double capillary_suction(const std::string& soil_type) const override;
+        double saturated_conductivity(const std::string& soil_type) const override;
+        double ayers_texture(const std::string& texture, const std::string& ground_cover) const override;
 
         void check_map();
     private:
