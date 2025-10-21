@@ -5,13 +5,20 @@
 #include <concepts>
 #include <utility>
 
+
 template<typename T>
-concept NetAllData = requires(T t)
+concept NetAllData = requires(T& t)
 {
-    { t.albedo() } -> std::same_as<double>;
-    { t.incoming_short_wave() } -> std::same_as<double>;
-    
-    { t.net_all_wave(std::declval<const double>()) } ->std::same_as<void>;
+    // Inputs
+    { t.incoming_short_wave() } -> std::floating_point;
+
+    { t.albedo() } -> std::floating_point;
+
+
+    // Outputs
+    { t.net_all_wave(std::declval<const double>()) } -> std::same_as<void>;
+
+
 };
 
 template<NetAllData data>
