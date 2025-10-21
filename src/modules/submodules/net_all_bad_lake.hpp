@@ -5,6 +5,15 @@
 #include <concepts>
 #include <utility>
 
+/*
+ * Source:
+ * 
+ * Equation 23 of:
+ *
+ * Granger, R.J. and Gray, D.M. 1990. A net radiation model for calculating daily snowmelt in open environments. Nordic Hydrology 21: 217-234.
+ *
+ * Computes the best-fit, linear regression of the net radiation from just the incoming short-wave
+ */ 
 
 template<typename T>
 concept NetAllData = requires(T& t)

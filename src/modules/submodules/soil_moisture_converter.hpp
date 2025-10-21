@@ -45,7 +45,7 @@ void soil_moisture_converter<data>::execute(data& d)
     value = volumetric_moisture(d);
     
     d.volumetric_moisture_content(value);   
-
+      
     d.saturation(value / d.porosity()); 
 };
 
@@ -81,6 +81,7 @@ double soil_moisture_converter<data>::volumetric_moisture(data& d) const
     /*
      * Volumetric moisture content for a case where d.soil_storage() is not the actual total moisture
      * in the soil but rather it is the moisture above a specific threshold, set by fractional_cutoff().
+     * Often it is the wilt point, or field capacity.
      */ 
     
     double_range::Unit lower_bound_fraction = d.fractional_cutoff();
