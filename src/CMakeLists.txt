@@ -87,6 +87,8 @@ set(MODEL_SRCS
         modules/soil_submodules/XG_algorithm.cpp
     
         modules/infil_submodules/Crack.cpp
+
+        modules/submodules/double_range.cpp
         CACHE INTERNAL "" FORCE )
 
 set(CHM_SRCS

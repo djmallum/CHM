@@ -1,6 +1,7 @@
 #pragma once
 
 #include "base_step.hpp"
+#include "double_range.hpp"
 #include <concepts>
 #include <utility>
 
@@ -31,8 +32,9 @@ template<NetAllData data>
 void net_all_bad_lake<data>::execute(data& d)
 {
     double net_all_wave;
+    double_range::Unit albedo = d.albedo();
 
-    net_all_wave = a + b*d.incoming_short_wave() * ( 1 - d.albedo() );
+    net_all_wave = a + b*d.incoming_short_wave() * ( 1 - albedo );
 
     d.net_all_wave(net_all_wave);
 };

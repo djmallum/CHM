@@ -1,7 +1,7 @@
 #pragma once
 #include "base_step.hpp"
+#include "double_range.hpp"
 #include <concepts>
-#include <stdexcept>
 #include <utility>
 
 /*
@@ -35,7 +35,6 @@ public:
     // TODO Consider in the future if having them be different is necessary.
 private:
     double volumetric_moisture(data& d) const;
-    class Cutoff; // Forward declaration
 };
 
 template<SoilMoistureConverterData data>
@@ -55,19 +54,7 @@ void soil_moisture_converter<data>::execute(data& d)
  * I created this simple type 'Cutoff' which performs automatic conversions to double while checking the
  * value upon construction.
  */
-template<SoilMoistureConverterData data>
-class soil_moisture_converter<data>::Cutoff
-{
-    double _c;
-public:
-    Cutoff(const double c) : _c(c)
-    {
-        if (c < 0.0 || c > 1.0)
-            throw std::logic_error("cutoff must be between (inclusive) 0 and 1");
-    };
-    ~Cutoff() = default;
-    operator double() const { return _c; }
-};
+
 
 /*
  * It's common for the soil moisture storage (a depth) to not actually include all moisture in the soil in
@@ -96,7 +83,7 @@ double soil_moisture_converter<data>::volumetric_moisture(data& d) const
      * in the soil but rather it is the moisture above a specific threshold, set by fractional_cutoff().
      */ 
     
-    Cutoff lower_bound_fraction = d.fractional_cutoff();
+    double_range::Unit lower_bound_fraction = d.fractional_cutoff();
 
     return lower_bound_fraction + d.soil_storage()/d.soil_storage_max() 
         * (d.porosity() - lower_bound_fraction);
