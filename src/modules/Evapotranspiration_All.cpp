@@ -91,7 +91,10 @@ void Evapotranspiration_All::init(mesh& domain)
 void Evapotranspiration_All::run(mesh_elem& face)
 {
     auto& d = face->get_module_data<Evapotranspiration_All::data>(ID);
-
+    
+    net_radiation.execute(d);
+    
+    // TODO also should run over wetlands not just water
     if (is_water(face))
     {
         // Do PriestlyTaylor
@@ -185,6 +188,8 @@ const double& Evapotranspiration_All::get_dt()
 
 double Evapotranspiration_All::data::albedo()
 {
+    // Not the most efficient function
+    // TODO could add a permanent, one time called cache
     return face->veg_attribute("surface_albedo");
 };
 
