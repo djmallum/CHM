@@ -59,6 +59,11 @@ double surface_temperature::data::thaw_front_depth()
     return cache_->thaw_front_depth;
 };
 
+double surface_temperature::data::thaw_front_depth_last()
+{
+    return thaw_front_depth_last_; 
+};
+
 double surface_temperature::data::snow_depth()
 {
     update_field([this]() -> auto& { return cache_->snow_depth;},
@@ -99,6 +104,11 @@ double surface_temperature::data::net_radiation()
 
     return cache_->net_radiation;
 }
+
+void surface_temperature::data::thaw_front_depth_last(const double in)
+{
+    thaw_front_depth_last_ = in;
+};
 
 void surface_temperature::data::surface_temperature(const double value)
 {

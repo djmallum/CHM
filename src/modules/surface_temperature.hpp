@@ -46,8 +46,9 @@ private:
           const double daily_mean_temperature();
           double net_radiation();
 
-          double thaw_front_depth_last = 0.0;
+          double thaw_front_depth_last();
           // outputs
+          void thaw_front_depth_last(const double);
           void surface_temperature(const double);
           void snow_thermal_conductivity(const double); // just if snow-covered
         
@@ -55,6 +56,8 @@ private:
           void set_outputs_to_face();
           
           daily_accumulator mean_temperature;
+    private:
+          double thaw_front_depth_last_ = 0.0;
 	};
 
 private:
