@@ -1,21 +1,32 @@
 #pragma once
 #include "base_step.hpp"
-#include <cmath>
+#include <algorithm>
+#include <concepts>
 
+/*
+ * Equation (7) from [1].
+ * 
+ * Computes the temperature of the ground surface using the Radiative-Conductive-Convection Approach, used to estimate an empiracal formula using linear regression.
+ *
+ * [1] T. J. Williams, J. W. Pomeroy, J. R. Janowicz, S. K. Carey, K. Rasouli, and W. L. Quinton, “A radiative–conductive–convective approach to calculate thaw season ground surface temperatures for modelling frost table dynamics,” Hydrological Processes, vol. 29, no. 18, pp. 3954–3965, Aug. 2015, doi: 10.1002/hyp.10573.
+ */ 
 template<typename T>
-concept RCC_data = requires(T& t,const double& out)
+concept RCC_data = requires(T& t)
 {
-	{ t.thaw_front_depth() } -> std::convertible_to<double&>;
+    // Inputs
+	{ t.thaw_front_depth() } -> std::floating_point;
 
-	{ t.air_temperature() } -> std::convertible_to<double&>;
+	{ t.air_temperature() } -> std::floating_point; 
 
-	{ t.net_radiation() } -> std::convertible_to<double&>;
-	
-	{ t.surface_temperature(out) } -> std::same_as<void>;
+	{ t.net_radiation() } -> std::floating_point; 
+    
+    { t.thaw_front_depth_last() } -> std::floating_point;
+    
+    // Outputs    
+	{ t.surface_temperature(std::declval<const double>()) } -> std::same_as<void>;
 
-    { t.thaw_front_depth_last } -> std::convertible_to<double>;
+    { t.thaw_front_depth_last(std::declval<const double>()) } -> std::same_as<void>;
 };
-
 
 template<RCC_data data>
 class RCC_surface_temperature : public base_step<data>
@@ -33,18 +44,22 @@ private:
 template<RCC_data data>
 void RCC_surface_temperature<data>::execute(data& d)
 {
-    constexpr static double a = 0.77;
-    constexpr static double b = 0.02;
-    constexpr static double c = 7.0;
-    constexpr static double e = 0.03; // d is taken by input argument
+    static constexpr auto a = 0.77;
+    static constexpr auto b = 0.02;
+    static constexpr auto c = 7.0;
+    static constexpr auto e = 0.03; // d is taken by input argument
                                       //
 
-    d.thaw_front_depth_last = std::max(d.thaw_front_depth_last,
-            d.thaw_front_depth());
+    // arctan is often used because it varies smoothly from -pi/2 to pi/2
+    // this value makes it from -1 to 1.
+    static constexpr auto ARCTAN_NORMALIZER = 2.0 / 3.14156265; 
+    d.thaw_front_depth_last(std::max(d.thaw_front_depth_last(),
+            d.thaw_front_depth()));
+    
 
-	double T = 
+	auto T = 
 		(a * d.air_temperature() + b * d.net_radiation()) * 
-		std::atan(c * (d.thaw_front_depth_last + e)) * 2.0 / 3.14156265;
+		std::atan(c * (d.thaw_front_depth_last() + e)) * ARCTAN_NORMALIZER;
 	d.surface_temperature(T);
 };
 

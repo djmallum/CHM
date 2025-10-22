@@ -1,24 +1,33 @@
 #pragma once
 #include "base_step.hpp"
 #include <cmath>
+#include <concepts>
 
+/*
+ * Equation (11) of [1], solved for T_s
+ *
+ * [1] C. H. Luce and D. G. Tarboton, “Evaluation of alternative formulae for calculation of surface temperature in snowmelt models using frequency analysis of temperature observations,” Hydrol. Earth Syst. Sci., 2010.
+ *
+ * Small note: the equations slightly differ. Instead of d, a damping depth, we have snow_depth/2. Not sure why, but this is what CRHM does.
+ */  
 template<class T>
-concept luce_tarboton_data = requires(T& t,const double& out)
+concept luce_tarboton_data = requires(T& t)
 {
-	// gets the air temperature
-	{ t.air_temperature() } -> std::convertible_to<double&>;
+    // Inputs	
+    { t.air_temperature() } -> std::floating_point;
 
-	{ t.snow_depth() } -> std::convertible_to<double&>;
+	{ t.snow_depth() } -> std::floating_point;
 
-	{ t.snow_density() } -> std::convertible_to<double&>;
+	{ t.snow_density() } -> std::floating_point;
 
-	{ t.ground_heat_flux() } -> std::convertible_to<double&>;
+	{ t.ground_heat_flux() } -> std::floating_point;
 
-    { t.daily_mean_temperature() } -> std::convertible_to<const double>;
+    { t.daily_mean_temperature() } -> std::floating_point;
 
-	{ t.surface_temperature(out) } -> std::same_as<void>;
+    // Outputs
+	{ t.surface_temperature(std::declval<const double>())} -> std::same_as<void>;
 
-	{ t.snow_thermal_conductivity(out) } -> std::same_as<void>;
+	{ t.snow_thermal_conductivity(std::declval<const double>()) } -> std::same_as<void>;
 };
 
 template<luce_tarboton_data data>
@@ -32,7 +41,7 @@ public:
 
 private:
 
-    static constexpr inline double kg_per_m3_to_g_per_cm3 = 1.0 / 1000.0;
+    static constexpr inline auto kg_per_m3_to_g_per_cm3 = 1.0 / 1000.0;
     double low_density_thermal_conductivity(data& d);  
     double high_density_thermal_conductivity(data& d);
 };
@@ -40,8 +49,8 @@ private:
 template<luce_tarboton_data data>
 void luce_tarboton_surface_temperature<data>::execute(data& d)
 {
-    static const double density_threshold = 156.0;
-    static const double temperature_threshold = -70.0;
+    static constexpr auto density_threshold = 156.0;
+    static constexpr auto temperature_threshold = -70.0;
 
 	double tc,T;
 	if (d.snow_density() < density_threshold)
@@ -69,8 +78,8 @@ void luce_tarboton_surface_temperature<data>::execute(data& d)
 template<luce_tarboton_data data>
 double luce_tarboton_surface_temperature<data>::low_density_thermal_conductivity(data& d)
 {
-    static const double a = 0.023;
-    static const double b = 0.234;
+    static constexpr auto a = 0.023;
+    static constexpr auto b = 0.234;
 
     return a + b * d.snow_density() * kg_per_m3_to_g_per_cm3;
 };
@@ -78,9 +87,9 @@ double luce_tarboton_surface_temperature<data>::low_density_thermal_conductivity
 template<luce_tarboton_data data>
 double luce_tarboton_surface_temperature<data>::high_density_thermal_conductivity(data& d)
 {
-    static const double a = 0.138;
-    static const double b = 1.01;
-    static const double c = 3.233;
+    static constexpr auto a = 0.138;
+    static constexpr auto b = 1.01;
+    static constexpr auto c = 3.233;
 
     double snow_density = d.snow_density() * kg_per_m3_to_g_per_cm3;
 
