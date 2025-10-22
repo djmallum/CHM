@@ -281,6 +281,10 @@ void soil_module::initial_soil_conditions(mesh_elem& face, soil_module::data& d)
     {
         d.soil_storage = face->soil_attribute<double>("soil_storage"_s);
         d.soil_rechr_storage = face->soil_attribute<double>("soil_rechr_storage"_s);
+        if (d.soil_storage < d.soil_rechr_storage)
+            CHM_THROW_EXCEPTION(module_error,
+                    "Soil Storage cannot be less than the recharge storage; Initial Conditions Error");
+
         //d.thaw_fraction_rechr = face->soil_attribute<double>("thaw_fraction_rechr"_s);
         //d.thaw_fraction_lower = face->soil_attribute<double>("thaw_fraction_lower"_s);
         d.detention_snow_init = face->soil_attribute<double>("detention_snow_init"_s);
@@ -429,6 +433,9 @@ void soil_module::init_param_state_XG(mesh_elem& face, soil_module::data& d)
         double Zdf_init = face->soil_attribute<double>("init_freeze_front_depth"_s);
         double Zdt_init = face->soil_attribute<double>("init_thaw_front_depth"_s);
         
+        if (Zdf_init == 0.0 && Zdt_init > 0.0)
+           CHM_THROW_EXCEPTION(module_error,
+                  "Can't have a thaw depth without a nonzero freeze depth for the XG submodule; Initial Condition Error"); 
         
         XG_algorithm XG(0.0,0.0,0.0,*(d.S),*(d.P));
 
