@@ -118,7 +118,7 @@ public:
 
 private:
     
-    std::unique_ptr<Soil::_soils_base> SoilDataObj;
+    const Soil::soils_na& SoilDataObj = Soil::get_soil_obj<Soil::soils_na>();
 
     void get_soil_inputs(mesh_elem& face, data& d,XG_algorithm& XG);
     void set_soil_outputs(mesh_elem& face, data& d);

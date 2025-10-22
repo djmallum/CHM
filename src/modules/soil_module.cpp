@@ -46,8 +46,6 @@ soil_module::~soil_module()
 void soil_module::init(mesh& domain)
 {
 
-    SoilDataObj = std::make_unique<Soil::soils_na>();
-
     for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
@@ -182,7 +180,7 @@ void soil_module::set_soil_params(mesh_elem& face, soil_module::data& d)
         d.pore_size_dist = face->soil_attribute<double>("PSD_K_estimator");
         d.pore_size_dist_organic = face->soil_attribute<double>("PSD_K_organic");
         const std::string soil_type = face->soil_attribute<std::string>("soil_type"_s,"soils");
-        d.porosity = SoilDataObj->porosity(soil_type);
+        d.porosity = SoilDataObj.porosity(soil_type);
         d.soil_index = face->soil_attribute<double>("soil_index");
         d.snow_grain_diameter = face->soil_attribute<double>("snow_grain_diameter");
 
