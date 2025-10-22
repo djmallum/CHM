@@ -141,6 +141,5 @@ private:
         size_t k_update;
         size_t time_step_per_day;
         bool calc_conductivity;
-    };
-    XG_shared_const C;
+    } C;
 };
