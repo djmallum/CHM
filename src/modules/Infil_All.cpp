@@ -62,7 +62,7 @@ void Infil_All::init(mesh& domain)
     min_swe_to_freeze = cfg.get("min_swe_to_freeze",25);
     major = cfg.get("major",5); 
     AllowPriorInf = cfg.get("AllowPriorInf",true);
-    thaw_type = cfg.get("thaw_type",ThawOptions::AYERS); // Default is Ayers
+    thaw_type = static_cast<ThawOptions>(cfg.get("thaw_type",static_cast<int>(ThawOptions::AYERS))); // Default is Ayers
     lenstemp = cfg.get("temperature_ice_lens",-10.0);
     day_of_year_to_freeze = cfg.get("day_of_year_to_freeze",300); 
 
