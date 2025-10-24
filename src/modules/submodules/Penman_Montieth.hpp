@@ -3,7 +3,7 @@
 #include <concepts>
 
 template<typename T>
-concept penman_data = requires(T& t)
+concept Penman_data = requires(T& t)
 {
     // Inputs
     { t.wind_measurement_height() } -> std::floating_point;
@@ -69,12 +69,12 @@ concept penman_data = requires(T& t)
 
 
 
-template<penman_data data>
-class penman_monteith : public base_step<data>
+template<Penman_data data>
+class Penman_monteith : public base_step<data>
 {
 public:
-    explicit penman_monteith() {};
-    ~penman_monteith() {};
+    explicit Penman_monteith() {};
+    ~Penman_monteith() {};
 
     void execute(data& d) final;
 
@@ -85,14 +85,14 @@ private:
     stomatal_resistance_jarvis stomatal_resistance;
 };
 
-template<penman_data data>
-class penman_monteith<data>::aerodynamic_resistance_calculator {
+template<Penman_data data>
+class Penman_monteith<data>::aerodynamic_resistance_calculator {
 public:
     double calculate(data& d) const;
 };
 
-template<penman_data data>
-double penman_monteith<data>::aerodynamic_resistance_calculator::calculate(data& d) const 
+template<Penman_data data>
+double Penman_monteith<data>::aerodynamic_resistance_calculator::calculate(data& d) const 
 {
     if (d.wind_measurement_height() - d.d() > 0) {
         return pow(log((d.wind_measurement_height() - d.d()) / d.Z0()), 2) / 
@@ -102,8 +102,8 @@ double penman_monteith<data>::aerodynamic_resistance_calculator::calculate(data&
     }
 };
 
-template<penman_data data>
-class penman_monteith<data>::stomatal_resistance_jarvis
+template<Penman_data data>
+class Penman_monteith<data>::stomatal_resistance_jarvis
 {
 private:
     static constexpr double UPPER_LIMIT = 5000.0;
@@ -123,8 +123,8 @@ private:
     double CalculateF4(const data& d) const;
 };
 
-template<penman_data data>
-double penman_monteith<data>::stomatal_resistance_jarvis::Calculate(const data& d) const 
+template<Penman_data data>
+double Penman_monteith<data>::stomatal_resistance_jarvis::Calculate(const data& d) const 
 {
     double rcstar = d.stomatal_resistance_min();
 
@@ -148,8 +148,8 @@ double penman_monteith<data>::stomatal_resistance_jarvis::Calculate(const data& 
 
 };
 
-template<penman_data data>
-double penman_monteith<data>::stomatal_resistance_jarvis::CalculateF1(const data& d) const 
+template<Penman_data data>
+double Penman_monteith<data>::stomatal_resistance_jarvis::CalculateF1(const data& d) const 
 {
     if (d.short_wave_in() > 0.0) {
         return std::max(1.0, 500.0 / d.short_wave_in() - 1.5);
@@ -157,29 +157,29 @@ double penman_monteith<data>::stomatal_resistance_jarvis::CalculateF1(const data
     return 1.0;
 };
 
-template<penman_data data>
-double penman_monteith<data>::stomatal_resistance_jarvis::CalculateF2(const data& d) const 
+template<Penman_data data>
+double Penman_monteith<data>::stomatal_resistance_jarvis::CalculateF2(const data& d) const 
 {
     return std::max(1.0, 2.0 * (d.saturated_vapour_pressure() - d.vapour_pressure()));
 };
 
-template<penman_data data>
-double penman_monteith<data>::stomatal_resistance_jarvis::CalculateF3(const data& d) const 
+template<Penman_data data>
+double Penman_monteith<data>::stomatal_resistance_jarvis::CalculateF3(const data& d) const 
 {
     double p = d.air_entry_tension() * pow(d.porosity() / d.volumetric_moisture_content(), d.pore_size_dist());
     return std::max(1.0, p / 40.0);
 };
 
-template<penman_data data>
-double penman_monteith<data>::stomatal_resistance_jarvis::CalculateF4(const data& d) const {
+template<Penman_data data>
+double Penman_monteith<data>::stomatal_resistance_jarvis::CalculateF4(const data& d) const {
     if (d.air_temperature() < 5.0 || d.air_temperature() > 40.0) {
         return UPPER_LIMIT / d.stomatal_resistance_min();
     }
     return 1.0;
 }
 
-template<penman_data data>
-void penman_monteith<data>::execute(data& d)
+template<Penman_data data>
+void Penman_monteith<data>::execute(data& d)
 {
 	constexpr double MM_PER_M = 1000.0; // mm/m
     constexpr double WATER_DENSITY = 1000.0; // kg/m^3
