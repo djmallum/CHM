@@ -108,10 +108,10 @@ namespace Atmosphere
      * @param T air temperature (DEGREE_CELSIUS)
      * @return gamma (kPa/DEGREE_CELSIUS)
      */ 
-    double psychrometric_constant(const double P_a, const double T) // Psychrometric constant (kPa/DEGREE_CELSIUS)
+    double psychrometric_constant(const double P_a, const double T, const double c_air) // Psychrometric constant (kPa/DEGREE_CELSIUS)
     {
         // Equation 7-13 Dingman Second Edition 2002
-        return Cp * P_a / (0.622 * latent_heat_vapour_air(T)); // lambda (J/kg)
+        return c_air * P_a / (0.622 * latent_heat_vapour_air(T)); // lambda (J/kg)
     }
 
     /**

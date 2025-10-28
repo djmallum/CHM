@@ -32,6 +32,10 @@ namespace Atmosphere {
     // down the reference wind speed to the height they require (i.e. through a canopy)
 
     const double KinVisc = 1.88e-5; // kinematic viscosity of air (Sask. avg. value) (units m^2/s)
+    
+    const double Cp = 1005; // (J/kg/K) volumetric heat capcity of dry air.
+    
+    const double kappa = 0.4; // proportionality constant, used at least for the PenmanMonteith ET. 
 
     double log_scale_wind(double u, double Z_in, double Z_out, double snowdepthavg, double z0=Snow::Z0_SNOW);
 
@@ -48,12 +52,10 @@ namespace Atmosphere {
 
     double latent_heat_vapour_air(const double T);
 
-    double psychrometric_constant(const double P_a, const double T);
+    double psychrometric_constant(const double P_a, const double T, const double c_air = Cp);
 
     double air_density(const double T,const double e_a, const double P_a);
 
-    const double Cp = 1005; // (J/kg/K) volumetric heat capcity of dry air.
-    const double kappa = 0.4; // proportionality constant, used at least for the PenmanMonteith ET. 
 }
 
 
