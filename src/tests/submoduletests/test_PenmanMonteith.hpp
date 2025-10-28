@@ -1,6 +1,16 @@
 #include <gtest/gtest.h>
+#include <iomanip> 
 #include "PenmanMonteith.hpp"
 #include "Penman_Montieth.hpp"
+
+namespace legacy_data
+{
+    constexpr size_t N_COMPARES = 6, N_BOUNDARIES = 3;
+    constexpr std::array<double,N_COMPARES> R_C_Comparison{133.33333333333334,5000.0,666.66666666666674,133.33333333333334,5000.0,5000.0};
+    constexpr std::array<double,N_COMPARES> E_T_Comparison{0.095635101141937504,0.0030968023432009018,0.09712545157162103,0.095635101141937504,0.0037307822786114184,0.0029488454061942023};
+    constexpr std::array<double,N_BOUNDARIES> R_C_Boundaries{5000.0,5000.0,5000.0};
+    constexpr std::array<double,N_BOUNDARIES> E_T_Boundaries{0.0049307977258960124,0.00070336782232421284,0.0};
+};
 class MockPenmanData 
 {
 public:
@@ -82,6 +92,7 @@ protected:
             data.theta_pwp, data.phi
         );
         
+        std:: cout << std::setprecision(17); 
 
         // Create refactored implementation
         // refactored_pm = std::make_unique<RefactoredPenmanMonteith>(
@@ -111,13 +122,13 @@ TEST_F(PenmanMonteithTest, StomatalResistanceComparison) {
         std::string description;
     };
     
-    std::vector<TestCase> test_cases = {
-        {600.0, 0.5, 0.25, 25.0, "normal_conditions"},
-        {0.0, 0.5, 0.25, 25.0, "night_time"},
-        {600.0, 2.5, 0.25, 25.0, "high_vpd"},
-        {600.0, 0.5, 0.1, 25.0, "dry_soil"},
-        {600.0, 0.5, 0.25, 45.0, "high_temperature"},
-        {600.0, 0.5, 0.25, 2.0, "low_temperature"}
+    std::array<TestCase,legacy_data::N_COMPARES> test_cases = {
+        TestCase{600.0, 0.5, 0.25, 25.0, "normal_conditions"},
+        TestCase{0.0, 0.5, 0.25, 25.0, "night_time"},
+        TestCase{600.0, 2.5, 0.25, 25.0, "high_vpd"},
+        TestCase{600.0, 0.5, 0.1, 25.0, "dry_soil"},
+        TestCase{600.0, 0.5, 0.25, 45.0, "high_temperature"},
+        TestCase{600.0, 0.5, 0.25, 2.0, "low_temperature"}
     };
     
     Penman_monteith<MockPenmanData>::stomatal_resistance_jarvis r_s;
@@ -141,6 +152,7 @@ TEST_F(PenmanMonteithTest, StomatalResistanceComparison) {
             << "Stomatal resistance mismatch for: " << test_case.description;
         EXPECT_NEAR(original_output.stomatal_resistance, data._stomatal_resistance, 1e-12)
             << "Stomatal resistance mismatch for: " << test_case.description;
+        std::cout << "StomatalResistanceComparison original_output.stomatal_resistance: " << original_output.stomatal_resistance << std::endl;
         
         refactored_pm.execute(data); 
         // Compare results
@@ -150,6 +162,7 @@ TEST_F(PenmanMonteithTest, StomatalResistanceComparison) {
             << "Stomatal resistance mismatch for (full system): " << test_case.description;
         EXPECT_NEAR(original_output.ET, data._ET, 1e-12)
             << "ET mismatch for (full system): " << test_case.description;
+        std::cout << "StomatalResistanceComparison original_output.ET: " << original_output.ET << std::endl;
     }
     
 }
@@ -161,8 +174,8 @@ TEST_F(PenmanMonteithTest, BoundaryConditionsComparison) {
         std::string description;
     };
     
-    std::vector<ExtremeCase> extreme_cases = {
-        {100.0, 1000.0, 500.0, 50.0, 0.5, 3.0, 4.0, 110.0, "high_values"},
+    std::array<ExtremeCase,legacy_data::N_BOUNDARIES> extreme_cases = {
+        ExtremeCase{100.0, 1000.0, 500.0, 50.0, 0.5, 3.0, 4.0, 110.0, "high_values"},
         {0.1, 10.0, 10.0, -10.0, 0.01, 0.1, 0.2, 90.0, "low_values"},
         {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 101.3, "zeros"},
     };
@@ -188,8 +201,10 @@ TEST_F(PenmanMonteithTest, BoundaryConditionsComparison) {
         // Compare behavior under extreme conditions
         EXPECT_NEAR(original_output.ET, data._ET, 1e-6)
             << "ET mismatch under boundary conditions: " << test_case.description;
+        std::cout << "BoundaryConditionsComparison original_output.ET: " << original_output.ET << std::endl;
         EXPECT_NEAR(original_output.stomatal_resistance, data._stomatal_resistance, 1e-6)
             << "Stomatal resistance mismatch under boundary conditions: " << test_case.description;
+        std::cout << "BoundaryConditionsComparison original_output.stomatal_resistance: " << original_output.stomatal_resistance << std::endl;
     }
     
     // Restore original values
@@ -205,6 +220,7 @@ TEST_F(PenmanMonteithTest, BoundaryConditionsComparison) {
 
 // Performance comparison test
 TEST_F(PenmanMonteithTest, PerformanceComparison) {
+    constexpr auto LEGACY_TIME = std::chrono::high_resolution_clock::time_point(std::chrono::nanoseconds(100000));
     const int iterations = 1000;
     PM_vars test_vars(data.wind_speed(), data.Qsw, data.Q_net(), data.air_temperature(),
                      data.soil_storage, data.ea, data.ea_star, data.P_atm);
@@ -230,4 +246,5 @@ TEST_F(PenmanMonteithTest, PerformanceComparison) {
     
     EXPECT_LE(refactored_duration, original_duration * 1.01) 
         << "Refactored version should not be significantly slower";
+    std::cout << "PerformanceComparison original_duration : " << original_duration << std::endl;
 }
