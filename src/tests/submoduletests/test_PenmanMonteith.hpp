@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <iomanip> 
-#include "PenmanMonteith.hpp"
+#include "Atmosphere.h"
 #include "Penman_Montieth.hpp"
 
 namespace legacy_data
@@ -67,7 +67,7 @@ protected:
         data.soil_d = 0.75;
         data.F_to_g = 0.2;
         data._s_per_step = 3600.0;
-        data.Cp = 1013.0;
+        data.Cp = 1013.0;//Atmosphere::Cp;
         data.K = 0.41;
         data.tension = 0.2;
         data.pore_sz = 0.5;
@@ -85,31 +85,10 @@ protected:
         data._stomatal_resistance = 0.0;
         data._ET = 0.0;
 
-        // Create original implementation
-        original_pm = std::make_unique<PenmanMonteith>(
-            data.LAI, data.LAImax, data.veg_Ht, data.wind_height, data.stomatal_res_min,
-            data.soil_d, data.F_to_g, data._s_per_step, data.Cp, data.K, data.tension, data.pore_sz,
-            data.theta_pwp, data.phi
-        );
-        
         std:: cout << std::setprecision(17); 
-
-        // Create refactored implementation
-        // refactored_pm = std::make_unique<RefactoredPenmanMonteith>(
-        //     LAI, LAImax, veg_Ht, wind_height, stomatal_res_min,
-        //     soil_d, F_to_g, s_per_step, Cp, K, tension, pore_sz,
-        //     theta_pwp, phi
-        // );
-    }
-    
-    void TearDown() override {
-        original_pm.reset();
-        //refactored_pm.reset();
-    }
-    
-    std::unique_ptr<PenmanMonteith> original_pm;
+    };
+        
     Penman_monteith<MockPenmanData> refactored_pm;
-    // std::unique_ptr<RefactoredPenmanMonteith> refactored_pm;
 };
     
 // Comparison test for stomatal resistance under various conditions
@@ -132,7 +111,7 @@ TEST_F(PenmanMonteithTest, StomatalResistanceComparison) {
     };
     
     Penman_monteith<MockPenmanData>::stomatal_resistance_jarvis r_s;
-
+    int i = 0;
     for (const auto& test_case : test_cases) {
         // Set up test conditions using mock data
         data.Qsw = test_case.short_wave;
@@ -140,29 +119,23 @@ TEST_F(PenmanMonteithTest, StomatalResistanceComparison) {
         data.soil_storage = test_case.soil_storage;
         data.ea_star = data.ea + test_case.vapour_pressure_diff;
         
-        PM_vars vars(data.wind_speed(), data.Qsw, data.Q_net(), data.air_temperature(),
-                    data.soil_storage, data.ea, data.ea_star, data.P_atm);
-        PM_output original_output;
-        original_pm->CalcEvapT(vars, original_output);
-        
         r_s.calculate(data); 
 
         // Compare results
-        EXPECT_NEAR(original_output.stomatal_resistance, data.stomatal_resistance(), 1e-12)
+        EXPECT_NEAR(legacy_data::R_C_Comparison[i], data.stomatal_resistance(), 1e-12)
             << "Stomatal resistance mismatch for: " << test_case.description;
-        EXPECT_NEAR(original_output.stomatal_resistance, data._stomatal_resistance, 1e-12)
+        EXPECT_NEAR(legacy_data::R_C_Comparison[i], data._stomatal_resistance, 1e-12)
             << "Stomatal resistance mismatch for: " << test_case.description;
-        std::cout << "StomatalResistanceComparison original_output.stomatal_resistance: " << original_output.stomatal_resistance << std::endl;
         
         refactored_pm.execute(data); 
         // Compare results
-        EXPECT_NEAR(original_output.stomatal_resistance, data.stomatal_resistance(), 1e-12)
+        EXPECT_NEAR(legacy_data::R_C_Comparison[i], data.stomatal_resistance(), 1e-12)
             << "Stomatal resistance mismatch for (full system): " << test_case.description;
-        EXPECT_NEAR(original_output.stomatal_resistance, data._stomatal_resistance, 1e-12)
+        EXPECT_NEAR(legacy_data::R_C_Comparison[i], data._stomatal_resistance, 1e-12)
             << "Stomatal resistance mismatch for (full system): " << test_case.description;
-        EXPECT_NEAR(original_output.ET, data._ET, 1e-12)
+        EXPECT_NEAR(legacy_data::E_T_Comparison[i], data._ET, 1e-12)
             << "ET mismatch for (full system): " << test_case.description;
-        std::cout << "StomatalResistanceComparison original_output.ET: " << original_output.ET << std::endl;
+        ++i;
     }
     
 }
@@ -179,7 +152,7 @@ TEST_F(PenmanMonteithTest, BoundaryConditionsComparison) {
         {0.1, 10.0, 10.0, -10.0, 0.01, 0.1, 0.2, 90.0, "low_values"},
         {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 101.3, "zeros"},
     };
-    
+    size_t i = 0; 
     for (const auto& test_case : extreme_cases) {
         // Set extreme values in mock data
         data._wind_speed = test_case.wind_speed;
@@ -191,20 +164,14 @@ TEST_F(PenmanMonteithTest, BoundaryConditionsComparison) {
         data.ea_star = test_case.ea_star;
         data.P_atm = test_case.P;
         
-        PM_vars vars(data.wind_speed(), data.Qsw, data.Q_net(), data.air_temperature(),
-                    data.soil_storage, data.ea, data.ea_star, data.P_atm);
-        PM_output original_output;
-        original_pm->CalcEvapT(vars, original_output);
-        
         // Test refactored version
         refactored_pm.execute(data); 
         // Compare behavior under extreme conditions
-        EXPECT_NEAR(original_output.ET, data._ET, 1e-6)
+        EXPECT_NEAR(legacy_data::E_T_Boundaries[i], data._ET, 1e-6)
             << "ET mismatch under boundary conditions: " << test_case.description;
-        std::cout << "BoundaryConditionsComparison original_output.ET: " << original_output.ET << std::endl;
-        EXPECT_NEAR(original_output.stomatal_resistance, data._stomatal_resistance, 1e-6)
+        EXPECT_NEAR(legacy_data::R_C_Boundaries[i], data._stomatal_resistance, 1e-6)
             << "Stomatal resistance mismatch under boundary conditions: " << test_case.description;
-        std::cout << "BoundaryConditionsComparison original_output.stomatal_resistance: " << original_output.stomatal_resistance << std::endl;
+        ++i;
     }
     
     // Restore original values
@@ -220,31 +187,19 @@ TEST_F(PenmanMonteithTest, BoundaryConditionsComparison) {
 
 // Performance comparison test
 TEST_F(PenmanMonteithTest, PerformanceComparison) {
-    constexpr auto LEGACY_TIME = std::chrono::high_resolution_clock::time_point(std::chrono::nanoseconds(100000));
+    constexpr auto LEGACY_TIME = std::chrono::nanoseconds(200000);
     const int iterations = 1000;
-    PM_vars test_vars(data.wind_speed(), data.Qsw, data.Q_net(), data.air_temperature(),
-                     data.soil_storage, data.ea, data.ea_star, data.P_atm);
-    
-    // Time original implementation
-    auto start_original = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < iterations; ++i) {
-        PM_output output;
-        original_pm->CalcEvapT(test_vars, output);
-    }
-    auto end_original = std::chrono::high_resolution_clock::now();
     
     // Time refactored implementation
     auto start_refactored = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; ++i) {
-        PM_output output;
         refactored_pm.execute(data);
     }
     auto end_refactored = std::chrono::high_resolution_clock::now();
     
-    auto original_duration = end_original - start_original;
+    auto original_duration = LEGACY_TIME;
     auto refactored_duration = end_refactored - start_refactored;
-    
-    EXPECT_LE(refactored_duration, original_duration * 1.01) 
-        << "Refactored version should not be significantly slower";
-    std::cout << "PerformanceComparison original_duration : " << original_duration << std::endl;
+    EXPECT_LE(refactored_duration, original_duration) 
+        << "Refactored version should not be significantly slower\n"
+        << "It can sometimes fail because of an unlucky run, always run again";
 }
