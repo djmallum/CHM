@@ -1,9 +1,10 @@
 #include "base_step.hpp"
 #include <algorithm>
 #include <concepts>
+#include <iostream>
 
 template<typename T>
-concept Penman_data = requires(T& t)
+concept Penman_data = requires(const T& t)
 {
     // Inputs
     { t.wind_measurement_height() } -> std::floating_point;
@@ -43,12 +44,12 @@ concept Penman_data = requires(T& t)
     { t.delta() } -> std::floating_point;
 
     { t.Q_net() } -> std::floating_point;
+    
+    { t.Q_g() } -> std::floating_point;
 
     { t.air_density() } -> std::floating_point;
 
     { t.heat_capacity_air() } -> std::floating_point;
-
-    { t.aero_resistance() } -> std::floating_point;
 
     { t.gamma() } -> std::floating_point;
 
@@ -111,7 +112,7 @@ private:
 public:
     // Interface for the data required by the calculation
 
-    double Calculate(const data& d) const; 
+    void calculate(const data& d) const; 
 
 private:
     double CalculateF1(const data& d) const;
@@ -124,7 +125,7 @@ private:
 };
 
 template<Penman_data data>
-double Penman_monteith<data>::stomatal_resistance_jarvis::Calculate(const data& d) const 
+void Penman_monteith<data>::stomatal_resistance_jarvis::calculate(const data& d) const 
 {
     double rcstar = d.stomatal_resistance_min();
 
@@ -141,9 +142,9 @@ double Penman_monteith<data>::stomatal_resistance_jarvis::Calculate(const data& 
     double f4 = CalculateF4(d);
     
     if (d.short_wave_in() <= 0) {
-        return UPPER_LIMIT;
+        d.stomatal_resistance(UPPER_LIMIT);
     } else {
-        return std::min(rcstar * f1 * f2 * f3 * f4, UPPER_LIMIT);
+        d.stomatal_resistance(std::min(rcstar * f1 * f2 * f3 * f4, UPPER_LIMIT));
     }
 
 };
@@ -172,7 +173,8 @@ double Penman_monteith<data>::stomatal_resistance_jarvis::CalculateF3(const data
 
 template<Penman_data data>
 double Penman_monteith<data>::stomatal_resistance_jarvis::CalculateF4(const data& d) const {
-    if (d.air_temperature() < 5.0 || d.air_temperature() > 40.0) {
+    double t = d.air_temperature();
+    if (t < 5.0 || t > 40.0) {
         return UPPER_LIMIT / d.stomatal_resistance_min();
     }
     return 1.0;
@@ -184,17 +186,16 @@ void Penman_monteith<data>::execute(data& d)
 	constexpr double MM_PER_M = 1000.0; // mm/m
     constexpr double WATER_DENSITY = 1000.0; // kg/m^3
     
-	double r_a = aero_resistance(d);
-	double r_s = stomatal_resistance(d);
-	d.stomatal_resistance(r_s);
+	double r_a = aero_resistance.calculate(d);
+	stomatal_resistance.calculate(d);
 
-	double radiation = d.delta() * d.Q_net();  //Units: kPa/K * W/m^2 (in order, left to right)
+	double radiation = d.delta() * (d.Q_net() - d.Q_g());  //Units: kPa/K * W/m^2 (in order, left to right)
 	
     double mass = d.air_density() * d.heat_capacity_air() * 
-        (d.saturated_vapour_pressure() - d.vapour_pressure())/ d.aero_resistance();
+        (d.saturated_vapour_pressure() - d.vapour_pressure())/ r_a;
 
 	double ET = (radiation + mass) / 
-		( d.delta() + d.gamma() * ( 1 + d.stomatal_resistance() / d.aero_resistance() ));
+		( d.delta() + d.gamma() * ( 1 + d.stomatal_resistance() / r_a));
 		// Units are W/m^2
 
 	ET *= 1.0 / (WATER_DENSITY * d.lambda()); // Converts units to m/s 

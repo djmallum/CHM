@@ -458,6 +458,7 @@ if (BUILD_TESTS)
             tests/submoduletests/test_data_base.cpp
             tests/submoduletests/test_soil_moisture_converter.cpp
             tests/submoduletests/test_net_all_bad_lake.cpp
+            tests/submoduletests/test_PenmanMonteith.cpp
 	)
 
 

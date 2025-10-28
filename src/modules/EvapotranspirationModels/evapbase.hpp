@@ -21,8 +21,8 @@ public:
 
     virtual void CalcEvapT(var_base& basevar, model_output& output) = 0;
     
-    double delta(const double t);
-    double gamma(const double P_atm, const double t, const double c_a);
-    double lambda(const double t);
+    static double delta(const double t);
+    static double gamma(const double P_atm, const double t, const double c_a);
+    static double lambda(const double t);
 };
 

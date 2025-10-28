@@ -17,8 +17,8 @@ class PenmanMonteith : public evapT_base
 {
 public:
 
-    PenmanMonteith(const double& LAI, const double& LAImax, const double& veg_Ht, const double& wind_height, 
-            const double& stomatal_res_min, const double& soil_d, const double& F_to_g, const double& s_per_step,
+    PenmanMonteith(const double LAI, const double LAImax, const double veg_Ht, const double wind_height, 
+            const double stomatal_res_min, const double soil_d, const double F_to_g, const double s_per_step,
 			const double Cp, const double K, const double tension, const double pore_sz, 
             const double theta_pwp, const double phi); 
    
@@ -42,14 +42,14 @@ private:
     bool IsFirstRun = true;
     static constexpr double water_density = 1000; //kg/m^3
 
-    const double& leaf_area_index;
-    const double& leaf_area_index_max;
-    const double& Veg_height;
-    const double& wind_measurement_height; // This one might be uniform...
-    const double& stomatal_resistance_min; // Also might be domain wide
-    const double& soil_depth;
-    const double& Frac_to_ground;
-    const double& s_per_time_step;  
+    const double leaf_area_index;
+    const double leaf_area_index_max;
+    const double Veg_height;
+    const double wind_measurement_height; // This one might be uniform...
+    const double stomatal_resistance_min; // Also might be domain wide
+    const double soil_depth;
+    const double Frac_to_ground;
+    const double s_per_time_step;  
     const double heat_capacity_air;
     const double kappa; // also might be domain wide
     const double air_entry_tension;
@@ -61,16 +61,16 @@ private:
 
 struct PM_vars : public var_base
 {
-    const double& wind_speed;
-    const double& short_wave_in;
-    const double& all_wave_net;
-    const double& t;
-    const double& soil_storage;
-    const double& vapour_pressure;
-    const double& saturated_vapour_pressure; 
-    const double& P_atm;
+    const double wind_speed;
+    const double short_wave_in;
+    const double all_wave_net;
+    const double t;
+    const double soil_storage;
+    const double vapour_pressure;
+    const double saturated_vapour_pressure; 
+    const double P_atm;
 
-    PM_vars(const double& U, const double& Qsw, const double& Qnet, const double& temp, const double& soil, const double& ea, const double& ea_star, const double& P) 
+    PM_vars(const double U, const double Qsw, const double Qnet, const double temp, const double soil, const double ea, const double ea_star, const double P) 
         : wind_speed(U), short_wave_in(Qsw), all_wave_net(Qnet), t(temp), soil_storage(soil), vapour_pressure(ea), saturated_vapour_pressure(ea_star), P_atm(P) {};
 };
 
