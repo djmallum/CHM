@@ -200,7 +200,7 @@ double Evapotranspiration_All::data::incoming_short_wave()
     return cache_->incoming_short_wave;
 };
 
-void Evapotranspiration_All::data::net_all_wave(const double& val)
+void Evapotranspiration_All::data::net_all_wave(const double val)
 {
     set_output([this]() -> auto& { return cache_->net_all_wave;} ,val);
 };
@@ -210,3 +210,112 @@ double Evapotranspiration_All::data::net_all_wave()
     return cache_->net_all_wave;
 };
 
+double Evapotranspiration_All::data::wind_measurement_height() const
+{
+    return Atmosphere::Z_U_R;
+};
+double Evapotranspiration_All::data::d()
+{
+    return face->veg_attribute("CanopyHeight") * 0.67;
+};
+double Evapotranspiration_All::data::Z0() const
+{
+    return face->veg_attribute("CanopyHeight") / 7.6;
+};
+double Evapotranspiration_All::data::kappa() const
+{
+    return Atmosphere::kappa;
+};
+double Evapotranspiration_All::data::wind_speed() const
+{
+    update_field([this]() -> auto& { return cache_->wind_speed; },
+            [this]() { return (*face)["U_R"_s]; });
+    return cache_->wind_speed;
+};
+double Evapotranspiration_All::data::stomatal_resistance_min() const
+{
+    return face->veg_attribute("stomatal_resistance_min");
+};
+bool Evapotranspiration_All::data::has_vegetation() const
+{
+    return Veg_height() > 0.0;
+};
+double Evapotranspiration_All::data::Veg_height() const
+{
+    return face->veg_attribute("CanopyHeight"_s);
+};
+double Evapotranspiration_All::data::leaf_area_index_max() const
+{
+    return face->veg_attribute("leaf_area_index_max"_s);
+};
+double Evapotranspiration_All::data::short_wave_in() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::saturated_vapour_pressure() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::vapour_pressure() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::air_entry_tension() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::porosity() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::volumetric_moisture_content() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::pore_size_dist() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::air_temperature() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::delta() const
+{
+    return Atmosphere::saturatedVapourPressure_slope(air_temperature());
+};
+double Evapotranspiration_All::data::Q_net() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::Q_g() const
+{
+    return Q_net() * cfg_.get<double>("Frac_to_ground");
+};
+double Evapotranspiration_All::data::air_density() const
+{
+    return Atmosphere::air_density(air_temperature(),vapour_pressure(),saturated_vapour_pressure());
+};
+double Evapotranspiration_All::data::heat_capacity_air() const
+{
+    return Atmosphere::Cp;
+};
+double Evapotranspiration_All::data::gamma() const
+{
+    update_field([this]() -> auto& { return cache_->P_atm; },
+            [this]() { return (*face)["P_atm"_s]; });
+    return Atmosphere::psychrometric_constant(cache_->P_atm,air_temperature());
+};
+double Evapotranspiration_All::data::stomatal_resistance() const
+{
+    return ;
+};
+double Evapotranspiration_All::data::lambda() const
+{
+    return Atmosphere::latent_heat_vapour_air(air_temperature());
+};
+int Evapotranspiration_All::data::s_per_time_step() const
+{
+    static const auto dt = global_param->dt();
+    return dt;
+};

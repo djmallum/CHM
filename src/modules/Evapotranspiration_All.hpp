@@ -69,9 +69,38 @@ public:
     {
     public:
         //Inputs
-        double incoming_short_wave = std::numeric_limits<double>::quiet_NaN();
-        //Outputs
-        double net_all_wave = 0.0;
+        Input<double> incoming_short_wave;
+        Input<double> wind_measurement_height;
+        Input<double> d;
+        Input<double> Z0;
+        Input<double> kappa;
+        Input<double> wind_speed;
+        Input<double> stomatal_resistance_min;
+        Input<bool> has_vegetation;
+        Input<double> Veg_height;
+        Input<double> leaf_area_index_max;
+        Input<double> short_wave_in;
+        Input<double> saturated_vapour_pressure;
+        Input<double> vapour_pressure;
+        Input<double> air_entry_tension;
+        Input<double> porosity;
+        Input<double> volumetric_moisture_content;
+        Input<double> pore_size_dist;
+        Input<double> air_temperature;
+        Input<double> delta;
+        Input<double> Q_net;
+        Input<double> Q_g;
+        Input<double> air_density;
+        Input<double> heat_capacity_air;
+        Input<double> gamma;
+        Input<double> stomatal_resistance;
+        Input<double> lambda;
+        Input<int> s_per_time_step;
+        Input<double> P_atm;
+
+        // Output variables
+        Output<double> ET;
+        Output<double> net_all_wave;
     };
 
     class data : public face_info, public data_base<Cache>
@@ -87,8 +116,38 @@ public:
 
         double albedo();
         double incoming_short_wave();
-        void net_all_wave(const double& val);
         double net_all_wave();
+        double wind_measurement_height() const;
+        double d();
+        double Z0() const;
+        double kappa() const;
+        double wind_speed() const;
+        double stomatal_resistance_min() const;
+        bool has_vegetation() const;
+        double Veg_height() const;
+        double leaf_area_index_max() const;
+        double short_wave_in() const;
+        double saturated_vapour_pressure() const;
+        double vapour_pressure() const;
+        double air_entry_tension() const;
+        double porosity() const;
+        double volumetric_moisture_content() const;
+        double pore_size_dist() const;
+        double air_temperature() const;
+        double delta() const;
+        double Q_net() const;
+        double Q_g() const;
+        double air_density() const;
+        double heat_capacity_air() const;
+        double gamma() const;
+        double stomatal_resistance() const;
+        double lambda() const;
+        int s_per_time_step() const;
+
+        // Output setters
+        void stomatal_resistance(const double value);
+        void ET(const double value);
+        void net_all_wave(const double val);
 
         data(const mesh_elem& face_in, const boost::shared_ptr<global> param,
                 const config_file cfg) : data_base<Cache>(face_in,param,cfg) {};

@@ -111,7 +111,8 @@ struct cache_base
 {
     int64_t last_timestep = -1;
     bool is_stale(int64_t tn) const { return last_timestep != tn; };
-
+    
+    // Set a default value 
     template<typename T>
     static inline T default_value() {
         if constexpr (std::is_floating_point_v<T>)
@@ -124,13 +125,54 @@ struct cache_base
 
 };
 
-//template<typename T>
-//class input
-//{
-//    static_assert(std::is_arithmetic_v<T>
-//private:
-//    T value_;
-//};
+template<typename T>
+class Input
+{
+    static_assert(std::is_arithmetic_v<T> || std::is_same_v<T,bool> , 
+            "Input must be an arithmetirc type or boolean");
+
+    T value_ = default_value();
+
+    static constexpr T default_value() {
+        if constexpr (std::is_floating_point_v<T>)
+            return std::numeric_limits<T>::quiet_NaN();
+        else if constexpr (std::is_integral_v<T>)
+            return std::numeric_limits<T>::min();
+        else 
+            return T{};
+    };
+    
+public:
+    constexpr Input() : value_(default_value<T>()) {};
+
+    constexpr operator T() const {return value_;};
+
+    constexpr Input& operator=(T value) { value_ = value; return *this;}
+};
+
+template<typename T>
+class Output
+{
+    static_assert(std::is_arithmetic_v<T>, "Output must be arithmetic");
+
+    T value_ = default_value();
+
+    static constexpr T default_value()
+    {
+        if constexpr (std::is_same_v<T,float>)
+            return 0.0f;
+        else
+            return 0.0;
+    };
+
+public:
+
+    constexpr Output() : value_(0.0) {};
+
+    constexpr operator T() const { return value_;};
+
+    constexpr Output& operator=(T value) { value_ = value; return *this;}
+};
 
 template<typename C>
 concept CacheRules = std::derived_from<C,cache_base>;
@@ -152,7 +194,7 @@ namespace pt = boost::property_tree;
 
 template<CacheRules CacheType>
 class data_base {
-    void init_cache();
+    void init_cache() const;
     
     template<typename T>
     bool check_if_set(T t)
@@ -176,7 +218,7 @@ protected:
     mutable std::optional<CacheType> cache_;
 
     template<ValueRules Value,typename Fetch>
-    void update_field(Value&& value, const Fetch& fetch);
+    void update_field(Value&& value, const Fetch& fetch) const;
 
     template<typename T,OutputRules<T> Output>
     void set_output(Output&& output,const T& t);
@@ -187,7 +229,7 @@ public:
 };
 
 template<CacheRules CacheType>
-void data_base<CacheType>::init_cache() {
+void data_base<CacheType>::init_cache() const {
     if (!cache_ || cache_->is_stale(global_param->timestep_counter)) {
         cache_.emplace();
         cache_->last_timestep = global_param->timestep_counter;
@@ -209,7 +251,7 @@ data_base<CacheType>::data_base(const mesh_elem& face_in, const boost::shared_pt
 
 template<CacheRules CacheType>
 template<ValueRules Value,typename Fetch>
-void data_base<CacheType>::update_field(Value&& value, const Fetch& fetch) {
+void data_base<CacheType>::update_field(Value&& value, const Fetch& fetch) const {
     init_cache();
     
     auto& V = value(); 

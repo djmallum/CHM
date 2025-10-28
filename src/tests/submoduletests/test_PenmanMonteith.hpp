@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <iomanip> 
-#include "Atmosphere.h"
 #include "Penman_Montieth.hpp"
 
 namespace legacy_data
@@ -67,7 +66,7 @@ protected:
         data.soil_d = 0.75;
         data.F_to_g = 0.2;
         data._s_per_step = 3600.0;
-        data.Cp = 1013.0;//Atmosphere::Cp;
+        data.Cp = 1013.0;
         data.K = 0.41;
         data.tension = 0.2;
         data.pore_sz = 0.5;

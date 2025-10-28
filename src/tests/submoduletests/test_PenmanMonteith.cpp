@@ -1,4 +1,5 @@
 #include "test_PenmanMonteith.hpp"
+#include "Atmosphere.h"
 
 //double MockPenmanData::leaf_area_index() { return LAI; }
 double MockPenmanData::leaf_area_index_max() const { return LAImax; }
