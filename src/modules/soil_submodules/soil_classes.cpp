@@ -129,6 +129,11 @@ void infiltrator::distribute()
 		
 		if (d.swe == 0.0) // if there is no snowcover
 		{
+            // TODO divided by soil_rechr_max only because K_rechr_to_ssr is multipled by the darcy velocity
+            // So this is just to cancel that other one.
+            // Also this is one of two K_ useages that involves a multiplcation with the storage amount 
+            // The other is for ground_water_out storage. I wonder if there is a reason for this
+            // Physically, the units are more like mm^2/hour instead of mm/hour, what does that mean?
 			d.rechr_to_ssr = d.soil_rechr_storage / d.soil_rechr_max * d.K_rechr_to_ssr * d.thaw_fraction_rechr;
 			d.rechr_to_ssr = std::min(d.rechr_to_ssr,d.soil_rechr_storage * d.thaw_fraction_rechr);
 
