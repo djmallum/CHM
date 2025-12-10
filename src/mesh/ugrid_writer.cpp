@@ -21,6 +21,7 @@ ugrid_writer::ugrid_writer(mesh m, std::shared_ptr<global> g, bool write_paramet
     _fname(""),
     _store_path(std::move(fname)),
     _use_zarr(use_zarr),
+    _mesh(m),
     _global(g),
     _write_parameters(write_parameters)
 {
