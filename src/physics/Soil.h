@@ -26,8 +26,27 @@
 
 #pragma once
 
+#include <sparsehash/dense_hash_map>
+
 namespace Soil {
     /********* Soil ************/
 
-}
+    template<typename T>
+    using string_map = google::dense_hash_map<std::string, T>;
 
+    template<typename T>
+    static constexpr T lookup(const string_map<T>& map, const std::string& key)
+    {
+        auto it = map.find(key);
+        if (it != map.end())
+        {
+           return it->second;
+        }
+        else
+        {
+           CHM_THROW_EXCEPTION(module_error, "String does not exist in map"); 
+        } 
+    };
+
+
+};
