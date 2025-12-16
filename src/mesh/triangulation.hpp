@@ -311,6 +311,32 @@ public:
     double veg_attribute(const std::string &variable);
 
     /**
+     * Checks if the face has soil by loading the soil_storage_max parameter
+     * and then checking if it is greater than zero.
+     */ 
+    bool has_soil();
+
+    /**
+     * Retrieves a soil attribute for the face. With a templated return type to allow for 
+     * double, int or std::string types. Distributed variables will only be double/int. But
+     * look-up tables can point to strings or another type.
+     * */
+    template <typename T>
+    T soil_attribute(const std::string variable);
+
+    /**
+     * This version of the function specifies that you need a look-up table.
+     * It is essentially identical to veg_attribute except it does not include the first if statement
+     * and it allows you to specify the look up map category name. For soils, it will always be soils.
+     * The obvious problem si that with veg_attribute you can keep a module unchanged and only change the 
+     * config with or without a look-up. This version requires changing the module to stop using a look up.
+     * Consider changing in the future.
+     * This is only found in the one argument version of this function 
+     *  */
+    template <typename T>
+    T soil_attribute(const std::string variable,const std::string category);
+
+    /**
      * Sets the vector for the given variable.
      * Does not support timeseries output.
      * There are no checks on inter-module vector guarantees like normal variables
@@ -436,9 +462,10 @@ public:
 
 //    void set_module_data(const std::string &module, face_info *fi);
 
-    template<typename T>
-    T& make_module_data(const std::string &module);
-
+    // Overload for module data constructor
+    template<typename T, typename... Args>
+    T& make_module_data(const std::string &module, Args... args);
+    
     std::string _debug_name; //for debugging to find the elem that we want
     int _debug_ID; //also for debugging. ID == the position in the output order, starting at 0
     size_t cell_global_id;
@@ -1692,6 +1719,61 @@ double face<Gt, Fb>::veg_attribute(const std::string &variable)
     return result;
 };
 
+template < class Gt, class Fb >
+bool  face<Gt, Fb>::has_soil()
+{
+    if (has_parameter("soil_storage_max"_s) )
+    {
+        double result = parameter("soil_storage_max"_s);
+        if (result >= 0.0)
+            return true;
+    }
+
+    return false;
+}
+
+template < class Gt, class Fb >
+template< typename T >
+T face<Gt, Fb>::soil_attribute(const std::string variable)
+{
+    
+    T result{};
+    // first see if we have a distributed map of this parameter
+    if(has_parameter(variable))
+        result = parameter(variable);
+    else
+    {
+        CHM_THROW_EXCEPTION(module_error, "Parameter " + variable +" does not exist.");
+    }
+    return result;
+};
+
+template < class Gt, class Fb >
+template< typename T >
+T face<Gt, Fb>::soil_attribute(const std::string variable,const std::string category)
+{
+    T result{};
+    if (has_parameter(variable))
+    {    
+        int LC = parameter(variable);
+        auto param = _domain->_global->parameters;
+        try
+        {
+            result = param.get<T>(category + "." + variable + "." + std::to_string(LC));
+        }
+        catch(const boost::property_tree::ptree_bad_path& e)
+        {
+            CHM_THROW_EXCEPTION(module_error, "Parameter " + variable + " in category " + category +" does not exist.");
+        }
+    }
+    else
+    {
+        CHM_THROW_EXCEPTION(module_error, "Parameter " + variable + " in category " + category +" does not exist.");
+    }
+    return result;
+};
+
+
 template < class Gt, class Fb>
 Vector_3 face<Gt, Fb>::face_vector(const std::string& variable)
 {
@@ -1788,21 +1870,21 @@ timeseries::iterator face<Gt, Fb>::now()
 }
 
 
+// Overloaded for construtor that requires arguments
 template < class Gt, class Vb>
-template<typename T>
-T& face<Gt, Vb>::make_module_data(const std::string &module)
+template<typename T, typename... Args>
+T& face<Gt, Vb>::make_module_data(const std::string &module, Args... args)
 {
 
     //we don't already have this, make a new one.
     if(!_module_face_data[module])
     {
 //        T* data = new T;
-        _module_face_data[module] = std::make_unique<T>();
+        _module_face_data[module] = std::make_unique<T>(args...);
     }
 
     return get_module_data<T&>(module);
 }
-
 
 template < class Gt, class Fb>
 template < typename T>
@@ -1910,3 +1992,4 @@ T determine_owner_of_global_index(T index, std::vector<T> num_faces_in_partition
   }
   return owner;
 }
+

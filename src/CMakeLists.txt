@@ -68,6 +68,9 @@ set(MODULE_SRCS
 
 		CACHE INTERNAL "" FORCE )
 
+set(MODEL_SRCS
+        modules/submodules/Crack.cpp
+        CACHE INTERNAL "" FORCE )
 
 set(CHM_SRCS
 		#main.cpp needs to be added below so we can re use CHM_SRCS in the gtest build
@@ -233,8 +236,9 @@ add_executable(
 		CHM
 		main.cpp # this needs to be here so we can reuse CHM_SRCS in the gtest build. but since it links it's own main, we cannot have this one.
 		${CHM_SRCS}
-		${FILTER_SRCS}
-		${MODULE_SRCS}
+		${FILTER_SRCS}	
+        ${MODEL_SRCS}
+        ${MODULE_SRCS}
 )
 
 
@@ -425,6 +429,7 @@ if (BUILD_TESTS)
 			#    test_daily.cpp
             #     tests/test_triangulation.cpp
             tests/submoduletests/test_data_base.cpp
+            tests/submoduletests/test_Crack.cpp
 			tests/main.cpp
     )
 
@@ -435,7 +440,8 @@ if (BUILD_TESTS)
 	add_executable(
 			runUnitTests
 			${CHM_SRCS}
-			${FILTER_SRCS}
+            ${FILTER_SRCS}
+            ${MODEL_SRCS}
 			${MODULE_SRCS}
 			${TEST_SRCS}
 	)

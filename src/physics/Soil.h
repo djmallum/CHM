@@ -27,7 +27,7 @@
 #pragma once
 
 #include <sparsehash/dense_hash_map>
-
+#include "exception.hpp"
 namespace Soil {
     /********* Soil ************/
 

@@ -151,6 +151,7 @@ protected:
     // Test constructor to skip checks of valid mesh_elem
     data_base(const mesh_elem& face_in, const boost::shared_ptr<global> param, 
             const pt::ptree& cfg, bool istest);
+    data_base() {};
     ~data_base() {};
     
     const mesh_elem face{nullptr};
