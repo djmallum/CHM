@@ -36,6 +36,7 @@ Infil_Options::Infil_Options(config_file cfg) : module_base("Infil_Options", par
     depends("rainfall_int");
     depends("t");
 
+    provides("rain_on_snow");
     provides("infiltrated");
     provides("runoff");
     provides("snow_infiltrated");
@@ -92,18 +93,13 @@ void Infil_Options::run(mesh_elem& face)
 
     switch(d.crack_details.status) 
     {
-        case Status::THAWED:
-            ayers.execute(d);
-            break;
-        case Status::FROZEN:
-            crack.execute(d);
-            break;
         case Status::TO_THAWED:
             if (d.is_newday())
             {
                 s.soil_saturation_at_freeze = 0.0; 
                 d.saturation_set = false;
             }
+        case Status::THAWED:
             crack.execute(d);
             break;
         case Status::TO_FROZEN:
@@ -113,6 +109,7 @@ void Infil_Options::run(mesh_elem& face)
                     (*face)["soil_saturation"_s] * DECIMAL_TO_PERCENT;
                 d.saturation_set = true;
             }
+        case Status::FROZEN:
             crack.execute(d);
             break;
     }
