@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <concepts>
 #include <cstddef>
-#include <stdexcept>
 #include <utility>
 #include "daily_accumulator.hpp"
 
@@ -31,6 +30,9 @@ namespace Crack
     enum class InfilPhase;
 
     InfilPhase determine_infiltration_phase(const State&,const double swe);
+    double get_limited_inf(State&,const double swe);
+    double calc_index_inf(State&);    
+    void process_new_day(State&,const double swe);
 
     template<class T>
     concept CrackData = requires(T& t)
@@ -55,12 +57,6 @@ namespace Crack
     public:
 
         void execute_impl(Data& d) const;
-
-        
-    private:
-        void process_new_day(Data&,State&) const;
-        double get_limited_inf(Data&,State&) const;
-        double calc_index_inf(State&) const;
 
     };
     
@@ -99,85 +95,29 @@ void Crack::Model<Data>::execute_impl(Data& d) const
         d.melt_runoff(s.current_melt_runoff);
         d.infiltrated(s.current_inf);
         d.snow_infiltrated(s.current_snow_inf);
-        s.daily_rain_total.accumulate(is_newday);
-        s.daily_melt_total.accumulate(is_newday);
+        constexpr bool new_day = false;
+        s.daily_rain_total.accumulate(new_day);
+        s.daily_melt_total.accumulate(new_day);
 
         return;
     }
-
-    process_new_day(d,s);
-
-};
-
-template<Crack::CrackData Data>
-void Crack::Model<Data>::process_new_day(Data& d, State& s) const
-{
-    auto inf = 0.0;
-    auto runoff = 0.0;
-    auto melt_runoff = 0.0;
-    auto snow_inf = 0.0;
     
-    constexpr bool new_day = true;
-    s.daily_rain_total.accumulate(new_day);
-    s.daily_melt_total.accumulate(new_day);
+    const auto swe = d.swe();
+    process_new_day(s,swe);
     
-    double yesterday_melt = s.daily_melt_total.get_yesterday();
-    double yesterday_rain = s.daily_rain_total.get_yesterday();
-    // TODO Profile, consider removing unpredictable branch
-    if (yesterday_melt > 0.0)
-    {
-        if (s.soil_saturation_at_freeze > 0.0 &&
-                s.soil_saturation_at_freeze < 100.0 ) [[likely]]
-        {
-            inf = get_limited_inf(d,s);
-        }
-        else [[unlikely]]
-        {
-            if (s.soil_saturation_at_freeze == 0.0)
-            {
-                inf = yesterday_melt;
-                s.major_melt_count = 1;
-            }
-            else if (s.soil_saturation_at_freeze == 100.0)
-            {
-                s.major_melt_count = 0;
-            }
-            else
-                throw std::logic_error("soil_saturation_at_freeze not bounded between 0 and 100");
-        }
-
-        runoff = yesterday_melt - inf;
-        // Moved the following lines before the if, because daily_rain_total shouldn't 
-        // be added tomelt_runoff or snow_inf (which track only melt related quantities, not rain).
-        melt_runoff = runoff;
-        snow_inf = inf;
-        if (inf > 0.0)
-            inf += yesterday_rain;
-        else
-            runoff += yesterday_rain;
-
-    } // if
-
-    s.current_inf = inf;
-    s.current_snow_inf = snow_inf;
-    s.current_runoff = runoff;
-    s.current_melt_runoff = melt_runoff;
-
-    
-    // has to be new day, therefore, maximum temperature is the current temperature 
-    // for this new day
     s.daily_max_temp = d.air_temperature();
+
+    auto yesterday_rain = s.daily_rain_total.get_yesterday();
 
     d.rain_on_snow(yesterday_rain);
     d.runoff(s.current_runoff);
     d.melt_runoff(s.current_melt_runoff);
     d.infiltrated(s.current_inf);
     d.snow_infiltrated(s.current_snow_inf);
-    
-    
 
-    
+
 };
+
 
 enum class Crack::InfilPhase
 {
@@ -188,40 +128,4 @@ enum class Crack::InfilPhase
     NONE
 };
 
-template<Crack::CrackData Data>
-double Crack::Model<Data>::get_limited_inf(Data& d,State& s) const
-{
-    const auto swe = d.swe();
 
-    InfilPhase phase = determine_infiltration_phase(s,swe);
-
-    switch(phase)
-    {
-        // returns behave as "breaks;" commands
-        case InfilPhase::FIRST_MAJOR:            
-            // FIRST_MAJOR and RESET have same outcome
-        case InfilPhase::RESET:
-            s.index = 5 * (1 - s.soil_saturation_at_freeze/100.0) * std::pow(swe,0.584);
-            
-            s.max_major_per_melt = s.index / Params::infDays;
-            s.index = std::min(s.index/swe,1.0);
-            s.init_SWE = swe;
-            // RESET is same as LIMITED_PHASE but with a calculation of index
-            // No return so go to next
-        case InfilPhase::LIMITED_PHASE:
-            return calc_index_inf(s);
-        case InfilPhase::PRIOR_INFILTRATION:
-            return s.daily_melt_total.get_yesterday(); 
-        case InfilPhase::NONE:
-            return 0.0;
-        default:
-            throw std::logic_error("Must be a phase from enum InfilPhase");
-    }    
-};
-
-template<Crack::CrackData Data>
-double Crack::Model<Data>::calc_index_inf(State& s) const
-{
-    return std::min(s.daily_melt_total.get_yesterday() * s.index,
-            s.max_major_per_melt);
-};
