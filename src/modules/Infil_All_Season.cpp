@@ -21,14 +21,13 @@
 // <http://www.gnu.org/licenses/>.
 //
 
-#include "Infil_Options.hpp"
-#include <string_view>
+#include "Infil_All_Season.hpp"
 #include <cassert>
 
-REGISTER_MODULE_CPP(Infil_Options);
+REGISTER_MODULE_CPP(Infil_All_Season);
 
 
-Infil_Options::Infil_Options(config_file cfg) : module_base("Infil_Options", parallel::data, cfg)
+Infil_All_Season::Infil_All_Season(config_file cfg) : module_base("Infil_All_Season", parallel::data, cfg)
 {
 
     depends("swe");
@@ -44,83 +43,97 @@ Infil_Options::Infil_Options(config_file cfg) : module_base("Infil_Options", par
 
 };
 
-Infil_Options::~Infil_Options() {};
+Infil_All_Season::~Infil_All_Season() {};
 
-void Infil_Options::init(mesh& domain)
+void Infil_All_Season::init(mesh& domain)
 {
-    auto major_melt_threshold = cfg.get("major",5);
-    auto infDays = cfg.get("max_inf_days",6);
-    auto lenstemp = cfg.get("temperature_ice_lens",-10.0);
-    auto allow_early_inf = cfg.get("AllowPriorInf",true);
+    Crack::State::major_melt_threshold = cfg.get("major",5);
+    Crack::State::infDays = cfg.get("max_inf_days",6);
+    Crack::State::lenstemp = cfg.get("temperature_ice_lens",-10.0);
+    Crack::State::allow_early_inf = cfg.get("AllowPriorInf",true);
 
-    Crack::Params::set(major_melt_threshold,infDays,lenstemp,allow_early_inf);
-
+    new_day.set_global(global_param);
+    
     auto min_swe_to_freeze = cfg.get("min_swe_to_freeze",25.0);
-    auto day_of_year_to_freeze = static_cast<size_t>(cfg.get("day_of_year_to_freeze",300));
-    constants_crack = std::make_unique<DomainConstantsCrack>(min_swe_to_freeze,day_of_year_to_freeze);
+    
+    // TODO this is now broken I think, because algorithm_selector is nowa private member of data
+    // Think about this.
+    algorithm_selector.set_min_swe(min_swe_to_freeze);
+    day_of_year_to_freeze = static_cast<size_t>(cfg.get("day_of_year_to_freeze",300));
 
     for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
-        auto& d = face->make_module_data<Infil_Options::data>(ID,face,global_param,cfg);
+        auto& d = face->make_module_data<Infil_All_Season::data>(ID,face,global_param,cfg);
 
-        d._texture = face->soil_attribute<std::string>("soil_texture","soils");
-        d._ground_cover = face->soil_attribute<std::string>("soil_ground_cover","soils");
+        d.ayers_params.texture = face->soil_attribute<std::string>("soil_texture","soils");
+        d.ayers_params.ground_cover = face->soil_attribute<std::string>("soil_ground_cover","soils");
         const auto& melt_per_step = (*face)["snowmelt_int"_s];
         const auto& rain_per_step = (*face)["rainfall_int"_s];
-        d.state.daily_melt_total.bind_target(melt_per_step);
-        d.state.daily_rain_total.bind_target(rain_per_step);
+        auto& s = d.get_state();
+        s.daily_melt_total.bind_target(melt_per_step);
+        s.daily_rain_total.bind_target(rain_per_step);
     };
+
 };
 
-void Infil_Options::run(mesh_elem& face)
+void Infil_All_Season::run(mesh_elem& face)
 {
 
-    auto& d = face->get_module_data<Infil_Options::data>(ID);
-    auto& s = d.get_state();
-    constexpr double DECIMAL_TO_PERCENT = 100.0;
+    auto& d = face->get_module_data<Infil_All_Season::data>(ID);
 
-    if (d.is_newday()) [[unlikely]] 
+    if (new_day.check()) [[unlikely]] 
     {
-        d.crack_details.status = get_status(d,d.crack_details.status);
-        if (global_param->day() == constants_crack->day_of_year_to_freeze) [[unlikely]]
+        d.crack_details.status = algorithm_selector.get(
+                [&d]() {return d.swe(); });
+
+        auto& s = d.get_state();
+        if (global_param->day() == day_of_year_to_freeze) [[unlikely]]
         {
             s.soil_saturation_at_freeze = 
-                (*face)["soil_saturation"_s] * DECIMAL_TO_PERCENT;
-            d.saturation_set = true;
+                (*face)["soil_saturation"_s] * Infil_All_Season::DECIMAL_TO_PERCENT;
+            d.crack_details.saturation_set = true;
         }    
     }
 
+    algorithm_runner.run(new_day,d,face);
+
+    set_outputs(face,d);
+
+};
+
+template<typename T>
+void runner<T>::run(const new_day_checker& new_day,T& d,mesh_elem& face)
+{
+    auto& s = d.get_state();
+    auto& cr = d.crack_details;
     switch(d.crack_details.status) 
     {
         case Status::TO_THAWED:
             if (d.is_newday())
             {
                 s.soil_saturation_at_freeze = 0.0; 
-                d.saturation_set = false;
+                cr.saturation_set = false;
             }
         case Status::THAWED:
-            crack.execute(d);
+            ayers.execute(d);
             break;
         case Status::TO_FROZEN:
-            if (!d.saturation_set)
+            if (!cr.saturation_set)
             {
                 s.soil_saturation_at_freeze = 
-                    (*face)["soil_saturation"_s] * DECIMAL_TO_PERCENT;
-                d.saturation_set = true;
+                    (*face)["soil_saturation"_s] * Infil_All_Season::DECIMAL_TO_PERCENT;
+                cr.saturation_set = true;   
             }
         case Status::FROZEN:
             crack.execute(d);
             break;
     }
-
-    d.set_outputs();
-
 };
 
-void Infil_Options::data::set_outputs() const
+void Infil_All_Season::set_outputs(mesh_elem& face,const data& d) const
 {
-    auto& c = get_cache();
+    auto& c = d.get_cache();
     if (!c)
     {
         (*face)["infiltrated"_s] = 0.0;
@@ -139,20 +152,15 @@ void Infil_Options::data::set_outputs() const
     }
 };
 
-bool Infil_Options::data::is_newday() const
+Infil_All_Season::data::data(mesh_elem& face_in,std::shared_ptr<global> param, config_file cfg)
+    : data_base<Cache>(face_in, param, cfg) {};
+
+bool Infil_All_Season::data::is_newday() const
 {
-    // TODO This has hard coded elements, Chris suggested something different here: https://godbolt.org/z/3c51T1avT
-	auto td = global_param->posix_time().time_of_day().total_seconds();
-    auto time_to_midnight = 86400 - td;
-    if (td >= 0 && td < global_param->dt()) //(time_to_midnight >= global_param->dt())
-    {
-        return true;
-    }
-    else
-        return false;
+    return new_day.check();
 };
 
-double Infil_Options::data::snowmelt()
+double Infil_All_Season::data::snowmelt()
 {
     update_value(
             [this]() -> auto& { return cache_->snowmelt;},
@@ -162,7 +170,7 @@ double Infil_Options::data::snowmelt()
     return cache_->snowmelt;
 };
 
-double Infil_Options::data::rainfall()
+double Infil_All_Season::data::rainfall()
 {
     update_value(
             [this]() -> auto& { return cache_->rainfall;},
@@ -172,7 +180,7 @@ double Infil_Options::data::rainfall()
     return cache_->rainfall;
 };
 
-double Infil_Options::data::swe()
+double Infil_All_Season::data::swe()
 {
     update_value(
             [this]() -> auto& { return cache_->swe;},
@@ -182,7 +190,7 @@ double Infil_Options::data::swe()
     return cache_->swe;
 };
 
-double Infil_Options::data::air_temperature()
+double Infil_All_Season::data::air_temperature()
 {
     update_value(
             [this]() -> auto& { return cache_->air_temperature;},
@@ -192,21 +200,17 @@ double Infil_Options::data::air_temperature()
     return cache_->air_temperature;
 };
 
-std::string_view Infil_Options::data::texture()
+const std::string& Infil_All_Season::data::texture()
 {
-    assert(!_texture.empty() && "Infil_Options: texture much be allocated");
-
-    return _texture;
+    return ayers_params.texture;
 };
 
-std::string_view Infil_Options::data::ground_cover()
+const std::string& Infil_All_Season::data::ground_cover()
 {
-    assert(!_ground_cover.empty() && "Infil_Options: ground_cover much be allocated");
-
-    return _ground_cover;
+    return ayers_params.ground_cover;
 };
 
-void Infil_Options::data::infiltrated(const double out)
+void Infil_All_Season::data::infiltrated(const double out)
 {
     set_output(
             [this]() -> auto& { return cache_->infiltrated;},
@@ -214,7 +218,7 @@ void Infil_Options::data::infiltrated(const double out)
             );
 };
 
-void Infil_Options::data::runoff(const double out)
+void Infil_All_Season::data::runoff(const double out)
 {
     set_output(
             [this]() -> auto& { return cache_->runoff;},
@@ -222,7 +226,7 @@ void Infil_Options::data::runoff(const double out)
             );
 };
 
-void Infil_Options::data::snow_infiltrated(const double out)
+void Infil_All_Season::data::snow_infiltrated(const double out)
 {
     set_output(
             [this]() -> auto& { return cache_->snow_infiltrated;},
@@ -230,7 +234,7 @@ void Infil_Options::data::snow_infiltrated(const double out)
             );
 };
 
-void Infil_Options::data::melt_runoff(const double out)
+void Infil_All_Season::data::melt_runoff(const double out)
 {
     set_output(
             [this]() -> auto& { return cache_->melt_runoff;},
@@ -238,7 +242,7 @@ void Infil_Options::data::melt_runoff(const double out)
             );
 };
 
-void Infil_Options::data::rain_on_snow(const double out)
+void Infil_All_Season::data::rain_on_snow(const double out)
 {
     set_output(
             [this]() -> auto& { return cache_->rain_on_snow;},
@@ -246,14 +250,15 @@ void Infil_Options::data::rain_on_snow(const double out)
             );
 };
 
-Crack::State& Infil_Options::data::get_state()
+Crack::State& Infil_All_Season::data::get_state()
 {
     return state;
 };
 
-Infil_Options::Status Infil_Options::get_status(data& d,const Status Old)
+template<typename swe_getter>
+Status infil_chooser::get(swe_getter&& swe)
 {
-    switch(Old)
+    switch(status)
     {
         case Status::TO_FROZEN:
             return Status::FROZEN;
@@ -262,16 +267,19 @@ Infil_Options::Status Infil_Options::get_status(data& d,const Status Old)
             return Status::THAWED;
 
         case Status::FROZEN:
-            if (d.swe() > 0.0)
+            if (swe() > 0.0)
                 return Status::FROZEN;
             else
                 return Status::TO_THAWED;
 
         case Status::THAWED:
-            if (d.swe() <= constants_crack->min_swe_to_freeze)
+            if (swe() <= min_swe_to_freeze)
                 return Status::THAWED;
             else
                 return Status::TO_FROZEN;
     }
+};
 
+void infil_chooser::set_min_swe(const double val) {
+    min_swe_to_freeze = val;
 };

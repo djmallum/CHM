@@ -35,7 +35,7 @@ namespace Soil {
     using string_map = google::dense_hash_map<std::string, T>;
 
     template<typename T>
-    static constexpr T lookup(const string_map<T>& map, const std::string& key)
+    static constexpr T lookup(const string_map<T>& map, std::string key)
     {
         auto it = map.find(key);
         if (it != map.end())

@@ -18,22 +18,82 @@ namespace Crack
         daily_accumulator daily_melt_total;
         daily_accumulator daily_rain_total;
         double daily_max_temp = 0.0;
-        double current_inf = 0.0;
-        double current_snow_inf = 0.0;
-        double current_runoff = 0.0;
-        double current_melt_runoff = 0.0;
         double soil_saturation_at_freeze;
+            
+        struct Current
+        {
+            double inf = 0.0;
+            double snow_inf = 0.0;
+            double runoff = 0.0;
+            double melt_runoff = 0.0;
+            double rain = 0.0;
+        } current;
+
+        static inline size_t infDays = 6;
+        static inline double major_melt_threshold = 25.0;
+        static inline double lenstemp = -10.0;
+        static inline bool allow_early_inf = true;
                 //bool end_freeze_tomorrow = false; 
+
+        State() {};
+    private:
+        /* private constructor for tests to wind up daily_melt_total and 
+         * daily_rain_total */
+        State(const double& melt, const double& rain);
+    public:
+        /* public factory for test constructor */
+        static State construct_test_state(const double& melt, const double& rain)
+        {
+            return State(melt,rain);
+        };
 
     };
 
-    enum class InfilPhase;
-    
+    enum class LimitedPhase
+    {
+        FIRST_MAJOR, // First Major melt of the season
+        RESET, // Reset index method
+        NORMAL, // Compute infiltration from index
+        PRIOR_INFILTRATION, // Before the first major melt
+        NONE // Limited phase blocked
+    };
 
-    InfilPhase determine_infiltration_phase(const State&,const double swe);
-    double get_limited_inf(State&,const double swe);
-    double calc_index_inf(State&);    
-    void process_new_day(State&,const double swe);
+    class phase_checker
+    {
+    public:
+        LimitedPhase get(const State&, const double swe) const;
+    };
+
+    class limited_inf
+    {
+    public:
+        double get(State&,const double swe) const;
+
+    private:
+        void set_index(State&,const double swe) const;
+        double inf_from_index(State&) const;
+        const phase_checker phase;
+
+    };
+
+    class inf_calculator
+    {
+    public:
+        double limited(State&,const double swe) const;
+        double unlimited(State&) const;
+        double restricted(State&) const;
+    private:
+         const limited_inf inf;
+    };
+
+    class Processor
+    {
+    public:
+        void new_day(State&,const double swe) const;
+
+    private:
+        inf_calculator inf_calc;
+    };
 
     template<class T>
     concept CrackData = requires(T& t)
@@ -59,6 +119,8 @@ namespace Crack
 
         void execute_impl(Data& d) const;
 
+    private:
+        Processor process;
     };
     
     struct Params
@@ -86,35 +148,38 @@ void Crack::Model<Data>::execute_impl(Data& d) const
     auto& s = d.get_state();
 
     auto is_newday = d.is_newday();
+
+    s.daily_melt_total.accumulate(is_newday);
+    s.daily_rain_total.accumulate(is_newday);
     
+    const auto yesterday_rain = s.daily_rain_total.get_yesterday();
+
     if (!is_newday) [[likely]]
     {
         auto t = d.air_temperature();
         s.daily_max_temp = std::max(s.daily_max_temp, t);
 
-        d.runoff(s.current_runoff);
-        d.melt_runoff(s.current_melt_runoff);
-        d.infiltrated(s.current_inf);
-        d.snow_infiltrated(s.current_snow_inf);
-        constexpr bool new_day = false;
-        s.daily_rain_total.accumulate(new_day);
-        s.daily_melt_total.accumulate(new_day);
-
+        // Note confident on this rain_on_snow... shouldn't it be based on rain right now? Not yesterday?
+        // Check with CRHM version.
+        d.rain_on_snow(s.current.rain);
+        d.runoff(s.current.runoff);
+        d.melt_runoff(s.current.melt_runoff);
+        d.infiltrated(s.current.inf);
+        d.snow_infiltrated(s.current.snow_inf);
         return;
     }
     
     const auto swe = d.swe();
-    process_new_day(s,swe);
-    
+    const auto yesterday_melt = s.daily_melt_total.get_yesterday();
+    process.new_day(s,swe);    
+
     s.daily_max_temp = d.air_temperature();
 
-    auto yesterday_rain = s.daily_rain_total.get_yesterday();
-
-    d.rain_on_snow(yesterday_rain);
-    d.runoff(s.current_runoff);
-    d.melt_runoff(s.current_melt_runoff);
-    d.infiltrated(s.current_inf);
-    d.snow_infiltrated(s.current_snow_inf);
+    d.rain_on_snow(s.current.rain);
+    d.runoff(s.current.runoff);
+    d.melt_runoff(s.current.melt_runoff);
+    d.infiltrated(s.current.inf);
+    d.snow_infiltrated(s.current.snow_inf);
 
 
 };

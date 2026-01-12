@@ -45,4 +45,8 @@ public:
             _accumulator += *_target_var;
     };
 
+    bool operator==(const daily_accumulator& other) const
+    {
+        return _yesterday_value == other._yesterday_value;
+    };
 };

@@ -68,7 +68,7 @@
  *
  * class MyData : public data_base<MyCache> {
  * public:
- *     MyData(const mesh_elem& face_in, const boost::shared_ptr<global> param, 
+ *     MyData(const mesh_elem& face_in, const std::shared_ptr<global> param, 
  *            const pt::ptree& cfg) : data_base(face_in, param, cfg) {}
  *     
  *     void compute_temperature() {
@@ -146,16 +146,16 @@ class data_base {
 
 protected:
     
-    data_base(const mesh_elem& face_in, const boost::shared_ptr<global> param, 
+    data_base(const mesh_elem& face_in, const std::shared_ptr<global> param, 
             const pt::ptree& cfg);
     // Test constructor to skip checks of valid mesh_elem
-    data_base(const mesh_elem& face_in, const boost::shared_ptr<global> param, 
+    data_base(const mesh_elem& face_in, const std::shared_ptr<global> param, 
             const pt::ptree& cfg, bool istest);
     data_base() {};
     ~data_base() {};
     
     const mesh_elem face{nullptr};
-    const boost::shared_ptr<global> global_param;
+    const std::shared_ptr<global> global_param;
     const pt::ptree& cfg_;
     mutable std::optional<CacheType> cache_;
 
@@ -185,7 +185,7 @@ bool data_base<CacheType>::is_stale()
 }
 
 template<data_base_concepts::CacheRules CacheType>
-data_base<CacheType>::data_base(const mesh_elem& face_in, const boost::shared_ptr<global> param, 
+data_base<CacheType>::data_base(const mesh_elem& face_in, const std::shared_ptr<global> param, 
         const pt::ptree& cfg) : face(face_in), global_param(param), cfg_(cfg)
 {
     if (!face->is_valid())
@@ -196,7 +196,7 @@ data_base<CacheType>::data_base(const mesh_elem& face_in, const boost::shared_pt
 };
 
 template<data_base_concepts::CacheRules CacheType>
-data_base<CacheType>::data_base(const mesh_elem& face_in, const boost::shared_ptr<global> param, 
+data_base<CacheType>::data_base(const mesh_elem& face_in, const std::shared_ptr<global> param, 
         const pt::ptree& cfg, const bool istest) : face(face_in), global_param(param), cfg_(cfg)
 {
     if (!istest)

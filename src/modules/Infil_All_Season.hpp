@@ -28,7 +28,7 @@
 #include "Crack.hpp"
 #include "Ayers_infiltration.hpp"
 #include "data_base.hpp"
-#include <string_view>
+#include "new_day_checker.hpp"
 /**
  * \ingroup modules infil soils exp
  * @{
@@ -65,21 +65,46 @@
  * Hydrological Processes  15(16), 3095-3111. https://dx.doi.org/10.1002/hyp.320
  * @}
  */
-class Infil_Options : public module_base
+
+enum class Status
 {
-REGISTER_MODULE_HPP(Infil_Options)
+    FROZEN,
+    THAWED,
+    TO_FROZEN,
+    TO_THAWED
+};
 
-    enum class Status
-    {
-        FROZEN,
-        THAWED,
-        TO_FROZEN,
-        TO_THAWED
-    };
+
+class infil_chooser
+{
 public:
-    Infil_Options(config_file cfg);
+    template<typename swe_getter>
+    Status get(swe_getter&& swe);
+    void set_min_swe(const double);
+private:
+    Status status;
+    double min_swe_to_freeze;
+};
 
-    ~Infil_Options();
+template<typename T>
+class runner
+{
+public:
+    void run(const new_day_checker&, T&, mesh_elem&);
+private:
+    Crack::Model<T> crack;
+    Ayers::Model<T> ayers;
+};
+
+
+class Infil_All_Season : public module_base
+{
+REGISTER_MODULE_HPP(Infil_All_Season)
+
+public:
+    Infil_All_Season(config_file cfg);
+
+    ~Infil_All_Season();
 
     void run(mesh_elem &face);
     void init(mesh& domain);
@@ -100,23 +125,21 @@ public:
         double rain_on_snow = 0.0;
     };
 
-    class data : public data_base<Cache>,face_info
+    class data : public data_base<Cache>, public face_info
     {
-        friend class Infil_Options;
         Crack::State state;
-        std::string _texture;
-        std::string _ground_cover;
-        bool saturation_set;
-        void set_outputs() const;
+        new_day_checker new_day;
     public:
+        explicit data(mesh_elem&, std::shared_ptr<global>, config_file);
+
         Crack::State& get_state();
         bool is_newday() const;
         double snowmelt();
         double rainfall();
         double swe();
         double air_temperature();
-        std::string_view texture();
-        std::string_view ground_cover();
+        const std::string& texture();
+        const std::string& ground_cover();
 
         void infiltrated(const double);
         void runoff(const double);
@@ -128,24 +151,36 @@ public:
         {
             Status status = Status::THAWED;
             bool end_freeze_tomorrow = false;
+            bool saturation_set = true;
+            void set_saturation(Crack::State&,mesh_elem&);
         } crack_details;
+
+        struct ayers_parameters
+        {
+            std::string texture;
+            std::string ground_cover;
+        } ayers_params;
+        
+        // TODO
+        // This function and infil_chooser are basically a redo of CrackCHMDetails 
+        // infil_chooser is needed to determine if we are doing ayers or crack.
+        // Currently the Status struct is not ideal. It should be Ayers or Crack as enum
+        // members for more clarity. And a switching to Ayers and switching to Crack members
+        Status get_model_status();
+
+    private:
+        infil_chooser algorithm_selector;
+
     };
 
+    static constexpr auto DECIMAL_TO_PERCENT = 100.0;
 private:
      
-	bool is_new_day(void);
-
-    Crack::Model<data> crack;
-    Ayers::Model<data> ayers;
+    new_day_checker new_day; 
+    runner<data> algorithm_runner; 
     
-    Status get_status(data& d,const Status Old);
-
-    struct DomainConstantsCrack
-    {
-        double min_swe_to_freeze;
-        size_t day_of_year_to_freeze;
-    };
-
-    std::unique_ptr<const DomainConstantsCrack> constants_crack;
+    size_t day_of_year_to_freeze;
+    void set_outputs(mesh_elem&,const data&) const;
 };
+
 

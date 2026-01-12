@@ -50,6 +50,7 @@ set(MODULE_SRCS
 		modules/Richard_albedo.cpp
 		modules/snowpack.cpp
 		modules/Gray_inf.cpp
+        # modules/Infil_All_Season.cpp
 		modules/Simple_Canopy.cpp
 		modules/scale_wind_vert.cpp
 		modules/sub_grid.cpp
@@ -70,6 +71,7 @@ set(MODULE_SRCS
 
 set(MODEL_SRCS
         modules/submodules/Crack.cpp
+        modules/submodules/Ayers_infiltration.cpp
         CACHE INTERNAL "" FORCE )
 
 set(CHM_SRCS
@@ -99,6 +101,7 @@ set(CHM_SRCS
 		utility/jsonstrip.cpp
 		utility/readjson.cpp
 		utility/gis.cpp
+        utility/new_day_checker.cpp
 
 		interpolation/interpolation.cpp
         math/coordinates.cpp
@@ -430,6 +433,7 @@ if (BUILD_TESTS)
             #     tests/test_triangulation.cpp
             tests/submoduletests/test_data_base.cpp
             tests/submoduletests/test_Crack.cpp
+            tests/submoduletests/test_Ayers.cpp
 			tests/main.cpp
     )
 
