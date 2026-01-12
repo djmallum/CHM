@@ -28,6 +28,7 @@ namespace Crack
     };
 
     enum class InfilPhase;
+    
 
     InfilPhase determine_infiltration_phase(const State&,const double swe);
     double get_limited_inf(State&,const double swe);
@@ -119,13 +120,6 @@ void Crack::Model<Data>::execute_impl(Data& d) const
 };
 
 
-enum class Crack::InfilPhase
-{
-    FIRST_MAJOR,
-    RESET,
-    LIMITED_PHASE,
-    PRIOR_INFILTRATION,
-    NONE
-};
+
 
 

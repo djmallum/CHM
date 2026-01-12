@@ -3,6 +3,15 @@
 
 namespace Crack
 {
+    enum class InfilPhase
+    {
+        FIRST_MAJOR,
+        RESET,
+        LIMITED_PHASE,
+        PRIOR_INFILTRATION,
+        NONE
+    };
+
     InfilPhase determine_infiltration_phase(const Crack::State& s,const double swe)
     {
         const bool count_nonzero = s.major_melt_count > 0;
