@@ -23,13 +23,18 @@
 
 #include "core.hpp"
 
-
 core::core()
 {
 
     _start_ts = nullptr;
     _end_ts = nullptr;
     _interpolation_method = interp_alg::tpspline;
+    radius = 0;
+    N=0;
+
+    point_mode.enable = false;
+    point_mode.use_specific_station = false;
+    point_mode.forcing = "";
 
     //default logging level
     _log_level = debug;
@@ -45,7 +50,7 @@ core::core()
 
 core::~core()
 {
-    // clean up all the modules to ensure that Tpetra:~Map() is called prior to MPI_Finalize as per GitHib Issue #2372
+    // clean up all the modules to ensure that Tpetra:~Map() is called prior to MPI_Finalize
     for(auto& itr : _chunked_modules)
     {
         for(auto& jtr : itr )
@@ -56,6 +61,25 @@ core::~core()
     for(auto& itr : _modules)
     {
         itr.first.reset();
+    }
+
+
+    // flush the logs and close the fhandles
+    spdlog::shutdown();
+
+    try
+    {
+        auto job_name = _hpc_scheduler_info.job_name;
+
+        const auto path = output_folder_path / ("logs_" + job_name);
+        try{ boost::filesystem::create_directories(path); } catch (...) { /* already exists */ }
+
+        boost::filesystem::rename(log_file_path, path / log_file_path.filename());
+    }
+    catch(const std::exception& e)
+    {
+        // if this copying goes wrong we are super out of options
+        std::cout << e.what() << std::endl;
     }
 
 }
@@ -218,7 +242,7 @@ void core::config_modules(pt::ptree &value, const pt::ptree &config, std::vector
             SPDLOG_DEBUG("No config for {}", module_name);
         }
 
-        boost::shared_ptr<module_base> module = module_factory::create(module_name, cfg);
+        std::shared_ptr<module_base> module = module_factory::create(module_name, cfg);
         //internal tracking of module initialization order
         module->IDnum = modnum;
 
@@ -348,7 +372,7 @@ void core::config_checkpoint( pt::ptree& value)
         CHM_THROW_EXCEPTION(config_error, "Error in checkpoint config");
     }
 
-    if(*auto_resume)
+    if(auto_resume && *auto_resume)
     {
 
         // match the filename of checkpoint_20170901T070000.np1.json
@@ -359,6 +383,13 @@ void core::config_checkpoint( pt::ptree& value)
         boost::filesystem::path newest_file; // will end up with the most recent chkpt to resume from
         boost::filesystem::path const dir(output_folder_path  / "checkpoint" );
 
+        if (!boost::filesystem::exists(dir))
+        {
+            SPDLOG_ERROR("auto_resume is enabled but checkpoint directory is missing: {}", dir.string());
+            CHM_THROW_EXCEPTION(config_error, "Checkpoint auto_resume failed: missing checkpoint directory");
+        }
+        else
+        {
         for(const auto& entry : boost::filesystem::directory_iterator(dir))
         {
             if (boost::filesystem::is_regular_file(entry.status()))
@@ -380,6 +411,7 @@ void core::config_checkpoint( pt::ptree& value)
                 }
             }
         }
+        }
 
         if(newest_file.empty())
         {
@@ -394,14 +426,14 @@ void core::config_checkpoint( pt::ptree& value)
 
 
 
-    if (file)
-    {
-        _checkpoint_opts.load_from_checkpoint = true;
+        if (file)
+        {
+            _checkpoint_opts.load_from_checkpoint = true;
 
-        boost::filesystem::path ckpt_path = *file;
+            boost::filesystem::path ckpt_path = *file;
 //        ckpt_path = boost::filesystem::canonical(ckpt_path);
 
-        auto chkp = read_json(ckpt_path.string());
+            auto chkp = read_json(ckpt_path.string());
 
         size_t csz = 1;
         size_t rank = 0;
@@ -445,10 +477,75 @@ void core::config_checkpoint( pt::ptree& value)
           CHM_THROW_EXCEPTION(config_error, "Error reading list of checkpoint files");
         }
 
-        ckpt_nc_path =  ckpt_path.parent_path() / ckpt_nc_path;
-        SPDLOG_DEBUG("Rank {} using checkpoint restore file {}", rank, ckpt_nc_path.string());
-        _checkpoint_opts.in_savestate.open(ckpt_nc_path.string());
-    }
+            ckpt_nc_path =  ckpt_path.parent_path() / ckpt_nc_path;
+            SPDLOG_DEBUG("Rank {} using checkpoint restore file {}", rank, ckpt_nc_path.string());
+            _checkpoint_opts.in_savestate.open(ckpt_nc_path.string());
+
+            _checkpoint_opts.ugrid_outputs.clear();
+            if (auto ugrid_child = chkp.get_child_optional("ugrid_outputs"))
+            {
+                // Preserve ugrid rotation state for resume; applied later when outputs are configured.
+                for (auto &itr : *ugrid_child)
+                {
+                    chkptOp::ugrid_output_state state;
+                    state.base_name = itr.second.get<std::string>("base_name", "");
+                    state.path = itr.second.get<std::string>("path", "");
+                    if (!state.base_name.empty() || !state.path.empty())
+                    {
+                        _checkpoint_opts.ugrid_outputs.push_back(state);
+                    }
+                }
+            }
+
+            if (_checkpoint_opts.load_from_checkpoint && !_checkpoint_opts.ugrid_outputs.empty())
+            {
+                // Outputs are configured before we load checkpoint metadata, so apply ugrid state here.
+                // Apply checkpoint ugrid rotation state now that outputs are configured.
+                for (auto &out : _outputs)
+                {
+                    if (out.mesh_output_formats != output_info::mesh_outputs::ugrid)
+                    {
+                        continue;
+                    }
+
+                    const chkptOp::ugrid_output_state* match = nullptr;
+                    for (const auto &state : _checkpoint_opts.ugrid_outputs)
+                    {
+                        if (state.base_name == out.base_name)
+                        {
+                            match = &state;
+                            break;
+                        }
+                    }
+                    if (!match && _checkpoint_opts.ugrid_outputs.size() == 1)
+                    {
+                        match = &_checkpoint_opts.ugrid_outputs.front();
+                    }
+                    if (!match)
+                    {
+                        // Warn if the checkpoint metadata doesn't match the configured ugrid outputs.
+                        SPDLOG_WARN("No checkpoint ugrid state matches base_name={}", out.base_name);
+                        continue;
+                    }
+
+                    if (!match->path.empty())
+                    {
+                        auto& writer = boost::get<std::shared_ptr<ugrid_writer>>(out.writer);
+                        writer->set_store_path(match->path);
+                        SPDLOG_DEBUG("Resuming ugrid output from checkpoint file {}", match->path);
+                    }
+                    if (out.rotate_frequency && !match->path.empty())
+                    {
+                        auto& writer = boost::get<std::shared_ptr<ugrid_writer>>(out.writer);
+                        // Derive rotation offset from the existing ugrid file instead of checkpoint JSON.
+                        size_t time_len = writer->probe_time_index();
+                        out.rotate_offset = time_len % *out.rotate_frequency;
+                        SPDLOG_DEBUG("Resuming ugrid rotation with offset {} ({} timesteps already in file)",
+                                     *out.rotate_offset, time_len);
+                    }
+                }
+            }
+        }
 }
 void core::config_forcing(pt::ptree &value)
 {
@@ -541,7 +638,7 @@ void core::config_forcing(pt::ptree &value)
     if(_use_netcdf)
     {
         std::string file = value.get<std::string>("file");
-        std::map<std::string, boost::shared_ptr<filter_base> > netcdf_filters;
+        std::map<std::string, std::shared_ptr<filter_base> > netcdf_filters;
         try
         {
             auto filter_section = value.get_child("filter");
@@ -551,7 +648,7 @@ void core::config_forcing(pt::ptree &value)
                 auto filter_name = jtr.first.data();
                 auto cfg  = jtr.second;
 
-                boost::shared_ptr<filter_base> filter = filter_factory::create(filter_name,cfg);
+                std::shared_ptr<filter_base> filter = filter_factory::create(filter_name,cfg);
                 filter->init();
                 netcdf_filters[filter_name] = filter;
             }
@@ -632,7 +729,7 @@ void core::config_forcing(pt::ptree &value)
                         auto filter_name = jtr.first.data();
                         auto cfg = jtr.second;
 
-                        boost::shared_ptr<filter_base> filter = filter_factory::create(filter_name,cfg);
+                        std::shared_ptr<filter_base> filter = filter_factory::create(filter_name,cfg);
                         filter->init();
 
                         //save this filter to run later
@@ -776,7 +873,7 @@ bool core::config_meshes( pt::ptree &value)
 {
     SPDLOG_DEBUG("Found meshes sections");
 
-    _mesh = boost::make_shared<triangulation>();
+    _mesh = std::make_shared<triangulation>();
 
     _mesh->_global = _global;
 
@@ -911,13 +1008,13 @@ bool core::config_meshes( pt::ptree &value)
       bool triarea_found = false;
 
       // Parameter files
-      for (auto param_file : param_file_paths)
+      for (const auto& param_file : param_file_paths)
       {
 	    pt::ptree param_json = read_json(param_file);
 
             for(auto& ktr : param_json)
             {
-                //use put to ensure there are no duplciate parameters...
+                //use put to ensure there are no duplicate parameters...
                 std::string key = ktr.first.data();
                 mesh.put_child( "parameters." + key ,ktr.second);
 
@@ -934,7 +1031,7 @@ bool core::config_meshes( pt::ptree &value)
         }
 
       // Initial condition files
-      for(auto ic_file : initial_condition_file_paths)
+      for(const auto& ic_file : initial_condition_file_paths)
       {
             pt::ptree ic_json = read_json(ic_file);
 
@@ -1099,7 +1196,16 @@ void core::config_output(pt::ptree &value)
             out.name = out_type;
             out.base_name = itr.second.get<std::string>("base_name", output_dir);
 
-            _mesh->write_param_to_output( itr.second.get("write_parameters",true) ) ;
+            auto write_all_parameters = itr.second.get_optional<bool>("write_all_parameters");
+            if (!write_all_parameters)
+            {
+                write_all_parameters = itr.second.get_optional<bool>("write_parameters");
+                if (write_all_parameters)
+                {
+                    SPDLOG_WARN("Output {} uses deprecated write_parameters; use write_all_parameters instead.", out.name);
+                }
+            }
+            _mesh->write_param_to_output(write_all_parameters.value_or(true));
 
             try
             {
@@ -1113,6 +1219,18 @@ void core::config_output(pt::ptree &value)
                 SPDLOG_WARN("Writing all variables to output mesh");
             }
 
+            try
+            {
+                for (auto &jtr: itr.second.get_child("output_parameters"))
+                {
+                    out.output_parameters.insert(jtr.second.data());
+                }
+            }
+            catch (pt::ptree_bad_path &e)
+            {
+                // defaults handled in triangulation
+            }
+
             if (out_type == "vtu")
             {
                 auto msh_path = output_folder_path / "vtu";
@@ -1122,17 +1240,39 @@ void core::config_output(pt::ptree &value)
                 boost::filesystem::create_directories(f.parent_path());
                 out.fname = f.string();
                 out.mesh_output_formats = output_info::mesh_outputs::vtu;
+                out.writer = std::make_shared<vtk_writer>(_mesh);
             }
             else
             {
-                boost::filesystem::path ugrid_path = output_folder_path / (out.base_name + ".nc");
+                auto format = itr.second.get<std::string>("format", "netcdf");
+                bool use_zarr = false;
+                std::string extension = ".nc";
+
+                if (format == "zarr")
+                {
+                    use_zarr = true;
+                    extension = ".zarr";
+
+                    CHM_THROW_EXCEPTION(config_error, "Zarr ugrid output is not currently supported for MPI builds");
+                }
+                else if (format != "netcdf" && format != "nc")
+                {
+                    CHM_THROW_EXCEPTION(config_error, "Unknown ugrid format: " + format);
+                }
+
+                boost::filesystem::path ugrid_path = output_folder_path / (out.base_name + extension);
                 out.mesh_output_formats = output_info::mesh_outputs::ugrid;
                 out.fname = ugrid_path.string();
 
-                out.writer = boost::make_shared<ugrid_writer>(_mesh, _global, _mesh->write_param_to_output(), out.fname);
+                out.writer = std::make_shared<ugrid_writer>(
+                    _mesh,
+                    _global,
+                    _mesh->write_param_to_output(),
+                    out.fname,
+                    use_zarr);
 
-                boost::get<boost::shared_ptr<ugrid_writer>>(out.writer)->compress = itr.second.get<bool>("compress", true);
-                boost::get<boost::shared_ptr<ugrid_writer>>(out.writer)->bitgroom = itr.second.get<bool>("bitgroom", true);
+                boost::get<std::shared_ptr<ugrid_writer>>(out.writer)->compress = itr.second.get<bool>("compress", true);
+                boost::get<std::shared_ptr<ugrid_writer>>(out.writer)->bitgroom = itr.second.get<bool>("bitgroom", true);
 
             }
 
@@ -1144,7 +1284,11 @@ void core::config_output(pt::ptree &value)
             {
                 CHM_THROW_EXCEPTION(config_error, "ugrid output cannot have write_ghost_neighbors=true");
             }
-            _mesh->write_ghost_neighbors_to_vtu(write_ghost) ;
+            out.write_ghost_neighbors = write_ghost;
+            if (out.mesh_output_formats == output_info::mesh_outputs::vtu)
+            {
+                boost::get<std::shared_ptr<vtk_writer>>(out.writer)->set_write_ghost_neighbors(write_ghost);
+            }
 
             out.frequency = itr.second.get_optional<size_t>("frequency"); //defaults to every timestep
             out.rotate_frequency = itr.second.get_optional<size_t>("rotate_frequency"); //defaults to never
@@ -1160,6 +1304,32 @@ void core::config_output(pt::ptree &value)
             {
                 SPDLOG_WARN("Only only_last_n output option will be used");
                 out.frequency.reset();
+            }
+
+            if (out.mesh_output_formats == output_info::mesh_outputs::ugrid)
+            {
+                boost::get<std::shared_ptr<ugrid_writer>>(out.writer)
+                    ->set_output_cadence(out.frequency, out.only_last_n, out.rotate_frequency);
+            }
+
+            if (out.mesh_output_formats == output_info::mesh_outputs::ugrid)
+            {
+                auto chunk_len_steps = itr.second.get_optional<size_t>("chunk_time_len");
+                auto chunk_target_mb = itr.second.get_optional<double>("chunk_target_mb");
+                if (chunk_len_steps && chunk_target_mb)
+                {
+                    CHM_THROW_EXCEPTION(config_error, "Set only one of chunk_time_len or chunk_target_mb for ugrid output");
+                }
+                if (chunk_len_steps && *chunk_len_steps == 0)
+                {
+                    CHM_THROW_EXCEPTION(config_error, "chunk_time_len must be > 0 for ugrid output");
+                }
+                if (chunk_target_mb && *chunk_target_mb <= 0.0)
+                {
+                    CHM_THROW_EXCEPTION(config_error, "chunk_target_mb must be > 0 for ugrid output");
+                }
+                boost::get<std::shared_ptr<ugrid_writer>>(out.writer)
+                    ->set_chunking_override(chunk_len_steps, chunk_target_mb);
             }
 
             auto specific_datetime = itr.second.get_optional<std::string>("specific_datetime");
@@ -1270,12 +1440,12 @@ core::cmdl_opt core::config_cmdl_options(int argc, char **argv)
 
     if (vm.count("help"))
     {
-        cout << desc << std::endl;
+        std::cout << desc << std::endl;
         CHM_THROW_EXCEPTION(chm_done,"done");
     }
     else if (vm.count("version"))
     {
-        cout << version << std::endl;
+        std::cout << version << std::endl;
         CHM_THROW_EXCEPTION(chm_done,"done");
     }
 
@@ -1318,7 +1488,7 @@ core::cmdl_opt core::config_cmdl_options(int argc, char **argv)
     if (!vm.count("config-file"))
     {
         SPDLOG_ERROR("Configuration file required.");
-        cout << desc << std::endl;
+        std::cout << desc << std::endl;
         exit(1);
     }
 
@@ -1348,23 +1518,23 @@ void core::init(int argc, char **argv)
     boost::filesystem::path path(cmdl_options.get<0>());
     cwd_dir = boost::filesystem::current_path();
 
-    SPDLOG_DEBUG("Current working directory: {}",cwd_dir.string());
-
-
     std::string log_dir = "log";
     auto log_path = cwd_dir / log_dir;
 
     //output a unique logfile for each mpi rank
-    std::string rank = "";
-#ifdef USE_MPI
-   rank = "."+std::to_string(_comm_world.rank());
-#endif
+    std::string rank = "."+std::to_string(_comm_world.rank());
 
+    _hpc_scheduler_info.detect_job_name();
+    std::string job_suffix = "";
+    if (!_hpc_scheduler_info.job_name.empty())
+    {
+        job_suffix = "." + _hpc_scheduler_info.job_name;
+    }
+    std::string log_name = "CHM_" + log_start_time + rank + job_suffix + ".log";
 
-    std::string log_name = "CHM_" + log_start_time + rank + ".log";
-
-    boost::filesystem::create_directories(log_path);
-
+    if (_comm_world.rank() == 0)
+        boost::filesystem::create_directories(log_path);
+    _comm_world.barrier();
 
 
     log_file_path = log_path / log_name;
@@ -1390,7 +1560,7 @@ void core::init(int argc, char **argv)
     SPDLOG_DEBUG("Logger initialized. Writing to cout and {}",  log_name);
 
 
-    _global = boost::make_shared<global>();
+    _global = std::make_shared<global>();
 
     // This needs to be set so that underflows in gsl math
     // computations are not treated as errors. i.e.,
@@ -1399,9 +1569,9 @@ void core::init(int argc, char **argv)
     // is not what we want.
     gsl_set_error_handler_off();
 
-#ifdef USE_MPI
+
     SPDLOG_DEBUG( "Built with MPI support,    #processes = {}", _comm_world.size());
-#endif
+
 
 #ifdef _OPENMP
     SPDLOG_DEBUG( "Built with OpenMP support, #threads   = {}", omp_get_max_threads());
@@ -1690,7 +1860,7 @@ void core::init(int argc, char **argv)
 
     if(point_mode.enable)
     {
-        for(auto itr:_chunked_modules)
+        for(const auto& itr:_chunked_modules)
         {
             for(auto jtr:itr)
             {
@@ -2054,11 +2224,16 @@ void core::_determine_module_dep()
     std::string font = "Helvetica";
     int fontsize = 11;
 
-    std::string edge_str = "E[edgetype == \"%s\"] {\n color=\"/paired12/%i\";\n fontsize=%i;\n     fontname=\"%s\"\n }";
     int idx = 1;
-    for (auto itr : graphviz_vars)
+    for (const auto& itr : graphviz_vars)
     {
-        std::string edge = str_format(edge_str, itr.c_str(), idx, fontsize, font.c_str());
+        std::string edge = std::format(
+                "E[edgetype = \"{}\"] {{\n color=\"/paired12/{}\";\n fontsize={};\n     fontname=\"{}\"\n }}",
+                itr,
+                idx,
+                fontsize,
+                font
+                );
         idx++;
         gvpr << edge << std::endl;
     }
@@ -2220,8 +2395,7 @@ void core::run()
 
     //setup a XML writer for the PVD paraview format
     pt::ptree pvd;
-    pvd.add("VTKFile.<xmlattr>.type", "Collection");
-    pvd.add("VTKFile.<xmlattr>.version", "0.1");
+    vtk_writer::init_pvd(pvd);
 
 
     SPDLOG_DEBUG("Loading first timestep's met data");
@@ -2260,7 +2434,8 @@ void core::run()
         ss << _global->posix_time();
 
         c.tic();
-        size_t chunks = 0;
+        // Commented to remove set but not used compiler warnings
+        // size_t chunks = 0;
         try
         {
             for (auto &itr : _chunked_modules)
@@ -2305,7 +2480,7 @@ void core::run()
                     }
                 }
 
-                chunks++;
+                // chunks++;
 
             }
         }
@@ -2329,14 +2504,17 @@ void core::run()
         }
 
 
-
-        // save the current state
-        if(_checkpoint_opts.should_checkpoint(current_ts,
-                                               (max_ts-1) == current_ts,
+        // ensure all ranks agree on this
+        bool my_shouldckp = _checkpoint_opts.should_checkpoint(current_ts,
+                                               (max_ts-1) == current_ts, // -1 because current_ts is 0 indexed
                                                _hpc_scheduler_info,
                                                _comm_world,
                                                _global->_current_date
-                                               )) // -1 because current_ts is 0 indexed
+                                               );
+        bool global_shouldckp=false;
+        boost::mpi::all_reduce(_comm_world, my_shouldckp, global_shouldckp, boost::mpi::maximum<bool>());
+        // save the current state
+        if(global_shouldckp) //
         {
             SPDLOG_DEBUG("Checkpointing...");
 
@@ -2348,15 +2526,16 @@ void core::run()
 
             auto timestr = boost::posix_time::to_iso_string(timestamp); // start from current TS + dt
 
-
-            size_t rank = _comm_world.rank();
-
-
             auto dirpath = _checkpoint_opts.ckpt_path / timestr;
-            boost::filesystem::create_directories(dirpath);
+            if (_comm_world.rank() == 0)
+            {
+                boost::filesystem::create_directories(dirpath);
+            }
+
+            _comm_world.barrier();
 
             //this parses both the input and the output paths for the checkpoint.
-            auto fname = ("chkp"+timestr + "_" + std::to_string(rank) + ".nc");
+            auto fname = ("chkp"+timestr + "_" + std::to_string(_comm_world.rank()) + ".nc");
             auto f = dirpath / fname;
             savestate.create( f.string());
 
@@ -2404,8 +2583,30 @@ void core::run()
             }
             tree.add_child("files", tmp_files);
 
+            pt::ptree ugrid_outputs;
+            for (auto &out : _outputs)
+            {
+                if (out.mesh_output_formats != output_info::mesh_outputs::ugrid)
+                {
+                    continue;
+                }
 
-            if(rank == 0)
+                // Cache the active file and rotation offset so resume can align rotation cadence.
+                pt::ptree entry;
+                entry.put("base_name", out.base_name);
+
+                auto& writer = boost::get<std::shared_ptr<ugrid_writer>>(out.writer);
+                entry.put("path", writer->store_path());
+
+                ugrid_outputs.push_back(std::make_pair("", entry));
+            }
+            if (!ugrid_outputs.empty())
+            {
+                tree.add_child("ugrid_outputs", ugrid_outputs);
+            }
+
+
+            if(_comm_world.rank() == 0)
             {
                 pt::write_json(
                     (_checkpoint_opts.ckpt_path / ("checkpoint_" + timestr + ".np" + std::to_string(nranks) + ".json")).string(),
@@ -2417,10 +2618,13 @@ void core::run()
             // if we checkpointed because we are out of time, we need to stop the simulation
             if(_checkpoint_opts.checkpoint_request_terminate)
             {
-                done = true;
-
                 // we bailed early because of wall clock, so this is not a clean exit
-                clean_exit = false;
+                // done = true; clean_exit = false;
+
+                // ensure everyone agrees we should be done = true
+                boost::mpi::all_reduce(_comm_world, true, done, boost::mpi::maximum<bool>());
+                // ensure everyone aggress we should be clean_exit = false
+                boost::mpi::all_reduce(_comm_world, false, clean_exit, boost::mpi::minimum<bool>());
             }
         }
 
@@ -2433,6 +2637,8 @@ void core::run()
 
                 if(do_output)
                 {
+                    _mesh->set_output_parameters(itr.output_parameters);
+
                     std::vector<std::string> output;
                     output.assign(itr.variables.begin(),itr.variables.end()); //convert to list to match internal lists
 
@@ -2440,7 +2646,9 @@ void core::run()
                     {
                         std::string base_name = itr.fname + std::to_string(_global->posix_time_int());
                         boost::filesystem::path p(base_name);
-                        _mesh->update_vtk_data(output); //update the internal vtk mesh
+                        auto& writer = boost::get<std::shared_ptr<vtk_writer>>(itr.writer);
+                        writer->set_write_ghost_neighbors(itr.write_ghost_neighbors);
+                        writer->update_data(output);
 
                         // this really only works if we let rank0 handle the io.
                         // If we let each process do it, they walk all over each other's output
@@ -2450,20 +2658,18 @@ void core::run()
                             for(int rank = 0; rank < _comm_world.size(); rank++)
                             {
 
-                                // write paths that are relative to the pvd file
-                                boost::filesystem::path vtu_path(output_folder_path.string() + "/vtu/" + p.filename().string()+"_"+std::to_string(rank) + ".vtu");
-                                pt::ptree &dataset = pvd.add("VTKFile.Collection.DataSet", "");
-                                dataset.add("<xmlattr>.timestep", _global->posix_time_int());
-                                dataset.add("<xmlattr>.group", "");
-                                dataset.add("<xmlattr>.part", rank);
-                                dataset.add("<xmlattr>.file", boost::filesystem::relative(vtu_path, output_folder_path).string());
+                                vtk_writer::append_pvd_entry(pvd,
+                                                             output_folder_path,
+                                                             p.string(),
+                                                             rank,
+                                                             _global->posix_time_int());
 
                             }
                         }
 
                         //because a full path can be provided for the base_name, we need to strip this off
                         //to make it a relative path in the xml file.
-                        _mesh->write_vtu(base_name + "_"+std::to_string(_comm_world.rank() )+ ".vtu");
+                        writer->write_vtu(base_name + "_"+std::to_string(_comm_world.rank() )+ ".vtu");
 
                     }
                     else if (itr.mesh_output_formats == output_info::mesh_outputs::ugrid)
@@ -2471,10 +2677,22 @@ void core::run()
                         // first, check if we need a new ugrid file
                         bool new_ugrid = itr.should_rotate(max_ts, current_ts, _global->_current_date);
 
-                        auto& writer = boost::get<boost::shared_ptr<ugrid_writer>>(itr.writer);
+                        auto& writer = boost::get<std::shared_ptr<ugrid_writer>>(itr.writer);
                         if (new_ugrid)
                         {
+                            auto rotated_path = [&]() {
+                                boost::filesystem::path base_path(itr.fname);
+                                std::string stem = base_path.stem().string();
+                                std::string ext = base_path.extension().string();
+                                std::string ts = boost::posix_time::to_iso_string(_global->posix_time());
+                                boost::filesystem::path rotated =
+                                    base_path.parent_path() /
+                                    (stem + "_" + ts + ext);
+                                return rotated.string();
+                            };
                             writer->close_ugrid();
+                            SPDLOG_DEBUG("Rotating ugrid output to {}", rotated_path());
+                            writer->set_store_path(rotated_path());
                         }
 
                         writer->write_ugrid({itr.variables.begin(), itr.variables.end()} );
@@ -2490,7 +2708,7 @@ void core::run()
             //only update the full timeseries
             if (itr.type == output_info::output_type::time_series)
             {
-                for (auto v : _provided_var_module)
+                for (const auto& v : _provided_var_module)
                 {
                     auto data = (*itr.face)[v];
                     itr.ts.at(v, current_ts) = data;
@@ -2558,10 +2776,7 @@ void core::run()
             {
 #endif
 
-                // output the pvd one level higher in the main outdir than we have previously
-                boost::filesystem::path path(itr.fname + ".pvd");
-                pt::write_xml( (output_folder_path.string() / path.filename()).string(),
-                              pvd, std::locale(), pt::xml_writer_settings<std::string>(' ', 4));
+                vtk_writer::write_pvd(pvd, output_folder_path, itr.fname);
                 break;
 
 #ifdef USE_MPI
@@ -2581,7 +2796,7 @@ void core::run()
 
         if (itr.mesh_output_formats == output_info::mesh_outputs::ugrid)
         {
-            boost::get<boost::shared_ptr<ugrid_writer>>(itr.writer)->close_ugrid();
+            boost::get<std::shared_ptr<ugrid_writer>>(itr.writer)->close_ugrid();
         }
     }
 
@@ -2594,29 +2809,70 @@ void core::run()
 
 void core::end(const bool abort)
 {
-#ifdef USE_MPI
-    if(abort)
-    {
-        SPDLOG_ERROR("An exception has occurred, requesting MPI Abort!");
-        _mpi_env.abort(-1);
-    }
-#endif
 
     // Write the sentinel file IFF there is a clean exit
     // recall that if the checkpointing system detects an about-to-expire wallclock and terminates early,
     // this doesn't count as a clean exit.
     if(!abort && clean_exit)
     {
-        int rank = 0;
-#ifdef USE_MPI
-        rank = _comm_world.rank();
-#endif
-        if(rank == 0)
+        if(_comm_world.rank() == 0)
         {
             std::ofstream((output_folder_path / "clean_exit").string()).close();
         }
     }
     SPDLOG_DEBUG("Finished cleaning up");
+
+
+    if(abort)
+    {
+
+        SPDLOG_ERROR("An exception has occurred, requesting MPI Abort! Log files of failed will be in <output>/error_logs");
+
+        // best-effort copy of the log before aborting nukes the process
+        // mpi abort will trigger a shutdown and avoid the descructors so we have to process the log movement here
+        try
+        {
+            // flush anything pending before we move the log files
+            try
+            {
+                spdlog::default_logger()->flush();
+            }
+            catch (...) {}
+
+            std::string job_name = _hpc_scheduler_info.job_name;
+            if (job_name.empty())
+            {
+                job_name = "unknown.jobid";
+            }
+            const auto err_path = output_folder_path / ("error_logs_" + job_name);
+            const auto log_path = output_folder_path / ("logs_" + job_name);
+
+            try { boost::filesystem::create_directories(err_path); } catch (...) {}
+            try { boost::filesystem::create_directories(log_path); } catch (...) {}
+
+            try
+            {
+                boost::filesystem::copy_file(
+                    log_file_path,
+                    err_path / log_file_path.filename(),
+                    boost::filesystem::copy_options::overwrite_existing);
+            }
+            catch (...) {}
+
+            try
+            {
+                boost::filesystem::rename(
+                    log_file_path,
+                    log_path / log_file_path.filename());
+            }
+            catch (...) {}
+        }
+        catch (...)
+        {
+            // swallow all errors; we are aborting regardless
+        }
+    }
+
 }
 
 bool core::check_is_geographic(const std::string& path)

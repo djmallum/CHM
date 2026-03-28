@@ -100,7 +100,8 @@ void snow_slide::run(mesh& domain)
     do
     {
 
-        int this_iter_moved_snow = false;
+        // Commented to remove set but not used compiler warning (as well as any uses)
+        // int this_iter_moved_snow = false;
         // Make a vector of pairs (elevation + snowdepth, pointer to face)
         tbb::concurrent_vector<std::pair<double, mesh_elem>> sorted_z(domain->size_local_faces());
 
@@ -197,7 +198,7 @@ void snow_slide::run(mesh& domain)
             if ( snowdepthavg > maxDepth)
             {
                 done = 0;
-                this_iter_moved_snow = true;
+                // this_iter_moved_snow = true;
 
                 double del_depth = snowdepthavg - maxDepth;           // Amount to be removed (positive) [m]
                 double del_swe = swe * (1 - maxDepth / snowdepthavg); // Amount of swe to be removed (positive) [m]
@@ -363,18 +364,15 @@ void snow_slide::run(mesh& domain)
 
             (*face)["ghost_ss_snowdepthavg_vert_copy"] = data.snowdepthavg_vert_copy;
 
-            // Save state variables at end of time step
+            // Save state variables at end of this iteration
             (*face)["delta_avalanche_snowdepth"_s] = data.delta_avalanche_snowdepth;
             (*face)["delta_avalanche_mass"_s] = data.delta_avalanche_mass;
-
-            (*face)["delta_avalanche_snowdepth_sum"_s] += data.delta_avalanche_snowdepth;
-            (*face)["delta_avalanche_mass_sum"_s] += data.delta_avalanche_mass;
 
         }
 
         // only do another iteration if we have incoming mass transport from the ghosts or if we have moved mass this itr
         // this algorithm tends to need a couple passes to make sure there are no straglers
-        if(ghost_transport > 0) // || this_iter_moved_snow)
+        if(ghost_transport > 0) // || this_iter_moved_snow) 
             done = 0;
         else
             done = 1;
@@ -404,6 +402,19 @@ void snow_slide::run(mesh& domain)
 #endif
 
     }while(!done);
+
+    // Accumulate totals for the timestep once, after the redistribution has converged
+    for (size_t i = 0; i < domain->size_local_faces(); i++)
+    {
+        auto face = domain->face(i);
+        auto& data = face->get_module_data<snow_slide::data>(ID);
+
+        (*face)["delta_avalanche_snowdepth"_s] = data.delta_avalanche_snowdepth;
+        (*face)["delta_avalanche_mass"_s] = data.delta_avalanche_mass;
+
+        (*face)["delta_avalanche_snowdepth_sum"_s] += data.delta_avalanche_snowdepth;
+        (*face)["delta_avalanche_mass_sum"_s] += data.delta_avalanche_mass;
+    }
 
     SPDLOG_DEBUG("[SnowSlide] needed {} iterations", iterations);
 

@@ -65,6 +65,7 @@ inline int omp_get_max_threads() { return 1;}
 #include <fstream>
 #include <utility>
 #include <random> // for send/recv tag generation
+#include <memory>
 
 // other libs
 #include <armadillo>
@@ -86,7 +87,7 @@ inline int omp_get_max_threads() { return 1;}
 
 // boost includes
 #include <boost/lexical_cast.hpp>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <boost/tuple/tuple.hpp>
 #include <boost/ptr_container/ptr_map.hpp>
 #include <boost/filesystem/path.hpp>
@@ -101,20 +102,6 @@ namespace pt = boost::property_tree;
 // tbb includes
 #include <tbb/concurrent_vector.h>
 #include <tbb/parallel_sort.h>
-
-// vtk includes
-#include <vtkVersion.h>
-#include <vtkSmartPointer.h>
-#include <vtkStringArray.h>
-#include <vtkTriangle.h>
-#include <vtkCellArray.h>
-#include <vtkCellData.h>
-#include <vtkPointData.h>
-#include <vtkFloatArray.h>
-#include <vtkUnsignedLongArray.h>
-#include <vtkXMLUnstructuredGridWriter.h>
-#include <vtkUnstructuredGrid.h>
-#include <vtkPoints.h>
 
 // MPI incldues
 #ifdef USE_MPI
@@ -155,6 +142,7 @@ struct face_info
 //fwd decl
 class segmented_AABB;
 class triangulation;
+class vtk_writer;
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 
@@ -391,7 +379,7 @@ public:
     * Returns the underlying timeseries object
     * \return Pointer to the underlying timeseries
     */
-    boost::shared_ptr<timeseries> get_underlying_timeseries();
+    std::shared_ptr<timeseries> get_underlying_timeseries();
 
     /**
     * Returns the iterator of the current timestep.
@@ -522,8 +510,8 @@ private:
     //const so we can't modify the domain via this as thar be dragons
     triangulation* _domain;
 
-    boost::shared_ptr<Point_3> _center;
-    boost::shared_ptr<Vector_3> _normal;
+    std::shared_ptr<Point_3> _center;
+    std::shared_ptr<Vector_3> _normal;
 
 
     variablestorage<double> _variables;
@@ -533,7 +521,7 @@ private:
     variablestorage<double> _initial_conditions;
     variablestorage< Vector_3> _module_face_vectors; //holds vector components, currently no checks on anything. Proceed with caution.
 
-    boost::shared_ptr<timeseries> _data;
+    std::shared_ptr<timeseries> _data;
     timeseries::iterator _itr;
 
     std::vector<std::shared_ptr<station>> _stations;
@@ -546,7 +534,7 @@ typedef face<Gt> Fb; //custom face class
 typedef CGAL::Triangulation_data_structure_2<Vb, Fb> Delaunay;
 
 typedef Delaunay::Face_handle mesh_elem;
-typedef boost::shared_ptr<tbb::concurrent_vector<double>  > vector;
+typedef std::shared_ptr<tbb::concurrent_vector<double>  > vector;
 
 //search tree typedefs
 //http://doc.cgal.org/latest/Spatial_searching/index.html
@@ -578,8 +566,10 @@ class triangulation
 : public Delaunay
 {
 public:
+    friend class vtk_writer;
+
     triangulation();
-    ~triangulation();
+    virtual ~triangulation();
 
 
     /**
@@ -587,7 +577,7 @@ public:
     * \param rows number of rows in the AABB
     * \param cols number of cols in the AABB
     */
-    boost::shared_ptr<segmented_AABB> AABB(size_t rows, size_t cols);
+    std::shared_ptr<segmented_AABB> AABB(size_t rows, size_t cols);
 
     /**
     * Loads a mesh from file. Should by x y z values with no header, space delimited.
@@ -836,11 +826,6 @@ public:
     */
     void timeseries_to_file(mesh_elem m, std::string fname);
 
-    /**
-     * If output to the mesh vtk/vtu format is required, this will be allocate the vtk data structure.
-     */
-    void init_vtkUnstructured_Grid(std::vector<std::string> output_variables);
-
     /// Initializes all the face timeseries to hold the selected variables
     /// @param variables
     void init_timeseries(std::set< std::string > variables);
@@ -870,25 +855,12 @@ public:
      */
     void prune_faces(std::vector<Face_handle>& faces);
 
-	/**
-	 * Updates the internal vtk structure with this timesteps data.
-	 * Must be called prior to calling the write_vt* functions.
-	 * The write_vt* functions could call this, however it makes them not threadsafe.
-	 * If output_variables is empty, it will write all variables out
-	 * @param output_variables Selected variables to write out.
-	 */
-    void update_vtk_data(std::vector<std::string> output_variables);
 
     /**
      * Writes the bounding box of the mesh to geojson
      * @param filename
      */
     void write_bbox_geojson(const std::string& filename);
-
-    /**
-    * Saves the mesh with this timesteps values to a vtu file for visualization in Paraview
-    */
-    void write_vtu(std::string fname);
 
 
     /**
@@ -905,7 +877,7 @@ public:
 
     //holds the spatial search tree
     //http://doc.cgal.org/latest/Spatial_searching/index.html
-    boost::shared_ptr<Tree> dD_tree;
+    std::shared_ptr<Tree> dD_tree;
 
     /**
      * Should parameters on triangles be written to output files (vtu / ugrid)
@@ -916,16 +888,24 @@ public:
      * Set the the private variable for writing parameters in vtu output
      */
     void write_param_to_output(bool write_param);
-    /**
-     * Set the the private variable for writing the ghost neighbor data in vtu output
-     */
-    void write_ghost_neighbors_to_vtu(bool write_ghost_neighbors);
 
     /**
      * Returns the set of parameters available on the triangulation
      * @return
      */
     std::set<std::string> parameters();
+
+    /**
+     * Set the parameters to output to mesh files (vtu/ugrid).
+     * An empty set uses the defaults: Elevation, Slope, Aspect.
+     */
+    void set_output_parameters(const std::set<std::string>& parameters);
+
+    /**
+     * Returns the parameters to output to mesh files (vtu/ugrid).
+     * An empty configured set falls back to defaults: Elevation, Slope, Aspect.
+     */
+    std::set<std::string> output_parameters() const;
 
     bool _terrain_deformed;
 
@@ -942,17 +922,20 @@ public:
     double max_z();
 
     //Point to the global object that contains paramter information.
-    boost::shared_ptr<global> _global;
+    std::shared_ptr<global> _global;
 
     //this holds the parameters that we load
     //however, core might have found some parameters from modules
     // it will have to insert them into this list so that the static hashmaps can be properly init
     std::set<std::string> _parameters;
 
-#ifdef USE_MPI
+    std::set<std::string> _output_parameters;
+
+    // Check: this is needed for the partitioning driver to have as a "fake" mpi_env
     boost::mpi::environment _mpi_env;
     boost::mpi::communicator _comm_world;
-#endif
+
+
 
     // some of the coordinates might be negative, so by init with a nan
     // when this is filled using std::min and std::max, the nan willbe ignored on the first
@@ -1062,26 +1045,10 @@ protected:
     int _UTM_zone;
 
     std::string _srs_wkt;
-    //holds the vtk ugrid if we are outputing to vtk formats
-    vtkSmartPointer<vtkUnstructuredGrid> _vtk_unstructuredGrid;
 
-    //holds the vectors we use to create the vtu file
-    // these must be ints so cannot be stored in the other maps
-    vtkSmartPointer<vtkUnsignedLongArray> _vtu_global_id;
-#ifdef USE_SPARSEHASH
-    google::dense_hash_map< std::string, vtkSmartPointer<vtkFloatArray>  > data;
-    google::dense_hash_map< std::string, vtkSmartPointer<vtkFloatArray>  > vectors;
-    google::dense_hash_map< std::string, vtkSmartPointer<vtkFloatArray>  > vertex_data;
-#else
-	std::map<std::string, vtkSmartPointer<vtkFloatArray> > data;
-	std::map<std::string, vtkSmartPointer<vtkFloatArray> > vectors;
-    std::map<std::string, vtkSmartPointer<vtkFloatArray> > vertex_data;
-#endif
-
-    //should we write parameters to the vtu file?
+    //should we write parameters to the vtu file? defaults to true
+    // default writes the core parameters of Elevation, Slope, Aspect
     bool _write_parameters;
-    //should we write ghost neighbor faces to the vtu file?
-    bool _write_ghost_neighbors_to_vtu;
 
     // min and max elevations
     double _min_z;
@@ -1199,7 +1166,7 @@ protected:
 * \typedef mesh
 * Provides a convenience typedef for passing around mesh pointers.
 */
-typedef boost::shared_ptr<triangulation> mesh;
+typedef std::shared_ptr<triangulation> mesh;
 
 /**
 * \class rect
@@ -1385,7 +1352,7 @@ face<Gt, Fb>::face()
 {
     _slope = -1;
     _azimuth = -1;
-    _data = boost::make_shared<timeseries>();
+    _data = std::make_shared<timeseries>();
     _center = NULL;
     _normal = NULL;
     _area = -1.;
@@ -1403,7 +1370,7 @@ face<Gt, Fb>::face(Vertex_handle v0,
 {
     _slope = -1;
     _azimuth = -1;
-    _data = boost::make_shared<timeseries>();
+    _data = std::make_shared<timeseries>();
     _center = NULL;
     _normal = NULL;
     _area = -1.;
@@ -1422,7 +1389,7 @@ face<Gt, Fb>::face(Vertex_handle v0,
 {
     _slope = -1;
     _azimuth = -1;
-    _data = boost::make_shared<timeseries>();
+    _data = std::make_shared<timeseries>();
     _center = NULL;
     _normal = NULL;
     _area = -1.;
@@ -1444,7 +1411,7 @@ face<Gt, Fb>::face(Vertex_handle v0,
 {
     _slope = -1;
     _azimuth = -1;
-    _data = boost::make_shared<timeseries>();
+    _data = std::make_shared<timeseries>();
     _center = NULL;
     _normal = NULL;
     _area = -1.;
@@ -1592,11 +1559,11 @@ Vector_3 face<Gt, Fb>::normal()
             CGAL::Point_3<K> v1(this->vertex(1)->point()[0]*100000., this->vertex(1)->point()[1]*100000.,this->vertex(1)->point()[2]);
             CGAL::Point_3<K> v2(this->vertex(2)->point()[0]*100000., this->vertex(2)->point()[1]*100000.,this->vertex(2)->point()[2]);
 
-            _normal = boost::make_shared<Vector_3>(CGAL::unit_normal(v0, v1, v2));
+            _normal = std::make_shared<Vector_3>(CGAL::unit_normal(v0, v1, v2));
 
         }
         else
-            _normal = boost::make_shared<Vector_3>(CGAL::unit_normal(this->vertex(0)->point(), this->vertex(1)->point(), this->vertex(2)->point()));
+            _normal = std::make_shared<Vector_3>(CGAL::unit_normal(this->vertex(0)->point(), this->vertex(1)->point(), this->vertex(2)->point()));
     }
 
     return *_normal;
@@ -1607,7 +1574,7 @@ Point_3 face<Gt, Fb>::center()
 {
     if (!_center)
     {
-        _center = boost::make_shared<Point_3>(CGAL::centroid(this->vertex(0)->point(), this->vertex(1)->point(), this->vertex(2)->point()));
+        _center = std::make_shared<Point_3>(CGAL::centroid(this->vertex(0)->point(), this->vertex(1)->point(), this->vertex(2)->point()));
         _x=_center->x();
         _y=_center->y();
         _z=_center->z();
@@ -1809,7 +1776,7 @@ double face<Gt, Fb>::get_z()
     return _z;
 }
 template < class Gt, class Fb>
-boost::shared_ptr<timeseries> face<Gt, Fb>::get_underlying_timeseries()
+std::shared_ptr<timeseries> face<Gt, Fb>::get_underlying_timeseries()
 {
     return _data;
 }

@@ -4,6 +4,8 @@ Output
 There are two main outputs from CHM: timeseries and mesh outputs.
 
 The mesh outputs are either the Paraview vtu format or the netcdf ugrid format.
+When parameter output is enabled, the default parameter set is ``Elevation``, ``Slope``, and ``Aspect``
+unless overridden in the output configuration.
 
 The vtu output has 1 file per MPI rank, per timestep.
 For large domains, large MPI rank counts, and long time periods, this can produce a large number of files. HPC
@@ -52,6 +54,44 @@ way as what is used internally to CHM where the triangles are composed indexes o
 The values in CHM are almost exclusively face centered. By default the ugrid is `level 5 deflate+shuffle <https://www.unidata.ucar.edu/blogs/developer/entry/netcdf_compression>`_ with
 `bitgrooming <https://docs.unidata.ucar.edu/netcdf-c/4.9.2/md__media_psf_Home_Desktop_netcdf_releases_v4_9_2_release_netcdf_c_docs_quantize.html>`_. This improves the compression,
 and improves the output speed. For a mesh of #cells=2200 for 24 hours with 3 ranks:
+
+UGRID output can also be stored as a Zarr directory via NCZarr by setting ``output.ugrid.format`` to ``zarr``. This
+creates a ``.zarr`` store with the same schema and parallel write behavior.
+
+Rotation
+--------
+
+UGRID rotation (``rotate_frequency``) starts a new file every N timesteps. Rotated files are named
+``<base_name>_YYYYMMDDTHHMMSS.nc`` based on the model time. When resuming from a checkpoint, CHM continues writing to
+the file that was active at checkpoint time and preserves the rotation cadence.
+
+Chunking
+---------------
+
+The UGRID netcdf files are chunked in space such that each in-space chunk corresponds to an MPI rank's spatial decomposition. In time,
+the chunking is per-timestep. With compression enabled, this is the most efficient way to write to disk. However, for large number
+of MPI ranks (e.g., 800), with many variables, with many timesteps, this results in significant overhead during analysis where
+the optimal chunking scheme may be 24 or more timestpes, and 1M+ triangles instead of the ~30k which is often in the MPI
+decomposition. Therefore, post processing tools exist in pyCHM to rechunk to more efficient analysis datastores (e.g., zarr)
+with a more optimal chunking layout.
+
+CHM can also attempt to optimize the UGRID time chunking, sized to balance Dask recommendations and output cadence:
+
+- Target ~256MB per variable chunk, with bounds of 1MB (min) and 1GB (max).
+- If total chunks per output file would exceed 100k, the time chunk grows up to a hard ceiling of 2GB.
+- Chunk lengths align to the mesh output cadence (``frequency`` or ``only_last_n``). If neither is set,
+  the chunker assumes only a small number of outputs and keeps chunk sizes small.
+
+Users can override chunk sizing with either ``chunk_time_len`` (explicit timesteps) or ``chunk_target_mb`` (target MB
+per variable). Only one override can be set at a time. These settings can  metadata overhead and avoid overly large
+task graphs while respecting model output frequency.
+
+.. warning::
+
+    A temporal chunking of t > 1 when compression is enabled results in having to decompress, append, recompress, and
+    write back each timestep. This is slow.
+
+
 
 +---------------------+-----------+----------------+
 | Method              | size (b)  | timestep (ms)  |
@@ -162,4 +202,3 @@ These files are output to the ``output_folder/points/`` subdirectory. The files 
 
    datetime,ilwr,l,acc_snow
    20170901T060000,429.61,1.81749
-

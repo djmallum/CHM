@@ -21,19 +21,20 @@ triangulation::triangulation()
 {
 
     _num_faces = 0;
-    _vtk_unstructuredGrid = nullptr;
     _is_geographic = false;
     _UTM_zone = 0;
     _terrain_deformed=false;
     _min_z =  999999;
     _max_z = -999999;
+    _num_global_faces = 0;
+    _num_local_vertex = 0;
+    _mesh_is_from_partition = false;
+    _write_parameters = false;
+    global_cell_start_idx = 0;
+    global_cell_end_idx = 0;
 
-#ifdef USE_SPARSEHASH
-    data.set_empty_key("");
-    vectors.set_empty_key("");
-    vertex_data.set_empty_key("");
 
-#endif
+
 
 /*
   Datatypes for reading/writing HDF5 files
@@ -88,14 +89,24 @@ void triangulation::write_param_to_output(bool write_param)
     _write_parameters = write_param;
 }
 
-void triangulation::write_ghost_neighbors_to_vtu(bool write_ghost_neighbors)
-{
-    _write_ghost_neighbors_to_vtu = write_ghost_neighbors;
-}
-
 std::set<std::string> triangulation::parameters()
 {
     return _parameters;
+}
+
+void triangulation::set_output_parameters(const std::set<std::string>& parameters)
+{
+    _output_parameters = parameters;
+}
+
+std::set<std::string> triangulation::output_parameters() const
+{
+    if (_output_parameters.empty())
+    {
+        return {"Elevation", "Slope", "Aspect", "Area"};
+    }
+
+    return _output_parameters;
 }
 
 bool triangulation::is_geographic()
@@ -1056,7 +1067,7 @@ void triangulation::_build_dDtree()
     }
 
     //make the search tree
-    dD_tree = boost::make_shared<Tree>(boost::make_zip_iterator(boost::make_tuple( center_points.begin(),_faces.begin() )),
+    dD_tree = std::make_shared<Tree>(boost::make_zip_iterator(boost::make_tuple( center_points.begin(),_faces.begin() )),
                                        boost::make_zip_iterator(boost::make_tuple( center_points.end(),  _faces.end() ) )
     );
 }
@@ -1856,8 +1867,7 @@ void triangulation::determine_ghost_owners()
     // Determine the owners of the ghost faces (for communication setup)
     _ghost_neighbor_owners.resize(_ghost_neighbors.size());
     int start_index=0;
-    int prev_owner;
-    int num_partners=0;
+    int prev_owner=0;
 
     // Construct ghost region ownership info
     for(size_t i=0; i<_ghost_neighbors.size(); ++i)
@@ -1878,7 +1888,6 @@ void triangulation::determine_ghost_owners()
         // if owner different from last owner, store prev segment"s ownership info
         if (prev_owner != _ghost_neighbor_owners[i])
         {
-            num_partners++;
             _comm_partner_ownership[prev_owner] = std::make_pair(start_index, i-start_index);
             start_index=i;
         } else if (i ==_ghost_neighbors.size()-1) {
@@ -2395,163 +2404,6 @@ void triangulation::timeseries_to_file(mesh_elem m, std::string fname)
     m->to_file(fname);
 }
 
-void triangulation::init_vtkUnstructured_Grid(std::vector<std::string> output_variables)
-{
-    vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
-
-    vtkSmartPointer<vtkCellArray> triangles = vtkSmartPointer<vtkCellArray>::New();
-    if(_write_ghost_neighbors_to_vtu)
-    {
-      triangles->Allocate(this->size_local_faces()+_ghost_faces.size());
-    } else {
-      triangles->Allocate(this->size_local_faces());
-    }
-
-    vtkSmartPointer<vtkStringArray> proj4 = vtkSmartPointer<vtkStringArray>::New();
-    proj4->SetNumberOfComponents(1);
-    proj4->SetName("proj4");
-    proj4->InsertNextValue(_srs_wkt);
-
-    double scale = is_geographic() == true ? 100000. : 1.;
-
-    std::map<int, int> global_to_local_vertex_id;
-    std::vector<int> global_vertex_id;
-
-    // npoints holds the total number of points
-    int npoints=0;
-    for (size_t i = 0; i < this->size_local_faces(); i++)
-    {
-        mesh_elem fit = this->face(i);
-
-        vtkSmartPointer<vtkTriangle> tri =
-                vtkSmartPointer<vtkTriangle>::New();
-
-	// loop over vertices of a face
-	for (int j=0;j<3;++j){
-	  auto vit = fit->vertex(j);
-	  int global_id = vit->get_id();
-	  // If point hasn"t been seen yet, account for it
-	  if ( global_to_local_vertex_id.find(global_id) == global_to_local_vertex_id.end() ) {
-	    global_to_local_vertex_id[global_id] = npoints;
-	    npoints++;
-	    points->InsertNextPoint(vit->point().x()*scale, vit->point().y()*scale, vit->point().z());
-	    global_vertex_id.push_back(global_id);
-	  }
-	  tri->GetPointIds()->SetId(j, global_to_local_vertex_id[global_id]);
-	}
-
-        triangles->InsertNextCell(tri);
-    }
-
-    if(_write_ghost_neighbors_to_vtu)
-    {
-
-        /* Ghost neighbors */
-        for (size_t i = 0; i < this->_ghost_faces.size(); i++)
-        {
-            mesh_elem fit = _ghost_faces[i];
-
-            vtkSmartPointer<vtkTriangle> tri =
-                    vtkSmartPointer<vtkTriangle>::New();
-
-            // loop over vertices of a face
-            for (int j=0;j<3;++j){
-              auto vit = fit->vertex(j);
-              int global_id = vit->get_id();
-              // If point hasn"t been seen yet, account for it
-              if ( global_to_local_vertex_id.find(global_id) == global_to_local_vertex_id.end() ) {
-                global_to_local_vertex_id[global_id] = npoints;
-                npoints++;
-                points->InsertNextPoint(vit->point().x()*scale, vit->point().y()*scale, vit->point().z());
-                global_vertex_id.push_back(global_id);
-              }
-              tri->GetPointIds()->SetId(j, global_to_local_vertex_id[global_id]);
-            }
-
-            triangles->InsertNextCell(tri);
-        }
-
-    }  // if write ghosts
-
-
-    _vtk_unstructuredGrid = vtkSmartPointer<vtkUnstructuredGrid>::New();
-    _vtk_unstructuredGrid->SetPoints(points);
-    _vtk_unstructuredGrid->SetCells(VTK_TRIANGLE, triangles);
-    _vtk_unstructuredGrid->GetFieldData()->AddArray(proj4);
-
-//    vtkSmartPointer<vtkStringArray> test = vtkStringArray::SafeDownCast(_vtk_unstructuredGrid->GetFieldData()->GetAbstractArray("proj4"));
-//    LOG_DEBUG << test->GetValue(0) ;
-
-
-    //assume that all the faces have the same number of variables and the same types of variables
-    //by this point this should be a fair assumption
-
-    auto variables = output_variables.size() == 0 ? this->face(0)->variables() : output_variables;
-    for(auto& v: variables)
-    {
-        data[v] = vtkSmartPointer<vtkFloatArray>::New();
-        data[v]->SetName(v.c_str());
-    }
-
-    _vtu_global_id = vtkSmartPointer<vtkUnsignedLongArray>::New();
-    _vtu_global_id->SetName("global_id");
-
-    if(_write_parameters)
-    {
-        auto params = this->face(0)->parameters();
-        for (auto &v: params)
-        {
-            data["[param] " + v] = vtkSmartPointer<vtkFloatArray>::New();
-            data["[param] " + v]->SetName(("[param] " + v).c_str());
-        }
-
-        auto ics = this->face(0)->initial_conditions();
-        for(auto& v: ics)
-        {
-            data["[ic] " + v] = vtkSmartPointer<vtkFloatArray>::New();
-            data["[ic] " + v]->SetName(("[ic] " + v).c_str());
-        }
-
-        //handle elevation/aspect/slope
-        data["Elevation"] = vtkSmartPointer<vtkFloatArray>::New();
-        data["Elevation"]->SetName("Elevation");
-
-        data["Slope"] = vtkSmartPointer<vtkFloatArray>::New();
-        data["Slope"]->SetName("Slope");
-
-        data["Aspect"] = vtkSmartPointer<vtkFloatArray>::New();
-        data["Aspect"]->SetName("Aspect");
-
-        data["Area"] = vtkSmartPointer<vtkFloatArray>::New();
-        data["Area"]->SetName("Area");
-
-        data["is_ghost"] = vtkSmartPointer<vtkFloatArray>::New();
-        data["is_ghost"]->SetName("is_ghost");
-
-        data["ghost_type"] = vtkSmartPointer<vtkFloatArray>::New();
-        data["ghost_type"]->SetName("ghost_type");
-
-#ifdef USE_MPI
-        data["owner"] = vtkSmartPointer<vtkFloatArray>::New();
-        data["owner"]->SetName("owner");
-#endif
-    }
-    auto vec = this->face(0)->vectors();
-    for(auto& v: vec)
-    {
-        vectors[v] = vtkSmartPointer<vtkFloatArray>::New();
-        vectors[v]->SetName(v.c_str());
-        vectors[v]->SetNumberOfComponents(3);
-    }
-
-    // Global vertex ids -> only need to be set here, get written in the writer
-//    vertex_data["global_id"] = vtkSmartPointer<vtkFloatArray>::New();
-//    vertex_data["global_id"]->SetName("global_id");
-//    for(int i=0;i<npoints;++i)
-//    {
-//      vertex_data["global_id"]->InsertTuple1(i,global_vertex_id[i]);
-//    }
-}
 
 void triangulation::init_timeseries(std::set< std::string > variables)
 {
@@ -2628,187 +2480,6 @@ void triangulation::init_face_data(std::set< std::string >& timeseries,
         }
 }
 
-void triangulation::update_vtk_data(std::vector<std::string> output_variables)
-{
-    //if we haven"t inited yet, do so.
-    if(!_vtk_unstructuredGrid || _terrain_deformed)
-    {
-        this->init_vtkUnstructured_Grid(output_variables);
-    }
-
-    auto variables = output_variables.size() == 0 ? this->face(0)->variables() : output_variables;
-    auto params = this->face(0)->parameters();
-    auto ics = this->face(0)->initial_conditions();
-    auto vecs = this->face(0)->vectors();
-
-    for (size_t i = 0; i < this->size_local_faces(); i++)
-    {
-        mesh_elem fit = this->face(i);
-
-        for (auto &v: variables)
-        {
-            double d = (*fit)[v];
-            if(d == -9999.)
-            {
-                d = nan("");
-            }
-
-            data[v]->InsertTuple1(i,d);
-        }
-
-        //this is mandatory now
-        _vtu_global_id->InsertTuple1(i, fit->cell_global_id);
-
-        if(_write_parameters)
-        {
-            for (auto &v: params)
-            {
-                double d = fit->parameter(v);
-                if (d == -9999.)
-                {
-                    d = nan("");
-                }
-                data["[param] " + v]->InsertTuple1(i, d);
-            }
-
-            for (auto &v: ics)
-            {
-                double d = fit->get_initial_condition(v);
-                if (d == -9999.)
-                {
-                    d = nan("");
-                }
-                data["[ic] " + v]->InsertTuple1(i, d);
-            }
-
-            data["Elevation"]->InsertTuple1(i,fit->get_z());
-            data["Slope"]->InsertTuple1(i,fit->slope());
-            data["Aspect"]->InsertTuple1(i,fit->aspect());
-            data["Area"]->InsertTuple1(i,fit->get_area());
-	    data["is_ghost"]->InsertTuple1(i,fit->is_ghost);
-            data["ghost_type"]->InsertTuple1(i,fit->ghost_type);
-
-#ifdef USE_MPI
-	    data["owner"]->InsertTuple1(i,_comm_world.rank());
-#endif
-        }
-        for(auto& v: vecs)
-        {
-            Vector_3 d = fit->face_vector(v);
-
-            vectors[v]->InsertTuple3(i,d.x(),d.y(),d.z());
-        }
-
-
-    }
-
-    if(_write_ghost_neighbors_to_vtu)
-    {
-
-    /* Ghost neighbors */
-    for (size_t i = 0; i < _ghost_faces.size(); i++)
-    {
-        mesh_elem fit = _ghost_faces[i];
-
-	size_t insert_offset = i + this->size_local_faces();
-
-
-        for (auto &v: variables)
-        {
-            double d = -9999;
-            if(fit->ghost_type == GHOST_TYPE::NEIGH)
-                d = (*fit)[v];
-
-            if(d == -9999.)
-            {
-                d = nan("");
-            }
-
-            data[v]->InsertTuple1(insert_offset,d);
-        }
-
-        _vtu_global_id->InsertTuple1(insert_offset,fit->cell_global_id);
-
-        if(_write_parameters)
-        {
-            for (auto &v: params)
-            {
-                double d = fit->parameter(v);
-                if (d == -9999.)
-                {
-                    d = nan("");
-                }
-                data["[param] " + v]->InsertTuple1(insert_offset, d);
-            }
-
-            for (auto &v: ics)
-            {
-                double d = fit->get_initial_condition(v);
-                if (d == -9999.)
-                {
-                    d = nan("");
-                }
-                data["[ic] " + v]->InsertTuple1(insert_offset, d);
-            }
-
-            data["Elevation"]->InsertTuple1(insert_offset,fit->get_z());
-            data["Slope"]->InsertTuple1(insert_offset,fit->slope());
-            data["Aspect"]->InsertTuple1(insert_offset,fit->aspect());
-            data["Area"]->InsertTuple1(insert_offset,fit->get_area());
-	    data["is_ghost"]->InsertTuple1(insert_offset,fit->is_ghost);
-            data["ghost_type"]->InsertTuple1(insert_offset,fit->ghost_type);
-
-	    data["owner"]->InsertTuple1(insert_offset,fit->owner);
-        }
-        for(auto& v: vecs)
-        {
-            Vector_3 d = fit->face_vector(v);
-
-            vectors[v]->InsertTuple3(insert_offset,d.x(),d.y(),d.z());
-        }
-
-
-    }
-
-    } // if write ghosts
-
-    _vtk_unstructuredGrid->GetCellData()->AddArray(_vtu_global_id);
-
-    for(auto& m : vectors)
-    {
-        _vtk_unstructuredGrid->GetCellData()->AddArray(m.second);
-
-    }
-
-
-    for(auto& m : data)
-    {
-        _vtk_unstructuredGrid->GetCellData()->AddArray(m.second);
-    }
-
-    for(auto& m : vertex_data)
-    {
-        _vtk_unstructuredGrid->GetPointData()->AddArray(m.second);
-    }
-
-}
-void triangulation::write_vtu(std::string file_name)
-{
-    //this now needs to be called from outside these functions
-//    update_vtk_data();
-
-    vtkSmartPointer<vtkXMLUnstructuredGridWriter> writer = vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
-    writer->SetFileName(file_name.c_str());
-//    writer->SetCompressorType( vtkXMLUnstructuredGridWriter::CompressorType::ZLIB);
-#if VTK_MAJOR_VERSION <= 5
-    writer->SetInput(_vtk_unstructuredGrid);
-#else
-    writer->SetInputData(_vtk_unstructuredGrid);
-#endif
-    writer->Write();
-
-//    write_vtp(file_name);
-}
 
 double triangulation::max_z()
 {
@@ -2820,9 +2491,9 @@ double triangulation::min_z()
     return _min_z;
 }
 
-boost::shared_ptr<segmented_AABB> triangulation::AABB(size_t rows, size_t cols)
+std::shared_ptr<segmented_AABB> triangulation::AABB(size_t rows, size_t cols)
 {
-boost::shared_ptr<segmented_AABB> AABB = boost::make_shared<segmented_AABB>();
+std::shared_ptr<segmented_AABB> AABB = std::make_shared<segmented_AABB>();
 AABB->make(this,rows,cols);
 return AABB;
 

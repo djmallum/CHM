@@ -150,7 +150,7 @@
  *
  * Requires speedup, u, and v parameters named "Ninja%i_U" and "Ninja%i_V" and "Ninja%i" for each of the _n_ directions.
  * Should be generated with WindMapper. The number of directions will be automatically determined as will the Lavg value.
- * These should be computed with the <a href=https://windmapper.readthedocs.io/en/latest/index.html> Windmapper tool </a>.
+ * These should be computed with the <a href=https://windmapper.readthedocs.io/> Windmapper tool </a>.
  *
  *
  * **References:**
@@ -192,5 +192,5 @@ public:
 
     bool compute_Sx; // uses the Sx module to influence the windspeeds so Sx needs to be computed during the windspeed evaluation, instead of a seperate module
     double Sx_crit;    // Critical values of the Winstral parameter to determine the occurence of flow separation.
-    boost::shared_ptr<Winstral_parameters> Sx;
+    std::shared_ptr<Winstral_parameters> Sx;
 };

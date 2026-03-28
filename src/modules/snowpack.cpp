@@ -343,6 +343,8 @@ void Lehning_snowpack::init(mesh& domain)
         d.config.addKey("ADJUST_HEIGHT_OF_WIND_VALUE","SnowpackAdvanced","false"); // we always provide a 2m wind, even if there is snowcover
         d.config.addKey("HN_DENSITY","SnowpackAdvanced","MEASURED"); //We can then set it in at run time. Do it this way so we can have temporally variable if we want.
 
+        d.config.addKey("ADVECTIVE_HEAT","SnowpackAdvanced","TRUE"); // This enables heat transport caused by moving water. Error if true/false not specified.
+        
         d.config.addKey("COMBINE_ELEMENTS","SnowpackAdvanced","true"); //Defines whether joining elements will be considered at all
         //Activates algorithm to reduce the number of elements deeper in the snowpack AND to split elements again when they come back to the surface
         //Only works when COMBINE_ELEMENTS == TRUE.
@@ -364,7 +366,7 @@ void Lehning_snowpack::init(mesh& domain)
         }
         
 
-        d.Spackconfig = boost::make_shared<SnowpackConfig>(d.config);
+        d.Spackconfig = std::make_shared<SnowpackConfig>(d.config);
 
         d.cum_precip=0.;
 
@@ -423,7 +425,7 @@ void Lehning_snowpack::init(mesh& domain)
 
         SSdata.ErosionLevel = cfg.get<double>("sno.ErosionLevel",0);
 
-        d.Xdata = boost::make_shared<SnowStation>(false,false);
+        d.Xdata = std::make_shared<SnowStation>(false,false);
         d.Xdata->initialize(SSdata,0);
 //        d.Xdata->cos_sl = 1;
 //        d.Xdata->windward = false;
@@ -431,9 +433,9 @@ void Lehning_snowpack::init(mesh& domain)
 //        d.Xdata->hn = 0;
 //        d.Xdata->mH = 0;
 
-        d.sp = boost::make_shared<Snowpack>(*(d.Spackconfig));
-        d.meteo = boost::make_shared<Meteo>( (d.config));
-        d.stability = boost::make_shared<Stability> ( (d.config), false);
+        d.sp = std::make_shared<Snowpack>(*(d.Spackconfig));
+        d.meteo = std::make_shared<Meteo>( (d.config));
+        d.stability = std::make_shared<Stability> ( (d.config), false);
 
         d.sum_subl = 0;
 

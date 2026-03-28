@@ -28,6 +28,7 @@ metdata::metdata(const mesh& mesh, boost::filesystem::path output_dir, boost::op
     _nc = nullptr;
     _use_netcdf = false;
     _n_timesteps = 0;
+    _nstations = 0;
 
     is_first_timestep = true;
     _is_multipart_nc = false;
@@ -54,7 +55,7 @@ metdata::~metdata()
 
 }
 
-void metdata::load_from_listof_netcdf(const std::string& path, std::map<std::string, boost::shared_ptr<filter_base> > filters)
+void metdata::load_from_listof_netcdf(const std::string& path, std::map<std::string, std::shared_ptr<filter_base> > filters)
 {
     _is_multipart_nc = true;
     SPDLOG_DEBUG("Loading forcing from list of netcdf file");
@@ -96,7 +97,7 @@ void metdata::load_from_listof_netcdf(const std::string& path, std::map<std::str
 
 }
 
-void metdata::load_from_netcdf(const std::string& path, std::map<std::string, boost::shared_ptr<filter_base> > filters, bool preserve_current_ts)
+void metdata::load_from_netcdf(const std::string& path, std::map<std::string, std::shared_ptr<filter_base> > filters, bool preserve_current_ts)
 {
     if(_mesh_proj4 == "")
     {
@@ -401,7 +402,7 @@ void metdata::load_from_netcdf(const std::string& path, std::map<std::string, bo
         auto forcing_point_path = _output_dir / "forcing" / nc_path.stem() / fmt::format("stations_{}.", local.rank());
 
         // SPDLOG_DEBUG("Forcing points: {}", forcing_point_path.string());
-        write_stations_to_ptv(forcing_point_path.string() + "vtp");
+        // write_stations_to_ptv(forcing_point_path.string() + "vtp");
         write_stations_to_shp(forcing_point_path.string() + "geojson");
 
         // Give all the ranks a chance to expand the bbox and find the stations.

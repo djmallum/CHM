@@ -24,6 +24,9 @@
 #include <iostream>
 #include <string>
 #include <boost/filesystem.hpp>
+#include <boost/mpi.hpp>
+
+#include <Kokkos_Core.hpp>
 
 #define BOOST_SPIRIT_THREADSAFE
 
@@ -31,21 +34,23 @@
 
 int main (int argc, char *argv[])
 {
-    core kernel;
+    boost::mpi::environment mpi_env;
+    // MPI is now init, so explicitly init kokkos to avoid
+    // https://github.com/trilinos/Trilinos/issues/14389
+    Kokkos::initialize(argc, argv);
+
+    auto kernel = std::make_unique<core>();
 
     int ret = 0;
     try
     {
-        kernel.init(argc, argv) ;
-
-        kernel.run();
-
-        kernel.end();
+        kernel->init(argc, argv) ;
+        kernel->run();
     }
     catch(chm_done& e)
     {
         // This catches the chm_done exception which we use to handle the version and help commands
-        kernel.end();
+        kernel->end();
     }
     catch(const module_error& e)
     {
@@ -68,28 +73,20 @@ int main (int argc, char *argv[])
        ret = 1;
     }
 
-    // if we have an exception, ensure we tear down all of the MPI. In Non MPI mode this won't do anything
+    // if we have an exception, ensure we tear down all of the MPI
     if(ret == 1)
-       kernel.end(true);
+    {
+        kernel->end(true);
+        mpi_env.abort(-1);
+    }
     else
-       kernel.end();
-
-    try
     {
-
-#if BOOST_VERSION < 107400
-        boost::filesystem::copy_file(kernel.log_file_path,kernel.output_folder_path / "CHM.log", boost::filesystem::copy_option::overwrite_if_exists);
-#else
-        boost::filesystem::copy_file(kernel.log_file_path,kernel.output_folder_path / "CHM.log", boost::filesystem::copy_options::overwrite_existing);
-#endif
-}
-
-    catch(...)
-    {
-
+        kernel->end();
     }
 
-
+    kernel.reset();
+    // and finalize kokkos right before we call MPI finalize
+    Kokkos::finalize();
 
     return ret;
 }

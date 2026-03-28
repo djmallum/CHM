@@ -479,6 +479,19 @@ please see the :ref:`output` section.
    
    The base file name to be used. Default is the same name as the output folder.
 
+
+.. warning::
+
+    NCZarr does not currently support creating of zarr files in MPI mode. Do not use format:"zarr" at the moment
+
+.. confval:: format
+
+   :type: string
+   :default: "netcdf"
+
+   Storage backend for ``ugrid`` outputs. Options are ``netcdf`` (writes a ``.nc`` file) or ``zarr`` (writes a ``.zarr``
+   store via NCZarr). Only applies to ``ugrid`` outputs.
+
 .. confval:: variables
 
    :type: ``[ "variable_name", ... ]``
@@ -513,13 +526,37 @@ please see the :ref:`output` section.
   :default: 0
 
   Only applies to ugrid outputs. The timestep frequency to create a new ugrid file at.
+  Rotated files are named ``<base_name>_YYYYMMDDTHHMMSS.nc`` and the cadence is preserved across checkpoint resume.
 
-.. confval:: write_parameters
+.. confval:: chunk_time_len
+
+  :type: int
+  :default: unset
+
+  Only applies to ugrid outputs. Sets an explicit time chunk length (in timesteps). Must not be set alongside
+  ``chunk_target_mb``.
+
+.. confval:: chunk_target_mb
+
+  :type: float
+  :default: unset
+
+  Only applies to ugrid outputs. Sets the target chunk size per variable (in MB). Must not be set alongside
+  ``chunk_time_len``.
+
+.. confval:: write_all_parameters
 
    :type: boolean
    :default: true
 
    Disables/enables writing parameters to the output.
+
+.. confval:: output_parameters
+
+   :type: ``[ "parameter_name", ... ]``
+
+   Controls which parameters are written when ``write_all_parameters`` is enabled. If omitted, the defaults are
+   ``Elevation``, ``Slope``, and ``Aspect``.
 
 .. confval:: write_ghost_neighbors
 
@@ -577,19 +614,30 @@ All of the frequency options can mixed together, allowing more complex output fr
                 "swe",
                 "iswr"
             ],
+            "output_parameters": [
+                "Elevation",
+                "Slope",
+                "Aspect"
+            ],
             "frequency": "24",
             "specific_datetime": "20191227T160000",
-            "write_parameters": false,
+            "write_all_parameters": false,
             "write_ghost_neighbors": true
         },
         "ugrid": {
+                "format": "zarr",
                 "variables": [
                     "t",
                     "U_2m_above_srf",
                 ],
+                "output_parameters": [
+                    "Elevation",
+                    "Slope",
+                    "Aspect"
+                ],
                 "frequency": "1",
                 "specific_datetime": "20191227T160000",
-                "write_parameters": false
+                "write_all_parameters": false
             }
    }
 
@@ -931,6 +979,22 @@ checkpoints every ``on_frequency`` timesteps as well as on the last timestep.
 
    The frequency of checkpointing. Checkpoints every ``on_frequency`` timesteps.
 
+.. confval:: specific_datetime
+
+    :type: string
+    :default: ""
+
+    Checkpoints at a specific date-time, given in the iso format, e.g., ``"specific_datetime": "20191227T160000"``
+
+
+.. confval:: specific_time
+
+    :type: string
+    :default: ""
+
+    Checkpoints at a specific time every day, given in a "HH:MM" 24hr-format, e.g., ``"specific_time": "14:00"``
+
+
 .. confval:: on_last
 
    :type: bool
@@ -1018,6 +1082,3 @@ it.
         "minutes_of_wallclock": 5,
         "auto_resumed": true
      }
-
-
-
