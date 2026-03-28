@@ -42,7 +42,7 @@ point_mode::point_mode(config_file cfg)
     svf    = cfg.get("provide.svf",false);
         
     unit_test_new_modules = cfg.get("provide.unit_test_Donovan",false);
-
+	unit_test_glacier_module = cfg.get("provide.unit_test_glacier",false);
 
 
     if(unit_test_new_modules)    
