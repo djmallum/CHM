@@ -30,7 +30,7 @@ namespace PhysConst {
 	{
 		template<typename T,typename Derived>
 		struct base { 
-			T value; 
+			T value{}; 
 			
 			static_assert(std::is_arithmetic_v<T>,"PhysConst::units::base template must use a built-in integral or floating-point type");
 

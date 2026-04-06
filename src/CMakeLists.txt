@@ -426,6 +426,7 @@ if (BUILD_TESTS)
             #     tests/test_triangulation.cpp
             tests/submoduletests/test_data_base.cpp
             tests/submoduletests/test_submodule.cpp
+            tests/test_units.cpp
 			tests/main.cpp
     )
 
