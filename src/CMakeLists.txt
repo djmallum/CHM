@@ -70,6 +70,7 @@ set(MODULE_SRCS
 
 set(SUBMODULE_SRCS
 		modules/submodules/katabatic_melt_energy.cpp
+        modules/submodules/Glacier.cpp
 
 
         CACHE INTERNAL "" FORCE )
@@ -436,6 +437,7 @@ if (BUILD_TESTS)
             tests/test_units.cpp
             tests/submoduletests/test_bisection.cpp
             tests/submoduletests/test_katabatic_melt_energy.cpp
+            tests/submoduletests/test_glacier.cpp
 			tests/main.cpp
     )
 
