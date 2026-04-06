@@ -68,6 +68,11 @@ set(MODULE_SRCS
 
 		CACHE INTERNAL "" FORCE )
 
+set(SUBMODULE_SRCS
+		modules/submodules/katabatic_melt_energy.cpp
+
+
+        CACHE INTERNAL "" FORCE )
 
 set(CHM_SRCS
 		#main.cpp needs to be added below so we can re use CHM_SRCS in the gtest build
@@ -77,6 +82,7 @@ set(CHM_SRCS
 		metdata.cpp
 
 		physics/Atmosphere.cpp
+        physics/PhysConst.cpp
 
 		mesh/triangulation.cpp
         mesh/ugrid_writer.cpp
@@ -235,6 +241,7 @@ add_executable(
 		${CHM_SRCS}
 		${FILTER_SRCS}
 		${MODULE_SRCS}
+        ${SUBMODULE_SRCS}
 )
 
 
@@ -427,6 +434,8 @@ if (BUILD_TESTS)
             tests/submoduletests/test_data_base.cpp
             tests/submoduletests/test_submodule.cpp
             tests/test_units.cpp
+            tests/submoduletests/test_bisection.cpp
+            tests/submoduletests/test_katabatic_melt_energy.cpp
 			tests/main.cpp
     )
 
@@ -439,6 +448,7 @@ if (BUILD_TESTS)
 			${CHM_SRCS}
 			${FILTER_SRCS}
 			${MODULE_SRCS}
+            ${SUBMODULE_SRCS}
 			${TEST_SRCS}
 	)
 	set_target_properties(runUnitTests
