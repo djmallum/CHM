@@ -62,6 +62,7 @@ set(MODULE_SRCS
         modules/PBSM3D.cpp
 		modules/snobal.cpp
 		modules/fsm.cpp
+        modules/katabatic_routing_glacier.cpp
 
 		modules/testing/mpi_example.cpp
 
