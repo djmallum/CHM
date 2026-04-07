@@ -20,7 +20,7 @@ namespace katabatic_melt_energy
 				std::pow(p.k2,2.0) * deficit.value * 
 				std::sqrt(p.g / 
 					(glacier_temperature.value * gamma.value * p.prandtl))};
-		//result.value = (0.01 + result.value)/2;
+		result.value = (0.01 + result.value)/2;
 		return result;
     };
 

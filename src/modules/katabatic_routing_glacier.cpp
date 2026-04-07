@@ -76,15 +76,15 @@ void katabatic_routing_glacier::init(mesh& domain)
 		switch (p.densify_version)
 		{
 			case DensifyVersion::Linear:
-				p.small_increment = cfg.get<double>("small_increment",25.0);
-				p.big_increment = cfg.get<double>("big_increment",50.0);
+				p.small_increment = Units::DensitySI{cfg.get<double>("small_increment",25.0)};
+				p.big_increment = Units::DensitySI{cfg.get<double>("big_increment",50.0)};
 				break;
 			case DensifyVersion::HerronLangway:
 				break;
 		};
 
-        p.critical_density = cfg.get<double>("critical_density",550.0);
-        p.firn_to_ice_density = cfg.get<double>("firn_to_ice_density",830.0);
+        p.critical_density = Units::DensitySI{cfg.get<double>("critical_density",550.0)};
+        p.firn_to_ice_density = Units::DensitySI{cfg.get<double>("firn_to_ice_density",830.0)};
 		
 		p.thermal_factor = cfg.get<double>("thermal_factor",0.95);
 		p.seconds_per_step = global_param->dt();
@@ -247,11 +247,11 @@ static Glacier::LayeredFirn construct_firn_1(const Glacier::Params* p)
 		{1.0,650.0}
 	}};
 
-	std::vector<Layer> layers;
+	std::deque<Layer> layers;
 
 	for (auto l : simple_layers)
 	{
-		layers.emplace_back(Layer::Height{l.h},Layer::Density{l.rho});
+		layers.emplace_front(Layer::Height{l.h},Layer::Density{l.rho});
 	};
 
 	LayeredFirn firn(p,layers);
