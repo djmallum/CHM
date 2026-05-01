@@ -97,12 +97,29 @@ struct cache_base
 
     template<typename T>
     static constexpr T default_value() {
+
+        if constexpr (std::is_arithmetic_v<T>)
+            return arithmetic_type<T>();
+        else if constexpr (std::is_integral_v<T>)
+            return std::numeric_limits<T>::min();
+        else if constexpr (requires { typename T::value_type; } && 
+                       std::is_arithmetic_v<typename T::value_type>) 
+            return T{arithmetic_type<typename T::value_type>()};
+        else 
+            return T{};
+    };
+
+private:
+    template<typename T>
+    struct always_false : std::false_type {};
+    template<typename T>
+    static constexpr T arithmetic_type() {
         if constexpr (std::is_floating_point_v<T>)
             return std::numeric_limits<T>::quiet_NaN();
         else if constexpr (std::is_integral_v<T>)
-            return std::numeric_limits<T>::min();
-        else 
-            return T{};
+            return std::numeric_limits<T>::max();
+        else
+            static_assert(always_false<T>::value, "float_or_int() function can only be called if T is float or integral type");
     };
 
 };
@@ -164,6 +181,9 @@ protected:
     template<typename T,data_base_concepts::OutputRules<T> Output>
     void set_output(Output&& output,const T t);
 
+    template<typename T>
+    const T get_domain_param(const std::string& name, const T default_value);
+
 public:
     void reset_cache() { cache_.reset(); };
     const std::optional<CacheType>& get_cache() const { return cache_; }; 
@@ -224,4 +244,16 @@ void data_base<CacheType>::set_output(Output&& output,const T t)
     init_cache();
 
     output() += t;
+};
+
+template<data_base_concepts::CacheRules CacheType>
+template<typename T>
+const T data_base<CacheType>::get_domain_param(const std::string& name, const T default_value)
+{
+    if (!cfg)
+    {
+        std::string err = std::format("Config file is null for domain parameter {}",name);
+        CHM_THROW_EXCEPTION(module_error,err);
+    }
+    return cfg->get(name,default_value);
 };

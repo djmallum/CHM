@@ -440,7 +440,7 @@ void snow_slide::init(mesh& domain)
         double Z_CanTop = 0.0;
         if(face->has_vegetation())
         {
-            Z_CanTop = face->veg_attribute("CanopyHeight");
+            Z_CanTop = face->land_attribute("CanopyHeight");
         }
 
         // Parametrize the Minimum snow holding depth (taken vertically)

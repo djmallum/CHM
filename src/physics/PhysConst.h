@@ -30,12 +30,21 @@ namespace PhysConst {
 	{
 		template<typename T,typename Derived>
 		struct base { 
+            using value_type = T;
 			T value{}; 
 			
 			static_assert(std::is_arithmetic_v<T>,"PhysConst::units::base template must use a built-in integral or floating-point type");
 
                 // Prevent derived classes from getting their own synthesized comparisons
 
+            Derived operator+(const Derived& other)
+            {
+                return static_cast<Derived&>(*this).value + other.value;
+            };
+            Derived operator-(const Derived& other)
+            {
+                return static_cast<Derived&>(*this).value + other.value;
+            };
 			void operator+=(const Derived& other) 
 			{
 				static_cast<Derived&>(*this).value += other.value;

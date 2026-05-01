@@ -591,8 +591,8 @@ void Simple_Canopy::init(mesh& domain)
 	       // Check if there is some vegetation spec  at this face
 	       if(face->has_vegetation() )
 	       {
-                    d.CanopyHeight     = face->veg_attribute("CanopyHeight");
-                    d.LAI              = face->veg_attribute("LAI");
+                    d.CanopyHeight     = face->land_attribute("CanopyHeight");
+                    d.LAI              = face->land_attribute("LAI");
 
                     // this parameterization just doesn't work well for LAI below 1.5, especially with tall trees
                     if(d.CanopyHeight > 0 && d.LAI < 1)
@@ -607,7 +607,7 @@ void Simple_Canopy::init(mesh& domain)
                     // This might not exist if we are using distributed canopy heights
                     if(face->has_parameter("canopyType"))
                     {
-                        d.canopyType       = face->veg_attribute("canopyType");
+                        d.canopyType       = face->land_attribute("canopyType");
                     }
                     else
                     {

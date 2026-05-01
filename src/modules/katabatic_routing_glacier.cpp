@@ -4,6 +4,7 @@
 #include "PhysConst.h"
 #include "melt_routing_glacier.hpp"
 #include <deque>
+#include <optional>
 
 // data and view constructors
 REGISTER_MODULE_CPP(katabatic_routing_glacier);
@@ -111,6 +112,12 @@ void katabatic_routing_glacier::init_glacier()
     
     p.thermal_factor = cfg.get<double>("thermal_factor",0.95);
     p.seconds_per_step = global_param->dt();
+
+    firn.emissivity.value = cfg.get<double>("firn_emissivity");
+    ice.emissivity.value = cfg.get<double>("ice_emissivity");
+
+    firn.albedo.value = cfg.get<double>("firn_albedo");
+    ice.albedo.value = cfg.get<double>("ice_albedo");
 };
 
 void katabatic_routing_glacier::init_katabatic() {
@@ -121,35 +128,50 @@ void katabatic_routing_glacier::init_katabatic() {
     p.seconds_per_step = global_param->dt();
 }
 
-double katabatic_routing_glacier::rain_sun_energy(const mesh_elem& face,data& d)
+Units::Watts_per_m2 katabatic_routing_glacier::rain_sun_energy(const mesh_elem& face,data& d)
 {
     using namespace PhysConst;
+
+    if (d.swe().value > 0.0)
+		return Units::Watts_per_m2{0.0};
+
 	auto iswr = (*face)["iswr_subcanopy"_s];
 	auto ilwr = (*face)["ilwr_subcanopy"_s];
-	const auto& firn = d.glacier_state.firn;
-	const auto& ice = d.glacier_state.ice;
-	auto emissivity = 0.0;
-	if (d.swe().value > 0.0)
-		return 0.0;
-	else if (firn.water_equivalent().value)
-		emissivity = d.firn_emissivity;
-	else if (ice.water_equivalent().value)
-		emissivity = d.ice_emissivity;
-	else
-		return 0.0;
+    
+    // TODO Current value ignores the possibility of melting through ice and firn in the same day
+    // Would need an adaptive calculation that speaks with the submodule
+    auto current = fetch_current_properties(d);
+    if (!current)
+        return Units::Watts_per_m2{0.0};
 	
-	auto olwr = PhysConst::sbc() * emissivity
+	auto olwr = PhysConst::sbc() * current->emissivity.value
 		* std::pow(d.air_temperature().value,4.0);
-	auto oswr = (*face)["glacier_albedo"_s] * iswr;
+    
+	auto oswr = current->albedo.value * iswr;
 	auto Qsun = (ilwr - olwr) + (iswr - oswr);
 
     constexpr auto M_PER_MM = 1 / 1000.0;
 	auto Qrain = Cw() * water_reference_density() * (*face)["p_subcanopy"_s] * M_PER_MM
         * (d.air_temperature().value - d.glacier_temperature().value) / global_param->dt();
-	return Qsun + Qrain;
+	return Units::Watts_per_m2{Qsun + Qrain};
 };
 
-
+std::optional<katabatic_routing_glacier::Properties> katabatic_routing_glacier::fetch_current_properties(data& d)
+{
+    const auto& firn = d.glacier_state.firn;
+	const auto& ice = d.glacier_state.ice;
+ 
+    if (firn.water_equivalent() > Units::Milimetres{0.0})
+    {
+        return this->firn;
+    }
+    else if (ice.water_equivalent() > Units::Milimetres{0.0})
+    {
+        return this->ice;
+    }
+    else
+        return std::nullopt;
+};
 
 void katabatic_routing_glacier::do_katabatic(mesh_elem& face) {
     auto& d = face->get_module_data<data>(ID);
@@ -171,7 +193,7 @@ void katabatic_routing_glacier::do_glacier(mesh_elem& face) {
     
     glacier.execute(data_g);
 
-    d.total_energy = 0.0;
+    d.total_energy = Units::Watts_per_m2{0.0};
 };
 
 void katabatic_routing_glacier::do_routing(mesh_elem& face) {
@@ -201,8 +223,8 @@ katabatic_routing_glacier::katabatic_view::~katabatic_view()
 {	
 	auto& cache = d.get_cache();
 
-	(*face)["latent_heat"_s] = cache->latent_heat;	
-	(*face)["sensible_heat"_s] = cache->sensible_heat;
+	(*face)["latent_heat"_s] = cache->latent_heat.value;	
+	(*face)["sensible_heat"_s] = cache->sensible_heat.value;
 };
 
 katabatic_routing_glacier::routing_view::~routing_view()
@@ -366,42 +388,7 @@ const Units::Milimetres katabatic_routing_glacier::data::swe()
 };
 const Units::Watts_per_m2 katabatic_routing_glacier::data::melt_energy()
 {
-    static const auto firn_emissivity = cfg->get<double>("firn_emissivity");
-    static const auto ice_emissivity = cfg->get<double>("ice_emissivity");
-	auto iswr = (*face)["iswr_subcanopy"_s];
-	auto ilwr = (*face)["ilwr_subcanopy"_s];
-	const auto& firn = glacier_state.firn;
-	const auto& ice = glacier_state.ice;
-	auto emissivity = 0.0;
-	if (swe().value > 0.0)
-		return Units::Watts_per_m2{0.0};
-	else if (firn.water_equivalent().value)
-		emissivity = firn_emissivity;
-	else if (ice.water_equivalent().value)
-		emissivity = ice_emissivity;
-	else
-		return Units::Watts_per_m2{0.0};
-	
-
-	auto olwr = PhysConst::sbc() * emissivity
-		* std::pow(air_temperature().value,4.0);
-	auto oswr = (*face)["glacier_albedo"_s] * iswr;
-	auto Qsun = (ilwr - olwr) + (iswr - oswr);
-	auto Qrain = (*face)["Qrain"_s];
-	// Means that katabatic_melt_energy didn't run
-	if (!cache_)
-		return Units::Watts_per_m2{Qsun + Qrain};
-
-	auto Q_sensible = 0.0;	
-	auto Q_latent = 0.0;
-
-	if ( !std::isnan(cache_->latent_heat) )
-		Q_latent = cache_->latent_heat;
-
-	if ( !std::isnan(cache_->sensible_heat) )
-		Q_sensible = cache_->sensible_heat;
-
-	return Units::Watts_per_m2{Qsun + Qrain + Q_sensible + Q_latent};
+	return total_energy;
 };
 bool katabatic_routing_glacier::data::update_now()
 {

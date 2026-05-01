@@ -32,19 +32,24 @@
 #include "PhysConst.h"
 
 /**
- * \ingroup modules infil soils exp
+ * \ingroup modules glacier routing melt
  * @{
- * \class Gray_inf
+ * \class katabatic_routing_glacier
  *
- *
- * Estimates areal snowmelt infiltration into frozen soils for:
- *    a) Restricted -  Water entry impeded by surface conditions
- *    b) Limited - Capiliary flow dominates and water flow influenced by soil physical properties
- *    c) Unlimited - Gravity flow dominates
+ * Estimates the following properties of glaciers for the purposes of predicting melt:
+ *    a) Melt energy available under snow-free conditions, snowmelt is assumed to be handled externally
+ *    b) Melting of the glacier under snow-free conditions, yearly accumulation (snow -> firn, firn -> ice), as well as firn densification
+ *    c) Routing of snow, firn, and ice melt using a chain of linear reservoirs. Routing of each is separate.
  *
  * **Depends:**
- * - Snow water equivalent "swe" [mm]
+ * - Air pressure "Pa" [Pa]
+ * - Air temperature "t" [K]
+ * - Relative Humidity "rh" [-]
+ * - Temperature lapse rate "t_lapse_rate" [K m$^{-1}$]
  * - Snow melt for interval "snowmelt_int" [\f$mm \cdot dt^{-1}\f$]
+ * - Subcanopy rainfall "p_subcanopy" [mm]
+ * - Snow-water Equivalent "swe" [mm]
+ * - Net Incoming shortwave radiation
  *
  * **Provides:**
  * - Infiltration "inf" [\f$mm \cdot dt^{-1}\f$]
@@ -98,8 +103,8 @@ public:
         double total_depth = 0.0;
         double firnmelt = 0.0;
         double icemelt = 0.0;
-		double latent_heat = 0.0;
-		double sensible_heat = 0.0;
+        Units::Watts_per_m2 latent_heat{0.0};
+        Units::Watts_per_m2 sensible_heat{0.0};
 		double snowmelt_delayed = 0.0;
 		double firnmelt_delayed = 0.0;
 		double icemelt_delayed = 0.0;
@@ -141,9 +146,7 @@ public:
 		void firn_melt(const double out);
 		void ice_melt(const double out);
 
-		double firn_emissivity = 0.0;
-		double ice_emissivity = 0.0;
-		double total_energy = 0.0;
+        Units::Watts_per_m2 total_energy{0.0};
 	};
 
 	// Adapter that satisfies KatabaticData concept
@@ -204,6 +207,17 @@ public:
     };
 
 private:
+    struct Properties
+    {
+        struct Albedo { double value; } albedo;
+        struct Emissivity { double value; } emissivity;
+    };
+
+    Properties firn{};
+    Properties ice{};
+
+    std::optional<Properties> fetch_current_properties(data& d);
+
     katabatic_melt_energy::Model<katabatic_view> katabatic;
     GlacierRouting::Model<routing_view> routing;
     Glacier::Model<glacier_view> glacier;
@@ -218,6 +232,5 @@ private:
     void do_glacier(mesh_elem&);
     void do_routing(mesh_elem&);
 	bool is_new_day();
-	double rain_sun_energy(const mesh_elem& face);
-	double rain_sun_energy(const mesh_elem& face,data& d);
+    Units::Watts_per_m2 rain_sun_energy(const mesh_elem& face,data& d);
 };

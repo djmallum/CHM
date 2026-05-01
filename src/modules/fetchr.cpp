@@ -67,7 +67,7 @@ void fetchr::run(mesh_elem& face)
     if(incl_veg && face->has_vegetation())
     {
 
-        double me_Z_CanTop = face->veg_attribute("CanopyHeight");
+        double me_Z_CanTop = face->land_attribute("CanopyHeight");
         if(me_Z_CanTop > 1) // 1m might be too high?
         {
             (*face)["fetch"_s]= 0;
@@ -87,7 +87,7 @@ void fetchr::run(mesh_elem& face)
         if (incl_veg && f->has_vegetation())
         {
 
-            Z_CanTop = f->veg_attribute("CanopyHeight");
+            Z_CanTop = f->land_attribute("CanopyHeight");
         }
 
         //include canopy height if available

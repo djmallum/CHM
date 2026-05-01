@@ -287,12 +287,12 @@ void PBSM3D::init(mesh& domain)
         }
         if (face->has_vegetation() && enable_veg)
         {
-            d.CanopyHeight = face->veg_attribute("CanopyHeight");
+            d.CanopyHeight = face->land_attribute("CanopyHeight");
 
             // only grab LAI if we are using the R90 lambda formulation
             if (use_R94_lambda)
             {
-                d.LAI = face->veg_attribute("LAI");
+                d.LAI = face->land_attribute("LAI");
                 d.N = 0;
                 d.dv = 0;
             }
@@ -301,8 +301,8 @@ void PBSM3D::init(mesh& domain)
                 d.LAI = 0;
 
                 try{
-                    d.N =  face->veg_attribute("stalk_number");
-                    d.dv = face->veg_attribute("stalk_diameter");
+                    d.N =  face->land_attribute("stalk_number");
+                    d.dv = face->land_attribute("stalk_diameter");
                 }
                 catch(module_error& e)
                 {
@@ -961,7 +961,7 @@ void PBSM3D::run(mesh& domain)
                     //                // LAI used as attenuation coefficient introduced
                     //                by Inoue (1963) and increases with canopy density
                     //                double LAI =
-                    //                std::max(0.01,face->veg_attribute("LAI"));
+                    //                std::max(0.01,face->land_attribute("LAI"));
                     //                //bring wind down to canopy top
                     //                double u_cantop = std::max(0.01,
                     //                Atmosphere::log_scale_wind(uref,

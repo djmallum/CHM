@@ -97,7 +97,7 @@ double Winstral_parameters::Sx(const mesh &domain, mesh_elem& face) const
 
     if (this->incl_veg && face->has_vegetation())
     {
-         Z_loc = Z_loc + face->veg_attribute("CanopyHeight");
+         Z_loc = Z_loc + face->land_attribute("CanopyHeight");
     }
     if (this->incl_snw)
     {
@@ -140,7 +140,7 @@ double Winstral_parameters::Sx(const mesh &domain, mesh_elem& face) const
 
            if (this->incl_veg && f->has_vegetation())
            {
-               Z_dist = Z_dist + f->veg_attribute("CanopyHeight");
+               Z_dist = Z_dist + f->land_attribute("CanopyHeight");
             }
 
            if (this->incl_snw)
