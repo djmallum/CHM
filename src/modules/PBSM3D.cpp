@@ -1681,7 +1681,6 @@ void PBSM3D::run(mesh& domain)
             rank = domain->_comm_world.rank();
 #endif
             SPDLOG_ERROR("Rank {} deposition_rhs_max={} and deposition_present_threshold={}", rank, deposition_rhs_max, deposition_present_threshold);
-            SPDLOG_ERROR("Rank {} suspension_rhs_max={} and suspension_present_threshold={}", rank, suspension_rhs_max, suspension_present_threshold);
 
 //            std::string prefix = "deposition.rank" + std::to_string(rank);
 //            deposition_NNP->writeSystemMatrixMarket(prefix);
