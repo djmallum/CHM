@@ -1615,12 +1615,19 @@ void PBSM3D::setup_deposition_sys(mesh& domain)
         }
     } // end face iteration
 }
-void PBSM3D::do_deposition_solve(mesh& domain, bool suspension_present, bool deposition_present)
+struct Present
 {
+    bool suspension = false;
+    bool deposition = false;
+};
+
+void PBSM3D::do_deposition_solve(mesh& domain, Present present)
+{
+    // Check if we exceed the threshold for blowing snow
     auto deposition_rhs_max = deposition_NNP->getRhsMax();
-    if (suspension_present && deposition_rhs_max > deposition_present_threshold)
+    if (present.suspension && deposition_rhs_max > deposition_present_threshold)
     {
-        deposition_present = true;
+        present.deposition = true;
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -1632,7 +1639,7 @@ void PBSM3D::do_deposition_solve(mesh& domain, bool suspension_present, bool dep
     ////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
-    if (deposition_present)
+    if (present.deposition)
     {
 
         ////////////////////////////////////////////////////////////////////////////
@@ -1698,7 +1705,7 @@ void PBSM3D::do_deposition_solve(mesh& domain, bool suspension_present, bool dep
             (*face)["sum_drift"_s] += mass;
         }
 
-    } // if deposition_present fails
+    } // if present.deposition fails
     else
     {
         SPDLOG_DEBUG("  No deposited snow.");
@@ -1712,10 +1719,9 @@ void PBSM3D::run(mesh& domain)
     suspension_NNP->zeroSystem();
     deposition_NNP->zeroSystem();
 
-    // Set this flag if the RHS of the suspension system is ever nonzero
+    // Set these flags if the RHS of the suspension system is ever nonzero
     // Thread-safe because it is only ever switched in one direction
-    bool suspension_present = false;
-    bool deposition_present = false;
+    Present present;
 
 #pragma omp parallel
     {
@@ -1735,7 +1741,7 @@ void PBSM3D::run(mesh& domain)
     ////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
-    suspension_present = do_suspension_solve(domain);
+    present.suspension = do_suspension_solve(domain);
 
     /*
        Communicate necessary (neighbor) vars for deposition linear system setup
@@ -1747,7 +1753,7 @@ void PBSM3D::run(mesh& domain)
     setup_deposition_sys(domain);
 
     // Check if we exceed the threshold for blowing snow
-    do_deposition_solve(domain, suspension_present, deposition_present);
+    do_deposition_solve(domain, present);
 
 }
 
