@@ -395,15 +395,19 @@ void PBSM3D::init(mesh& domain)
 
 }
 
-bool tol(double a, double b)  { return fabs(a - b) < 1e-8; } ;
 struct iterHelpers
 {
-    static inline uintmax_t max_iter = 500;
-    static inline const double rho_p = PhysConst::rho_ice;
+    uintmax_t max_iter = 500;
+    double rho_p = PhysConst::rho_ice;
+    static bool tol(double a, double b)  { return fabs(a - b) < 1e-8; } ;
 };
 
 void PBSM3D::do_work(mesh& domain)
 {
+    // Helpers for the u* iterative solver
+    // - needs to be here in thread pool, otherwise there are thread consistency
+    // issues with the solver
+    iterHelpers helpers;
     for (size_t i = 0; i < sizes.local; i++)
     {
 
@@ -532,8 +536,8 @@ void PBSM3D::do_work(mesh& domain)
                     { return (1 - a1 * tanh(b1 * (xx + 0.25))) * snow_depth / result + fac_fill * xx; };
                     try
                     {
-                        auto r = boost::math::tools::bracket_and_solve_root(frootFn, -1.0, 1.0, true, tol,
-                                                                            iterHelpers::max_iter);
+                        auto r = boost::math::tools::bracket_and_solve_root(frootFn, -1.0, 1.0, true, iterHelpers::tol,
+                                                                            helpers.max_iter);
                         tpi_lim = r.first + (r.second - r.first) / 2.0;
                     }
                     catch (...)
@@ -684,8 +688,8 @@ void PBSM3D::do_work(mesh& domain)
                 };
                 try
                 {
-                    auto r = boost::math::tools::bracket_and_solve_root(ustarFn, 1.0, 1.0, false, tol,
-                                                                        iterHelpers::max_iter);
+                    auto r = boost::math::tools::bracket_and_solve_root(ustarFn, 1.0, 1.0, false, iterHelpers::tol,
+                                                                        helpers.max_iter);
                     ustar = r.first + (r.second - r.first) / 2.0;
                 }
                 catch (...)
@@ -988,12 +992,12 @@ void PBSM3D::do_work(mesh& domain)
             // calculate mean mass, eqn 23, 24 in Pomeroy 1993 (PBSM)
             // 52, 53 P&G 1995
             double mm_alpha = 4.08 + 12.6 * cz; // 24
-            double mm = 4. / 3. * M_PI * iterHelpers::rho_p * rm * rm * rm *
+            double mm = 4. / 3. * M_PI * helpers.rho_p * rm * rm * rm *
                         (1.0 + 3.0 / mm_alpha + 2. / (mm_alpha * mm_alpha));
             // mean mass, eqn 23
 
             // mean radius of mean mass particle
-            double r_z = pow((3.0 * mm) / (4 * M_PI * iterHelpers::rho_p), 0.3333333); // 50 in p&g 1995
+            double r_z = pow((3.0 * mm) / (4 * M_PI * helpers.rho_p), 0.3333333); // 50 in p&g 1995
             if (debug_output)
                 (*face)["mm"_s] = mm;
 
@@ -1715,9 +1719,6 @@ void PBSM3D::run(mesh& domain)
 
 #pragma omp parallel
     {
-        // Helpers for the u* iterative solver
-        // - needs to be here in thread pool, otherwise there are thread consistency
-        // issues with the solver
 #pragma omp for
         do_work(domain);
 
