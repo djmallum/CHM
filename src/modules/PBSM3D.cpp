@@ -408,6 +408,7 @@ void PBSM3D::do_work(mesh& domain)
     // - needs to be here in thread pool, otherwise there are thread consistency
     // issues with the solver
     iterHelpers helpers;
+#pragma omp for
     for (size_t i = 0; i < sizes.local; i++)
     {
 
@@ -1725,7 +1726,6 @@ void PBSM3D::run(mesh& domain)
 
 #pragma omp parallel
     {
-#pragma omp for
         do_work(domain);
 
     }
