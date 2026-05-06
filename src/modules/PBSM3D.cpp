@@ -1373,6 +1373,93 @@ void PBSM3D::do_work(mesh& domain)
 
     } // end face iter
 }
+bool PBSM3D::do_suspension_solve(mesh& domain)
+{
+    bool suspension_present = false;
+    auto suspension_rhs_max = suspension_NNP->getRhsMax();
+    if (suspension_rhs_max > suspension_present_threshold)
+    {
+        suspension_present = true;
+    }
+
+    if (suspension_present)
+    {
+
+        try
+        {
+            auto suspension_results = suspension_NNP->Solve();
+            SPDLOG_DEBUG("  suspension (isolated) iterations: {} residual: {} ", suspension_results.numIters,
+                         suspension_results.residual);
+        }
+        catch (const Belos::StatusTestError& e)
+        {
+            int rank = 0;
+#ifdef USE_MPI
+            rank = domain->_comm_world.rank();
+#endif
+            SPDLOG_ERROR("Rank {} suspension_rhs_max={} and suspension_present_threshold={}", rank, suspension_rhs_max,
+                         suspension_present_threshold);
+            //            std::string prefix = "suspension.rank" + std::to_string(rank);
+            //            suspension_NNP->writeSystemMatrixMarket(prefix);
+            SPDLOG_ERROR(e.what());
+            suspension_present = false;
+            CHM_THROW_EXCEPTION(module_error, e.what());
+        }
+
+        ////////////////////////////////////////////////////////////////////////////
+        // Write solution
+        //        suspension_NNP->writeSolutionMatrixMarket(prefix);
+        ////////////////////////////////////////////////////////////////////////////
+
+    } // if suspension_present fails
+    else
+    {
+        SPDLOG_DEBUG("  No suspended snow.");
+    }
+
+    // Note we still have to do the following if there is no suspended snow.
+    // - In that case suspension_solution should be the 0 vector it was initialized to for this iteration
+
+    // auto suspension_sol_array = suspension_solution->get1dView();
+    auto suspension_sol_array = suspension_NNP->getSolutionView();
+
+#pragma omp parallel for
+    for (size_t i = 0; i < sizes.local; i++)
+    {
+        auto face = domain->face(i);
+        auto& d = face->get_module_data<data>(ID);
+        double Qsusp = 0;
+
+        double Qsubl = 0;
+        for (int z = 0; z < sizes.vert_layers; ++z)
+        {
+            double c = suspension_sol_array[sizes.local * z + face->cell_local_id];
+            c = c < 0 || is_nan(c) ? 0 : c; // harden against some numerical issues that
+            // occasionally come up for unknown reasons.
+
+            double u_z = d.u_z_susp.at(z);
+
+            Qsusp += c * u_z * v_edge_height; /// kg/m^3 ---->  kg/(m.s)
+
+            if (debug_output)
+            {
+                (*face)["c" + std::to_string(z)] = c;
+                (*face)["csubl" + std::to_string(z)] = d.csubl[z];
+                // This is an approximation as it uses after transport concentrations.
+                // However this will have already taken into account sublimation during the coupled transport phase
+                // Eqn 20 Pomeroy 1993
+            }
+            Qsubl += d.csubl[z] * c * v_edge_height; //  kg/(m^2 *s)=> per unit area of snowcover
+        }
+        (*face)["Qsusp"_s] = Qsusp;
+
+        (*face)["Qsubl"_s] = Qsubl;
+        (*face)["Qsubl_mass"_s] = Qsubl * global_param->dt(); // kg/m^2 or mm
+        d.sum_subl += (*face)["Qsubl_mass"_s];
+        (*face)["sum_subl"_s] = d.sum_subl;
+    }
+    return suspension_present;
+}
 void PBSM3D::run(mesh& domain)
 {
 
@@ -1383,8 +1470,8 @@ void PBSM3D::run(mesh& domain)
 
     // Set this flag if the RHS of the suspension system is ever nonzero
     // Thread-safe because it is only ever switched in one direction
-    suspension_present = false;
-    deposition_present = false;
+    bool suspension_present = false;
+    bool deposition_present = false;
 
 #pragma omp parallel
     {

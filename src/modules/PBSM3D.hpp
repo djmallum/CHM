@@ -308,6 +308,8 @@ class PBSM3D : public module_base
     REGISTER_MODULE_HPP(PBSM3D);
 
     void do_work(mesh& domain);
+    bool do_suspension_solve(mesh& domain);
+
   public:
     PBSM3D(config_file cfg);
     ~PBSM3D();
@@ -414,7 +416,6 @@ class PBSM3D : public module_base
 private:
 
   // For detecting if there is suspension and/or saltation
-  bool suspension_present, deposition_present;
   constexpr static double suspension_present_threshold=1e-12;
   constexpr static double deposition_present_threshold=1e-12;
 
