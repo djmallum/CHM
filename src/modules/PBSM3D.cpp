@@ -1728,18 +1728,9 @@ void PBSM3D::run(mesh& domain)
 #pragma omp for
         do_work(domain);
 
-    } // end pragma omp parallel thread pool
+    }
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Write mat/rhs
-    ////////////////////////////////////////////////////////////////////////////
-    // static int count=0;
 
-    // std::string suspension_file_prefix="Suspension_";
-    // suspension_file_prefix += std::to_string(count);
-    // suspension_NNP->writeSystemMatrixMarket(suspension_file_prefix);
-    ////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////
 
     present.suspension = do_suspension_solve(domain);
 
@@ -1752,7 +1743,6 @@ void PBSM3D::run(mesh& domain)
 
     setup_deposition_sys(domain);
 
-    // Check if we exceed the threshold for blowing snow
     do_deposition_solve(domain, present);
 
 }
