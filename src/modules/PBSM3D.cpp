@@ -1611,54 +1611,11 @@ void PBSM3D::setup_deposition_sys(mesh& domain)
         }
     } // end face iteration
 }
-void PBSM3D::run(mesh& domain)
+void PBSM3D::do_deposition_solve(mesh& domain, bool suspension_present, bool deposition_present)
 {
-
-    SPDLOG_DEBUG("PBSM: ");
-
-    suspension_NNP->zeroSystem();
-    deposition_NNP->zeroSystem();
-
-    // Set this flag if the RHS of the suspension system is ever nonzero
-    // Thread-safe because it is only ever switched in one direction
-    bool suspension_present = false;
-    bool deposition_present = false;
-
-#pragma omp parallel
-    {
-        // Helpers for the u* iterative solver
-        // - needs to be here in thread pool, otherwise there are thread consistency
-        // issues with the solver
-#pragma omp for
-        do_work(domain);
-
-    } // end pragma omp parallel thread pool
-
-    ////////////////////////////////////////////////////////////////////////////
-    // Write mat/rhs
-    ////////////////////////////////////////////////////////////////////////////
-    // static int count=0;
-
-    // std::string suspension_file_prefix="Suspension_";
-    // suspension_file_prefix += std::to_string(count);
-    // suspension_NNP->writeSystemMatrixMarket(suspension_file_prefix);
-    ////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////
-
-    suspension_present = do_suspension_solve(domain);
-
-    /*
-       Communicate necessary (neighbor) vars for deposition linear system setup
-       */
-    // LOG_DEBUG << "Qsusp"_s << "     " << "Qsalt"_s;
-    domain->ghost_neighbors_communicate_variable("Qsusp"_s);
-    domain->ghost_neighbors_communicate_variable("Qsalt"_s);
-
-    setup_deposition_sys(domain);
-
-    // Check if we exceed the threshold for blowing snow
     auto deposition_rhs_max = deposition_NNP->getRhsMax();
-    if ( suspension_present && deposition_rhs_max > deposition_present_threshold ) {
+    if (suspension_present && deposition_rhs_max > deposition_present_threshold)
+    {
         deposition_present = true;
     }
 
@@ -1738,10 +1695,58 @@ void PBSM3D::run(mesh& domain)
         }
 
     } // if deposition_present fails
-    else {
+    else
+    {
         SPDLOG_DEBUG("  No deposited snow.");
     }
+}
+void PBSM3D::run(mesh& domain)
+{
 
+    SPDLOG_DEBUG("PBSM: ");
+
+    suspension_NNP->zeroSystem();
+    deposition_NNP->zeroSystem();
+
+    // Set this flag if the RHS of the suspension system is ever nonzero
+    // Thread-safe because it is only ever switched in one direction
+    bool suspension_present = false;
+    bool deposition_present = false;
+
+#pragma omp parallel
+    {
+        // Helpers for the u* iterative solver
+        // - needs to be here in thread pool, otherwise there are thread consistency
+        // issues with the solver
+#pragma omp for
+        do_work(domain);
+
+    } // end pragma omp parallel thread pool
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Write mat/rhs
+    ////////////////////////////////////////////////////////////////////////////
+    // static int count=0;
+
+    // std::string suspension_file_prefix="Suspension_";
+    // suspension_file_prefix += std::to_string(count);
+    // suspension_NNP->writeSystemMatrixMarket(suspension_file_prefix);
+    ////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
+    suspension_present = do_suspension_solve(domain);
+
+    /*
+       Communicate necessary (neighbor) vars for deposition linear system setup
+       */
+    // LOG_DEBUG << "Qsusp"_s << "     " << "Qsalt"_s;
+    domain->ghost_neighbors_communicate_variable("Qsusp"_s);
+    domain->ghost_neighbors_communicate_variable("Qsalt"_s);
+
+    setup_deposition_sys(domain);
+
+    // Check if we exceed the threshold for blowing snow
+    do_deposition_solve(domain, suspension_present, deposition_present);
 
 }
 
