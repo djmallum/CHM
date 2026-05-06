@@ -146,8 +146,7 @@ PBSM3D::PBSM3D(config_file cfg) : module_base("PBSM3D", parallel::domain, cfg)
 
     if (debug_output)
     {
-        nLayer = cfg.get("nLayer", 5);
-        for (int i = 0; i < nLayer; ++i)
+        for (int i = 0; i < sizes.vert_layers; ++i)
         {
             provides("K" + std::to_string(i));
             provides("c" + std::to_string(i));
@@ -220,10 +219,12 @@ PBSM3D::PBSM3D(config_file cfg) : module_base("PBSM3D", parallel::domain, cfg)
 
 void PBSM3D::init(mesh& domain)
 {
-    nLayer = cfg.get("nLayer", 10);
+    sizes.local = domain->size_local_faces();
+    sizes.global = domain->size_global_faces();
+    sizes.vert_layers = cfg.get("sizes.vert_layers", 10);
 
     susp_depth = 5;                      // 5m as per pomeroy
-    v_edge_height = susp_depth / nLayer; // height of each vertical prism
+    v_edge_height = susp_depth / sizes.vert_layers; // height of each vertical prism
     l__max = 40;                         // mixing length for diffusivity calculations
 
     do_fixed_settling = cfg.get("do_fixed_settling", false);
@@ -264,10 +265,7 @@ void PBSM3D::init(mesh& domain)
 
     n_non_edge_tri = 0;
 
-    // Size of the domain
-    size_t ntri = domain->size_local_faces();
-
-    SPDLOG_DEBUG("#face={}",ntri);
+    SPDLOG_DEBUG("#face={}",sizes.local);
 
     // **************************************************************
     // **************************************************************
@@ -276,7 +274,7 @@ void PBSM3D::init(mesh& domain)
     // **************************************************************
     // **************************************************************
 #pragma omp parallel for
-    for (size_t i = 0; i < ntri; i++)
+    for (size_t i = 0; i < sizes.local; i++)
     {
         auto face = domain->face(i);
         auto& d = face->make_module_data<data>(ID);
@@ -328,7 +326,7 @@ void PBSM3D::init(mesh& domain)
         d.F_fill3.function = &my_fill_topo3;
 
         // pre alloc for the windpseeds
-        d.u_z_susp.resize(nLayer);
+        d.u_z_susp.resize(sizes.vert_layers);
 
         auto& m = d.m;
         // edge unit normals
@@ -387,12 +385,12 @@ void PBSM3D::init(mesh& domain)
 
         d.sum_drift = 0;
         d.sum_subl = 0;
-        d.csubl.resize(nLayer);
+        d.csubl.resize(sizes.vert_layers);
         (*face)["sum_drift"_s]=0;
 
     }
 
-    suspension_NNP.reset(new math::LinearAlgebra::NearestNeighborProblem(domain,ID,nLayer));
+    suspension_NNP.reset(new math::LinearAlgebra::NearestNeighborProblem(domain,ID,sizes.vert_layers));
     deposition_NNP.reset(new math::LinearAlgebra::NearestNeighborProblem(domain,ID));
 
 }
@@ -406,7 +404,7 @@ struct iterHelpers
 
 void PBSM3D::do_work(mesh& domain)
 {
-    for (size_t i = 0; i < domain->size_local_faces(); i++)
+    for (size_t i = 0; i < sizes.local; i++)
     {
 
         auto face = domain->face(i);
@@ -912,7 +910,7 @@ void PBSM3D::do_work(mesh& domain)
         double v = 1.88e-5; // kinematic viscosity of air, below eqn 13 in Pomeroy 1993
 
         // iterate over the vertical layers
-        for (int z = 0; z < nLayer; ++z)
+        for (int z = 0; z < sizes.vert_layers; ++z)
         {
             // height in the suspension layer, floats above the snow surface
             double cz = z * v_edge_height + hs + v_edge_height / 2.; // cell center height
@@ -1197,7 +1195,7 @@ void PBSM3D::do_work(mesh& domain)
                 udotm[j] = arma::dot(uvw, m[j]);
             }
             // lateral
-            int idx = domain->size_global_faces() * z + face->cell_global_id;
+            int idx = sizes.global * z + face->cell_global_id;
 
             double V = face->get_area() * v_edge_height;
             // the sink term is added on for each edge check, which isn't right
@@ -1219,7 +1217,7 @@ void PBSM3D::do_work(mesh& domain)
 
                     if (d.face_neigh[f])
                     {
-                        int nidx = domain->size_global_faces() * z + face->neighbor(f)->cell_global_id;
+                        int nidx = sizes.global * z + face->neighbor(f)->cell_global_id;
 
                         // Diagonal value
                         suspension_NNP->matrixSumIntoGlobalValues(idx, idx, (V * csubl - d.A[f] * udotm[f] - alpha[f]));
@@ -1240,7 +1238,7 @@ void PBSM3D::do_work(mesh& domain)
                 {
                     if (d.face_neigh[f])
                     {
-                        int nidx = domain->size_global_faces() * z + face->neighbor(f)->cell_global_id;
+                        int nidx = sizes.global * z + face->neighbor(f)->cell_global_id;
                         // Diagonal entry
                         suspension_NNP->matrixSumIntoGlobalValues(idx, idx, V * csubl - alpha[f]);
                         // Off diagonal entry
@@ -1273,8 +1271,8 @@ void PBSM3D::do_work(mesh& domain)
                 double val = -alpha4 * c_salt;
                 suspension_NNP->rhsSumIntoGlobalValue(idx, val);
 
-                // domain->size_local_faces() * (z + 1) + face->cell_local_id
-                int nidx = domain->size_global_faces() * (z + 1) + face->cell_global_id;
+                // sizes.local * (z + 1) + face->cell_local_id
+                int nidx = sizes.global * (z + 1) + face->cell_global_id;
 
                 if (udotm[3] > 0)
                 {
@@ -1291,7 +1289,7 @@ void PBSM3D::do_work(mesh& domain)
                     suspension_NNP->matrixSumIntoGlobalValues(idx, (nidx), -d.A[3] * udotm[3] + alpha[3]);
                 }
             }
-            else if (z == nLayer - 1) // top z layer
+            else if (z == sizes.vert_layers - 1) // top z layer
             {
                 //(kg/m^2/s)/(m/s)  ---->  kg/m^3
                 double cprecip = 0; //(*face)["p_snow"_s]/global_param->dt()/w;
@@ -1316,8 +1314,8 @@ void PBSM3D::do_work(mesh& domain)
                     suspension_NNP->rhsSumIntoGlobalValue(idx, val);
                 }
 
-                // domain->size_local_faces() * (z - 1) + face->cell_local_id
-                int nidx = domain->size_global_faces() * (z - 1) + face->cell_global_id;
+                // sizes.local * (z - 1) + face->cell_local_id
+                int nidx = sizes.global * (z - 1) + face->cell_global_id;
                 if (udotm[4] > 0)
                 {
                     // Diagonal entry
@@ -1336,8 +1334,8 @@ void PBSM3D::do_work(mesh& domain)
             }
             else // middle layers
             {
-                // domain->size_local_faces() * (z + 1) + face->cell_local_id (looking up)
-                int nidx = domain->size_global_faces() * (z + 1) + face->cell_global_id;
+                // sizes.local * (z + 1) + face->cell_local_id (looking up)
+                int nidx = sizes.global * (z + 1) + face->cell_global_id;
                 if (udotm[3] > 0)
                 {
                     // Diagonal entry
@@ -1353,8 +1351,8 @@ void PBSM3D::do_work(mesh& domain)
                     suspension_NNP->matrixSumIntoGlobalValues(idx, nidx, -d.A[3] * udotm[3] + alpha[3]);
                 }
 
-                // domain->size_local_faces() * (z + 1) + face->cell_local_id (looking down)
-                nidx = domain->size_global_faces() * (z - 1) + face->cell_global_id;
+                // sizes.local * (z + 1) + face->cell_local_id (looking down)
+                nidx = sizes.global * (z - 1) + face->cell_global_id;
                 if (udotm[4] > 0)
                 {
                     // Diagonal entry
@@ -1454,16 +1452,16 @@ void PBSM3D::run(mesh& domain)
     auto suspension_sol_array = suspension_NNP->getSolutionView();
 
 #pragma omp parallel for
-    for (size_t i = 0; i < ntri; i++)
+    for (size_t i = 0; i < sizes.local; i++)
     {
         auto face = domain->face(i);
         auto& d = face->get_module_data<data>(ID);
         double Qsusp = 0;
 
         double Qsubl = 0;
-        for (int z = 0; z < nLayer; ++z)
+        for (int z = 0; z < sizes.vert_layers; ++z)
         {
-            double c = suspension_sol_array[ntri * z + face->cell_local_id];
+            double c = suspension_sol_array[sizes.local * z + face->cell_local_id];
             c = c < 0 || is_nan(c) ? 0 : c; // harden against some numerical issues that
             // occasionally come up for unknown reasons.
 
@@ -1503,7 +1501,7 @@ void PBSM3D::run(mesh& domain)
        */
 
 #pragma omp parallel for
-    for (size_t i = 0; i < domain->size_local_faces(); i++)
+    for (size_t i = 0; i < sizes.local; i++)
     {
         auto face = domain->face(i);
         auto& d = face->get_module_data<data>(ID);
@@ -1697,7 +1695,7 @@ void PBSM3D::run(mesh& domain)
         auto deposition_sol_array = deposition_NNP->getSolutionView();
 
 #pragma omp parallel for
-        for (size_t i = 0; i < domain->size_local_faces(); i++)
+        for (size_t i = 0; i < sizes.local; i++)
         {
             auto face = domain->face(i);
             double qdep = is_nan(deposition_sol_array[i]) ? 0 : deposition_sol_array[i];
@@ -1741,9 +1739,9 @@ PBSM3D::~PBSM3D() {
 
 void PBSM3D::checkpoint(mesh& domain,  netcdf& chkpt)
 {
-    chkpt.create_variable1D("PBSM3D:sum_drift", domain->size_local_faces());
+    chkpt.create_variable1D("PBSM3D:sum_drift", sizes.local);
 
-    for (size_t i = 0; i < domain->size_local_faces(); i++)
+    for (size_t i = 0; i < sizes.local; i++)
     {
         auto face = domain->face(i);
         chkpt.put_var1D("PBSM3D:sum_drift", i,
@@ -1754,7 +1752,7 @@ void PBSM3D::checkpoint(mesh& domain,  netcdf& chkpt)
 
 void PBSM3D::load_checkpoint(mesh& domain,  netcdf& chkpt)
 {
-    for (size_t i = 0; i < domain->size_local_faces(); i++)
+    for (size_t i = 0; i < sizes.local; i++)
     {
         auto face = domain->face(i);
         (*face)["sum_drift"_s] = chkpt.get_var1D("PBSM3D:sum_drift", i);

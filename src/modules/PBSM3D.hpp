@@ -314,7 +314,7 @@ class PBSM3D : public module_base
     void run(mesh& domain);
     void init(mesh& domain);
 
-    double nLayer;
+    math::LinearAlgebra::Sizes sizes{};
     double susp_depth;
     double v_edge_height;
 
