@@ -309,6 +309,7 @@ class PBSM3D : public module_base
 
     void do_work(mesh& domain);
     bool do_suspension_solve(mesh& domain);
+    void setup_deposition_sys(mesh& domain);
 
   public:
     PBSM3D(config_file cfg);

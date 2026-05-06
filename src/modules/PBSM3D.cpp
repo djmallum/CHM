@@ -1460,52 +1460,12 @@ bool PBSM3D::do_suspension_solve(mesh& domain)
     }
     return suspension_present;
 }
-void PBSM3D::run(mesh& domain)
+void PBSM3D::setup_deposition_sys(mesh& domain)
 {
-
-    SPDLOG_DEBUG("PBSM: ");
-
-    suspension_NNP->zeroSystem();
-    deposition_NNP->zeroSystem();
-
-    // Set this flag if the RHS of the suspension system is ever nonzero
-    // Thread-safe because it is only ever switched in one direction
-    bool suspension_present = false;
-    bool deposition_present = false;
-
-#pragma omp parallel
-    {
-        // Helpers for the u* iterative solver
-        // - needs to be here in thread pool, otherwise there are thread consistency
-        // issues with the solver
-#pragma omp for
-        do_work(domain);
-
-    } // end pragma omp parallel thread pool
-
-    ////////////////////////////////////////////////////////////////////////////
-    // Write mat/rhs
-    ////////////////////////////////////////////////////////////////////////////
-    // static int count=0;
-
-    // std::string suspension_file_prefix="Suspension_";
-    // suspension_file_prefix += std::to_string(count);
-    // suspension_NNP->writeSystemMatrixMarket(suspension_file_prefix);
-    ////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////
-
-    suspension_present = do_suspension_solve(domain);
-
-    /*
-       Communicate necessary (neighbor) vars for deposition linear system setup
-       */
-    // LOG_DEBUG << "Qsusp"_s << "     " << "Qsalt"_s;
-    domain->ghost_neighbors_communicate_variable("Qsusp"_s);
-    domain->ghost_neighbors_communicate_variable("Qsalt"_s);
 
     /*
        Setup and solve the linear system for deposition
-       */
+    */
 
 #pragma omp parallel for
     for (size_t i = 0; i < sizes.local; i++)
@@ -1623,33 +1583,78 @@ void PBSM3D::run(mesh& domain)
 
             // RHS
             double val = -E[j] * (Qtj + Qsj) * udotm[j];
-            if( is_nan(val) )
+            if (is_nan(val))
             {
                 SPDLOG_DEBUG("Detected val is nan:");
-		domain->print_ghost_neighbor_info();
+                domain->print_ghost_neighbor_info();
 
                 SPDLOG_DEBUG("\tSusp: {} salt: {}", Qtj, Qsj);
 
-                SPDLOG_DEBUG("\ttri global id: {}",face->cell_global_id);
+                SPDLOG_DEBUG("\ttri global id: {}", face->cell_global_id);
                 (*face)["global_cell_id"_s] = face->cell_global_id;
-                SPDLOG_DEBUG("\tlocal_cell_id: {}",face->cell_local_id);
-                SPDLOG_DEBUG("\tis_ghost: {}",face->is_ghost);
-                SPDLOG_DEBUG("\towner: {}",face->owner);
-                for(int i =0; i < 3; i++)
+                SPDLOG_DEBUG("\tlocal_cell_id: {}", face->cell_local_id);
+                SPDLOG_DEBUG("\tis_ghost: {}", face->is_ghost);
+                SPDLOG_DEBUG("\towner: {}", face->owner);
+                for (int i = 0; i < 3; i++)
                 {
 
                     SPDLOG_DEBUG("\t Neigh {} information:", i);
-                    SPDLOG_DEBUG("\t\tcell_global_id: {}",face->neighbor(i)->cell_global_id);
+                    SPDLOG_DEBUG("\t\tcell_global_id: {}", face->neighbor(i)->cell_global_id);
 
-                    SPDLOG_DEBUG("\t\tqsalt: {}",face->neighbor(i)->operator[]("Qsalt"_s));
+                    SPDLOG_DEBUG("\t\tqsalt: {}", face->neighbor(i)->operator[]("Qsalt"_s));
                     SPDLOG_DEBUG("\t\tis_ghost: {}", face->neighbor(i)->is_ghost);
                     SPDLOG_DEBUG("\t\towner: {}", face->neighbor(i)->owner);
                 }
                 SPDLOG_DEBUG("-------------------------------------------------");
             }
-            deposition_NNP->rhsSumIntoGlobalValue(global_row,val);
+            deposition_NNP->rhsSumIntoGlobalValue(global_row, val);
         }
     } // end face iteration
+}
+void PBSM3D::run(mesh& domain)
+{
+
+    SPDLOG_DEBUG("PBSM: ");
+
+    suspension_NNP->zeroSystem();
+    deposition_NNP->zeroSystem();
+
+    // Set this flag if the RHS of the suspension system is ever nonzero
+    // Thread-safe because it is only ever switched in one direction
+    bool suspension_present = false;
+    bool deposition_present = false;
+
+#pragma omp parallel
+    {
+        // Helpers for the u* iterative solver
+        // - needs to be here in thread pool, otherwise there are thread consistency
+        // issues with the solver
+#pragma omp for
+        do_work(domain);
+
+    } // end pragma omp parallel thread pool
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Write mat/rhs
+    ////////////////////////////////////////////////////////////////////////////
+    // static int count=0;
+
+    // std::string suspension_file_prefix="Suspension_";
+    // suspension_file_prefix += std::to_string(count);
+    // suspension_NNP->writeSystemMatrixMarket(suspension_file_prefix);
+    ////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
+    suspension_present = do_suspension_solve(domain);
+
+    /*
+       Communicate necessary (neighbor) vars for deposition linear system setup
+       */
+    // LOG_DEBUG << "Qsusp"_s << "     " << "Qsalt"_s;
+    domain->ghost_neighbors_communicate_variable("Qsusp"_s);
+    domain->ghost_neighbors_communicate_variable("Qsalt"_s);
+
+    setup_deposition_sys(domain);
 
     // Check if we exceed the threshold for blowing snow
     auto deposition_rhs_max = deposition_NNP->getRhsMax();
