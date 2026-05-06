@@ -30,6 +30,13 @@ namespace math
     {
         size_t Sizes::total_elements() const { return global * vert_layers; }
         size_t Sizes::local_elements() const { return local * vert_layers; }
+        Sizes::Sizes() {}
+        Sizes::Sizes(mesh& domain, size_t num_layers)
+        {
+            local = domain->size_local_faces();
+            global = domain->size_global_faces();
+            vert_layers = num_layers;
+        }
 
         void NearestNeighborProblem::set_comm_for_parallel()
         {

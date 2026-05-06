@@ -92,6 +92,9 @@ namespace math
             size_t vert_layers;
             size_t total_elements() const;
             size_t local_elements() const;
+
+            Sizes();
+            Sizes(mesh& domain,size_t num_layers);
         };
 
         class NearestNeighborProblem
