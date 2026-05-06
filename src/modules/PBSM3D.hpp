@@ -307,6 +307,7 @@ class PBSM3D : public module_base
 {
     REGISTER_MODULE_HPP(PBSM3D);
 
+    void do_work(mesh& domain);
   public:
     PBSM3D(config_file cfg);
     ~PBSM3D();
