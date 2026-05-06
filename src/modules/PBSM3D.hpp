@@ -309,7 +309,7 @@ class PBSM3D : public module_base
 {
     REGISTER_MODULE_HPP(PBSM3D);
 
-    void do_work(mesh& domain);
+    void setup_suspension_sys(mesh& domain);
     bool do_suspension_solve(mesh& domain);
     void setup_deposition_sys(mesh& domain);
     void do_deposition_solve(mesh& domain, Present);

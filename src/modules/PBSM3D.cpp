@@ -402,7 +402,7 @@ struct iterHelpers
     static bool tol(double a, double b)  { return fabs(a - b) < 1e-8; } ;
 };
 
-void PBSM3D::do_work(mesh& domain)
+void PBSM3D::setup_suspension_sys(mesh& domain)
 {
     // Helpers for the u* iterative solver
     // - needs to be here in thread pool, otherwise there are thread consistency
@@ -1736,7 +1736,7 @@ void PBSM3D::run(mesh& domain)
 
 #pragma omp parallel
     {
-        do_work(domain);
+        setup_suspension_sys(domain);
 
     }
 
