@@ -1712,6 +1712,16 @@ void PBSM3D::do_deposition_solve(mesh& domain, Present present)
         SPDLOG_DEBUG("  No deposited snow.");
     }
 }
+
+void PBSM3D::comm_to_ghosts(mesh& domain)
+{
+    /*
+           Communicate necessary (neighbor) vars for deposition linear system setup
+           */
+    // LOG_DEBUG << "Qsusp"_s << "     " << "Qsalt"_s;
+    domain->ghost_neighbors_communicate_variable("Qsusp"_s);
+    domain->ghost_neighbors_communicate_variable("Qsalt"_s);
+}
 void PBSM3D::run(mesh& domain)
 {
 
@@ -1734,12 +1744,7 @@ void PBSM3D::run(mesh& domain)
 
     present.suspension = do_suspension_solve(domain);
 
-    /*
-       Communicate necessary (neighbor) vars for deposition linear system setup
-       */
-    // LOG_DEBUG << "Qsusp"_s << "     " << "Qsalt"_s;
-    domain->ghost_neighbors_communicate_variable("Qsusp"_s);
-    domain->ghost_neighbors_communicate_variable("Qsalt"_s);
+    comm_to_ghosts(domain);
 
     setup_deposition_sys(domain);
 
