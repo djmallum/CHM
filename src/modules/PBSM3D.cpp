@@ -100,6 +100,13 @@ double my_fill_topo3(double x, void* p)
     return -fac_fill * x * gsl_ran_gaussian_pdf(x - m_tpi, s_tpi);
 }
 
+enum Subgrid
+{
+    DoNotUse,
+    SubgridV1,
+    SubgridV2
+};
+
 PBSM3D::PBSM3D(config_file cfg) : module_base("PBSM3D", parallel::domain, cfg)
 {
     depends("U_2m_above_srf");
@@ -126,8 +133,7 @@ PBSM3D::PBSM3D(config_file cfg) : module_base("PBSM3D", parallel::domain, cfg)
     z0_ustar_coupling = cfg.get("z0_ustar_coupling", false);
 
     // Determine if we account for sub-grid topography impact on snow redistribution
-    use_subgrid_topo = cfg.get("use_subgrid_topo", false);
-    use_subgrid_topo_V2 = cfg.get("use_subgrid_topo_V2", false);
+    subgrid_topo = static_cast<Subgrid>(cfg.get<int>("use_subgrid_topo",0));
 
     if (use_exp_fetch && use_tanh_fetch)
     {
@@ -200,20 +206,22 @@ PBSM3D::PBSM3D(config_file cfg) : module_base("PBSM3D", parallel::domain, cfg)
 
     provides("sum_drift");
 
-    if (use_subgrid_topo)
+    switch (subgrid_topo)
     {
+    case Subgrid::DoNotUse:
+        break;
+    case Subgrid::V1:
         provides("frac_contrib");
         provides("frac_contrib_nosnw");
         provides("hold_topo");
-    }
-
-    if (use_subgrid_topo_V2)
-    {
+        break;
+    case Subgrid::V2:
         provides("frac_contrib");
         provides("hold_topo");
         provides("test_int");
         provides("test_err");
         provides("tpi_lim");
+        break;
     }
 }
 
@@ -401,7 +409,209 @@ struct iterHelpers
     double rho_p = PhysConst::rho_ice;
     static bool tol(double a, double b)  { return fabs(a - b) < 1e-8; } ;
 };
+struct PBSM3D::suspensionParams
+{
+    double fetch = 1000.0;
+    double uref = 0.0;
+    double snow_depth = 0.0;
+    double u2 = 0.0;
+    double u10 = 0.0;
+};
+PBSM3D::suspensionParams PBSM3D::get_suspension_params(mesh_elem face)
+{
+    suspensionParams p;
+    if (use_exp_fetch || use_tanh_fetch)
+        p.fetch = (*face)["fetch"_s];
 
+    p.uref = (*face)["U_R"_s];
+    p.snow_depth = (*face)["snowdepthavg"_s];
+    p.snow_depth = is_nan(p.snow_depth) ? 0 : p.snow_depth;
+
+    p.u2 = (*face)["U_2m_above_srf"_s];
+    double z10; // 10-m height above the snow surface
+    z10 = 10. + p.snow_depth;
+
+    if (z10 < Atmosphere::Z_U_R)
+    {
+        // u10 is used by the pom probability forumuation, so don't hide behide debug output
+        p.u10 = Atmosphere::log_scale_wind(p.uref, Atmosphere::Z_U_R, z10, p.snow_depth);
+    }
+    else
+    {
+        p.u10 = p.uref; // Extreme case (avalanche gone crazy case)
+    }
+    return p;
+}
+double PBSM3D::do_topo_v1(mesh_elem face, PBSM3D::suspensionParams p)
+{
+    double frac_contrib = 1.0;
+    double frac_contrib_nosnw = 1.0;
+    double min_sd_trans_avg = min_sd_trans;
+    if (!is_nan(face->parameter("TPI_neg_frac"_s))) // Fraction of negative TPI is defined
+    {
+        double frac_neg = face->parameter("TPI_neg_frac"_s); // fraction of the grid covered by negative TPI
+        if (frac_neg > 0.)
+        {
+            double moy_tpi_neg = std::max(-10.0, std::min(-0.05, face->parameter("TPI_neg_mean"_s)));
+            double std_tpi_neg = std::min(5.0, std::max(0.1, face->parameter("TPI_neg_std"_s)));
+
+            //              // Derive parameters of the gamma distribution representing the distrib of TPI
+            double shape_gam = pow(moy_tpi_neg, 2.0) / pow(std_tpi_neg, 2.0);
+            double scale_gam = -pow(std_tpi_neg, 2.0) / moy_tpi_neg;
+            //
+            frac_contrib = (1. - frac_neg) + // f_TPI>0.
+                           frac_neg * gsl_cdf_gamma_P(p.snow_depth, shape_gam, scale_gam);
+
+            frac_contrib_nosnw = (1. - frac_neg);
+
+            if (p.snow_depth > min_sd_trans)
+            {
+
+                //   double fac = shape_gam/(gsl_sf_gamma(shape_gam)*pow(scale_gam,shape_gam));
+                double hint = shape_gam * scale_gam -
+                              scale_gam * (p.snow_depth * gsl_ran_gamma_pdf(p.snow_depth, shape_gam, scale_gam) -
+                                           min_sd_trans * gsl_ran_gamma_pdf(min_sd_trans, shape_gam, scale_gam) +
+                                           shape_gam * gsl_cdf_gamma_P(min_sd_trans, shape_gam, scale_gam) +
+                                           shape_gam * gsl_cdf_gamma_Q(p.snow_depth, shape_gam, scale_gam));
+
+                min_sd_trans_avg =
+                    (1. - frac_neg) * min_sd_trans +
+                    frac_neg * (min_sd_trans * gsl_cdf_gamma_P(min_sd_trans, shape_gam, scale_gam) + hint +
+                                p.snow_depth * gsl_cdf_gamma_Q(p.snow_depth, shape_gam, scale_gam));
+            }
+        }
+    }
+    (*face)["frac_contrib"_s] = frac_contrib;
+    (*face)["frac_contrib_nosnw"_s] = frac_contrib_nosnw;
+    (*face)["hold_topo"_s] = min_sd_trans_avg;
+    return frac_contrib;
+}
+void PBSM3D::do_topo_v2(iterHelpers helpers, mesh_elem face, PBSM3D::suspensionParams p)
+{
+    auto& d = face->get_module_data<data>(ID);
+    double min_sd_trans_avg = min_sd_trans;
+    double frac_contrib = 1.0;
+    // Default values for the TPI threshold above which gullies are filled.
+    double tpi_lim = -min_sd_trans;
+
+    if (!is_nan(face->parameter("TPI_std"_s)))
+    { // Std value of TPI is defined
+
+        double moy_tpi = std::max(-5.0, std::min(5.0, face->parameter("TPI_mean"_s)));
+        double std_tpi = std::min(5.0, std::max(0.1, face->parameter("TPI_std"_s)));
+
+        if (p.snow_depth > min_sd_trans)
+        {
+            double fac_fill = 0.8;
+
+            // Coefficient for the filling function that give normalized snow depth as a function of TPI
+
+            double a1 = 1.5;
+            const double b1 = 0.3;
+            const double a2 = 0.6;
+            double b2 = 0.55;
+            if (p.snow_depth > 0.75 and p.snow_depth < 1.25)
+            {
+                a1 = 1.15;
+            }
+            else if (p.snow_depth < 1.75)
+            {
+                a1 = 1.1;
+                b2 = 0.4;
+            }
+            else if (p.snow_depth < 2.25)
+            {
+                a1 = 0.9;
+                b2 = 0.4;
+            }
+            else if (p.snow_depth < 2.75)
+            {
+                a1 = 0.85;
+                b2 = 0.4;
+            }
+            else if (p.snow_depth < 3.25)
+            {
+                a1 = 0.75;
+                b2 = 0.4;
+            }
+            else
+            {
+                a1 = 0.6;
+                b2 = 0.35;
+            }
+
+            // Compute normalization factor
+            struct my_fill_topo_params params = {a1, b1, a2, b2, moy_tpi, std_tpi};
+            d.F_fill.params = &params;
+
+            gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
+            double result, error;
+            int code = gsl_integration_qags(&d.F_fill, -50, 50, 0, 1e-7, 1000, w, &result, &error);
+            gsl_integration_workspace_free(w);
+
+            (*face)["test_int"_s] = result;
+
+            // Determine TPI threshold above which gullies are considered as filled.
+            auto frootFn = [&](double xx) -> double
+            { return (1 - a1 * tanh(b1 * (xx + 0.25))) * p.snow_depth / result + fac_fill * xx; };
+            try
+            {
+                auto r = boost::math::tools::bracket_and_solve_root(frootFn, -1.0, 1.0, true, iterHelpers::tol,
+                                                                    helpers.max_iter);
+                tpi_lim = r.first + (r.second - r.first) / 2.0;
+            }
+            catch (...)
+            {
+                // Didn't converge
+            }
+
+            // Determine area-averaged snow depth which is stored in the non-filled gullies
+            struct my_fill_topo2_params params2 = {a1, b1, a2, b2, moy_tpi, std_tpi, p.snow_depth, result};
+            d.F_fill2.params = &params2;
+
+            gsl_integration_workspace* w2 = gsl_integration_workspace_alloc(1000);
+            double h1;
+            int code2 = gsl_integration_qags(&d.F_fill2, -50, tpi_lim, 0, 1e-7, 1000, w2, &h1, &error);
+            gsl_integration_workspace_free(w2);
+
+            // Determine area-averaged snow depth which is stored in the filled gullies
+            struct my_fill_topo3_params params3 = {moy_tpi, std_tpi, fac_fill};
+            d.F_fill3.params = &params3;
+
+            gsl_integration_workspace* w3 = gsl_integration_workspace_alloc(1000);
+            double h2;
+            int code3 =
+                gsl_integration_qags(&d.F_fill3, tpi_lim, -min_sd_trans / fac_fill, 0, 1e-7, 1000, w3, &h2, &error);
+            gsl_integration_workspace_free(w3);
+
+            // Determine area-averaged snow depth hold in the area of positive TPI
+            double h3 = min_sd_trans * gsl_cdf_gaussian_Q(-min_sd_trans / fac_fill - moy_tpi, std_tpi);
+
+            // Compute total holding capacity
+            min_sd_trans_avg = std::min(h1 + h2 + h3, p.snow_depth);
+        }
+
+        // Determine fraction of the triangle that contributes to snow transport
+        frac_contrib = gsl_cdf_gaussian_Q(tpi_lim - moy_tpi, std_tpi);
+    }
+    (*face)["tpi_lim"_s] = tpi_lim;
+    (*face)["frac_contrib"_s] = frac_contrib;
+    (*face)["hold_topo"_s] = min_sd_trans_avg;
+}
+void PBSM3D::doubleCheckVegParam(mesh_elem face,VegParam vp) const
+{
+    vp.z0 = std::max(Snow::Z0_SNOW, vp.z0);
+    vp.ustar = std::max(0.01, vp.ustar);
+    if (debug_output)
+        (*face)["ustar"_s] = vp.ustar;
+    if (debug_output)
+        (*face)["z0"_s] = vp.z0;
+}
+struct VegParams
+{
+    double z0 = 0.0;
+    double ustar = 1.3;
+}
 void PBSM3D::setup_suspension_sys(mesh& domain)
 {
     // Helpers for the u* iterative solver
@@ -417,218 +627,53 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
         auto& d = face->get_module_data<data>(ID);
         auto& m = d.m;
 
-        double fetch = 1000;
-        if (use_exp_fetch || use_tanh_fetch)
-            fetch = (*face)["fetch"_s];
+        auto p = get_suspension_params(face);
 
-        double frac_contrib =
-            1.; // Default value for the fraction of the grid contributing to snow transport
         double frac_contrib_nosnw =
             1.; // Default value for the fraction of the grid contributing to snow transport
         double min_sd_trans_avg = min_sd_trans; // Grid-averaged value for the topographic subgrid holding capacity
 
-        // get wind from the face
-        double uref = (*face)["U_R"_s];
-        double snow_depth = (*face)["snowdepthavg"_s];
-        snow_depth = is_nan(snow_depth) ? 0 : snow_depth;
-
-        double u2 = (*face)["U_2m_above_srf"_s];
-        double z10; // 10-m height above the snow surface
-        z10 = 10. + snow_depth;
-
-        double u10;
-        if (z10 < Atmosphere::Z_U_R)
-        {
-            // u10 is used by the pom probability forumuation, so don't hide behide debug output
-            u10 = Atmosphere::log_scale_wind(uref, Atmosphere::Z_U_R, z10, snow_depth);
-        }
-        else
-        {
-            u10 = uref; // Extreme case (avalanche gone crazy case)
-        }
-
         if (debug_output)
-            (*face)["U_10m"_s] = u10;
+            (*face)["U_10m"_s] = p.u10;
 
         double swe = (*face)["swe"_s]; // mm   -->    kg/m^2
         swe = is_nan(swe) ? 0 : swe;   // handle the first timestep where swe won't have been
         // updated if we override the module order
 
         // height difference between snowcover and veg
-        double height_diff = std::max(0.0, d.CanopyHeight - snow_depth);
+        double height_diff = std::max(0.0, d.CanopyHeight - p.snow_depth);
         if (!enable_veg)
             height_diff = 0;
         if (debug_output)
             (*face)["height_diff"_s] = height_diff;
 
-        // Topographic holding capacity associated with subgrid topographic features
-        // This method combines the distribution of TPI with a filling function to obtain
-        // an estimation of the subgrid snow depth distribution per triangle
-        // A filling criteria is then used to detertmine which fraction of the triangle
-        // contributes to snow transport (area of positive TPI + filled gullies)
-        // and which fraction does not (gullies which are not filled).
-
-        if (use_subgrid_topo_V2)
+        double frac_contrib;
+        switch (subgrid_topo)
         {
+        case Subgrid::DoNotUse:
+            frac_contrib = 1.0; // Default value for the fraction of the grid contributing to snow transport
+            break;
+        case Subgrid::V1:
+            // Topographic holding capacity associated with subgrid topographic features
+            // This method uses the distribution of negative TPI and the mean snow depth to determine the
+            // fraction of the triangle which contributes to snow transport and the associated topographic
+            // holding capacity
+            frac_contrib = do_topo_v1(face, p);
+            break;
+        case Subgrid::V2:
+            // Topographic holding capacity associated with subgrid topographic features
+            // This method combines the distribution of TPI with a filling function to obtain
+            // an estimation of the subgrid snow depth distribution per triangle
+            // A filling criteria is then used to detertmine which fraction of the triangle
+            // contributes to snow transport (area of positive TPI + filled gullies)
+            // and which fraction does not (gullies which are not filled).
+
             // Areas with negative TPI are assumed to be filled when SD = fac_fill * TPI.
-            double fac_fill = 0.8;
 
-            // Default values for the TPI threshold above which gullies are filled.
-            double tpi_lim = -min_sd_trans;
-
-            if (!is_nan(face->parameter("TPI_std"_s)))
-            { // Std value of TPI is defined
-
-                double moy_tpi = std::max(-5.0, std::min(5.0, face->parameter("TPI_mean"_s)));
-                double std_tpi = std::min(5.0, std::max(0.1, face->parameter("TPI_std"_s)));
-
-                if (snow_depth > min_sd_trans)
-                {
-
-                    // Coefficient for the filling function that give normalized snow depth as a function of TPI
-
-                    double a1 = 1.5;
-                    double b1 = 0.3;
-                    double a2 = 0.6;
-                    double b2 = 0.55;
-                    if (snow_depth > 0.75 and snow_depth < 1.25)
-                    {
-                        double a1 = 1.15;
-                    }
-                    else if (snow_depth < 1.75)
-                    {
-                        double a1 = 1.1;
-                        double b2 = 0.4;
-                    }
-                    else if (snow_depth < 2.25)
-                    {
-                        double a1 = 0.9;
-                        double b2 = 0.4;
-                    }
-                    else if (snow_depth < 2.75)
-                    {
-                        double a1 = 0.85;
-                        double b2 = 0.4;
-                    }
-                    else if (snow_depth < 3.25)
-                    {
-                        double a1 = 0.75;
-                        double b2 = 0.4;
-                    }
-                    else
-                    {
-                        double a1 = 0.6;
-                        double b2 = 0.35;
-                    }
-
-                    // Compute normalization factor
-                    struct my_fill_topo_params params = {a1, b1, a2, b2, moy_tpi, std_tpi};
-                    d.F_fill.params = &params;
-
-                    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
-                    double result, error;
-                    int code = gsl_integration_qags(&d.F_fill, -50, 50, 0, 1e-7, 1000, w, &result, &error);
-                    gsl_integration_workspace_free(w);
-
-                    (*face)["test_int"_s] = result;
-
-                    // Determine TPI threshold above which gullies are considered as filled.
-                    auto frootFn = [&](double xx) -> double
-                    { return (1 - a1 * tanh(b1 * (xx + 0.25))) * snow_depth / result + fac_fill * xx; };
-                    try
-                    {
-                        auto r = boost::math::tools::bracket_and_solve_root(frootFn, -1.0, 1.0, true, iterHelpers::tol,
-                                                                            helpers.max_iter);
-                        tpi_lim = r.first + (r.second - r.first) / 2.0;
-                    }
-                    catch (...)
-                    {
-                        // Didn't converge
-                    }
-
-                    // Determine area-averaged snow depth which is stored in the non-filled gullies
-                    struct my_fill_topo2_params params2 = {a1, b1, a2, b2, moy_tpi, std_tpi, snow_depth, result};
-                    d.F_fill2.params = &params2;
-
-                    gsl_integration_workspace* w2 = gsl_integration_workspace_alloc(1000);
-                    double h1;
-                    int code2 = gsl_integration_qags(&d.F_fill2, -50, tpi_lim, 0, 1e-7, 1000, w2, &h1, &error);
-                    gsl_integration_workspace_free(w2);
-
-                    // Determine area-averaged snow depth which is stored in the filled gullies
-                    struct my_fill_topo3_params params3 = {moy_tpi, std_tpi, fac_fill};
-                    d.F_fill3.params = &params3;
-
-                    gsl_integration_workspace* w3 = gsl_integration_workspace_alloc(1000);
-                    double h2;
-                    int code3 = gsl_integration_qags(&d.F_fill3, tpi_lim, -min_sd_trans / fac_fill, 0, 1e-7, 1000, w3,
-                                                     &h2, &error);
-                    gsl_integration_workspace_free(w3);
-
-                    // Determine area-averaged snow depth hold in the area of positive TPI
-                    double h3 = min_sd_trans * gsl_cdf_gaussian_Q(-min_sd_trans / fac_fill - moy_tpi, std_tpi);
-
-                    // Compute total holding capacity
-                    min_sd_trans_avg = std::min(h1 + h2 + h3, snow_depth);
-                }
-
-                // Determine fraction of the triangle that contributes to snow transport
-                frac_contrib = gsl_cdf_gaussian_Q(tpi_lim - moy_tpi, std_tpi);
-            }
-            (*face)["tpi_lim"_s] = tpi_lim;
-            (*face)["frac_contrib"_s] = frac_contrib;
-            (*face)["hold_topo"_s] = min_sd_trans_avg;
+            do_topo_v2(helpers, face, p);
+            //func here
+            break;
         }
-
-        // Topographic holding capacity associated with subgrid topographic features
-        // This method uses the distribution of negative TPI and the mean snow depth to determine the
-        // fraction of the triangle which contributes to snow transport and the associated topographic
-        // holding capacity
-
-        if (use_subgrid_topo)
-        {
-
-            if (!is_nan(face->parameter("TPI_neg_frac"_s))) // Fraction of negative TPI is defined
-            {
-                double frac_neg = face->parameter("TPI_neg_frac"_s); // fraction of the grid covered by negative TPI
-                if (frac_neg > 0.)
-                {
-                    double moy_tpi_neg = std::max(-10.0, std::min(-0.05, face->parameter("TPI_neg_mean"_s)));
-                    double std_tpi_neg = std::min(5.0, std::max(0.1, face->parameter("TPI_neg_std"_s)));
-
-                    //              // Derive parameters of the gamma distribution representing the distrib of TPI
-                    double shape_gam = pow(moy_tpi_neg, 2.0) / pow(std_tpi_neg, 2.0);
-                    double scale_gam = -pow(std_tpi_neg, 2.0) / moy_tpi_neg;
-                    //
-                    frac_contrib = (1. - frac_neg) + // f_TPI>0.
-                                          frac_neg * gsl_cdf_gamma_P(snow_depth, shape_gam, scale_gam);
-
-                    frac_contrib_nosnw = (1. - frac_neg);
-
-                    if (snow_depth > min_sd_trans)
-                    {
-
-                        //   double fac = shape_gam/(gsl_sf_gamma(shape_gam)*pow(scale_gam,shape_gam));
-                        double hint =
-                            shape_gam * scale_gam -
-                            scale_gam * (snow_depth * gsl_ran_gamma_pdf(snow_depth, shape_gam, scale_gam) -
-                                         min_sd_trans * gsl_ran_gamma_pdf(min_sd_trans, shape_gam, scale_gam) +
-                                         shape_gam * gsl_cdf_gamma_P(min_sd_trans, shape_gam, scale_gam) +
-                                         shape_gam * gsl_cdf_gamma_Q(snow_depth, shape_gam, scale_gam));
-
-                        min_sd_trans_avg =
-                            (1. - frac_neg) * min_sd_trans +
-                            frac_neg * (min_sd_trans * gsl_cdf_gamma_P(min_sd_trans, shape_gam, scale_gam) + hint +
-                                        snow_depth * gsl_cdf_gamma_Q(snow_depth, shape_gam, scale_gam));
-                    }
-                }
-            }
-            (*face)["frac_contrib"_s] = frac_contrib;
-            (*face)["frac_contrib_nosnw"_s] = frac_contrib_nosnw;
-            (*face)["hold_topo"_s] = min_sd_trans_avg;
-        }
-
-        double ustar = 1.3; // placeholder
 
         // The strategy here is as follows:
         // 0) If the exposed vegetation is above $cutoff, inhibit saltation and
@@ -658,7 +703,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             (*face)["u*_th"_s] = u_star_saltation_threshold;
 
         // we don't have too high of veg. Check for blowing snow
-        if (height_diff <= cutoff && snow_depth >= min_sd_trans_avg && !is_water(face))
+        if (height_diff <= cutoff && p.snow_depth >= min_sd_trans_avg && !is_water(face))
         {
 
             // lambda -> 0 when height_diff ->, such as full or no veg
@@ -685,7 +730,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                     // c_4 = 0.5;
                     // g   = 9.81;
 
-                    return u2 * PhysConst::kappa / log(2.0 / (0.6131702345e-2 * ustar * ustar + .5 * lambda)) - ustar;
+                    return p.u2 * PhysConst::kappa / log(2.0 / (0.6131702345e-2 * ustar * ustar + .5 * lambda)) - ustar;
                 };
                 try
                 {
@@ -774,7 +819,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
 
             if (debug_output)
             {
-                double pbsm_qsusp = pow(u10, 4.13) / 674100.0;
+                double pbsm_qsusp = pow(p.u10, 4.13) / 674100.0;
                 (*face)["Qsusp_pbsm"_s] = pbsm_qsusp;
             }
 
@@ -813,13 +858,13 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             // 95% of max saltation occurs at fetch = 500m
             // Liston, G., & Sturm, M. (1998). A snow-transport model for complex
             // terrain. Journal of Glaciology.
-            if (use_exp_fetch && fetch < 500)
+            if (use_exp_fetch && p.fetch < 500)
             {
                 double fetch_ref = 500;
                 double mu = 3.0;
-                c_salt *= 1.0 - exp(-mu * fetch / fetch_ref);
+                c_salt *= 1.0 - exp(-mu * p.fetch / fetch_ref);
             }
-            else if (use_tanh_fetch && fetch <= 300.) // use Pomeroy & Male 1986 tanh fetch
+            else if (use_tanh_fetch && p.fetch <= 300.) // use Pomeroy & Male 1986 tanh fetch
             {
                 double fetch_ref = 300;
                 double Lc = 0.5 * tanh(0.1333333333e-1 * fetch_ref - 2.0) + 0.5;
@@ -839,7 +884,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 double delta = 0.145 * T + 0.00196 * T * T + 4.3;                  // eqn 11
 
                 double z0v = (d.N * d.dv * height_diff) / 2.0; // eqn 14
-                double us = u10 / sqrt((1 + 340.0 * z0v));     // eqn 13
+                double us = p.u10 / sqrt((1 + 340.0 * z0v));     // eqn 13
 
                 double Pu10 = 1.0 / (1.0 + exp((sqrt(M_PI) * (u_mean - us)) / delta)); // eqn 12
                 (*face)["blowingsnow_probability"_s] = Pu10;
@@ -924,7 +969,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             double u_z = 0;
 
             // Height above the ground (snow+free) of the suspension layer
-            double hz = cz + snow_depth;
+            double hz = cz + p.snow_depth;
 
             // the suspension layer discretization 'floats' on top of the snow
             // surface so height_diff = d.CanopyHeight - snowdepth which is
@@ -948,8 +993,8 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 //                std::max(0.01,face->veg_attribute("LAI"));
                 //                //bring wind down to canopy top
                 //                double u_cantop = std::max(0.01,
-                //                Atmosphere::log_scale_wind(uref,
                 //                Atmosphere::Z_U_R, d.CanopyHeight, 0 , d.z0));
+                //                Atmosphere::log_scale_wind(suspension_params.uref,
                 //
                 //                u_z = Atmosphere::exp_scale_wind(u_cantop,
                 //                d.CanopyHeight, cz, LAI);
@@ -958,11 +1003,11 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             {
                 if (hz < Atmosphere::Z_U_R)
                 {
-                    u_z = std::max(0.01, Atmosphere::log_scale_wind(uref, Atmosphere::Z_U_R, hz, snow_depth, d.z0));
+                    u_z = std::max(0.01, Atmosphere::log_scale_wind(p.uref, Atmosphere::Z_U_R, hz, p.snow_depth, d.z0));
                 }
                 else
                 {
-                    u_z = std::max(0.01, uref);
+                    u_z = std::max(0.01, p.uref);
                 }
             }
 

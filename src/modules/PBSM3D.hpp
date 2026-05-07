@@ -304,11 +304,15 @@
  * @}
  */
 
+struct iterHelpers;
 struct Present;
 class PBSM3D : public module_base
 {
     REGISTER_MODULE_HPP(PBSM3D);
-
+    struct suspensionParams;
+    suspensionParams get_suspension_params(mesh_elem face);
+    double do_topo_v1(mesh_elem face, suspensionParams p);
+    void do_topo_v2(iterHelpers helpers, mesh_elem face, suspensionParams p);
     void setup_suspension_sys(mesh& domain);
     bool do_suspension_solve(mesh& domain);
     void setup_deposition_sys(mesh& domain);
@@ -345,9 +349,13 @@ class PBSM3D : public module_base
     bool use_PomLi_probability; // Use areal Pomeroy Li 2000 probability function.
     bool use_exp_fetch;         // Enable the exp Liston 2006 fetch
     bool use_tanh_fetch;        // Enable the tanh Pomeroy and Male 1986 fetch
-
-    bool use_subgrid_topo;    // Enable effect of subgrid topography on snow transport
-    bool use_subgrid_topo_V2; // Enable effect of subgrid topography on snow transport
+    enum class Subgrid
+    {
+        DoNotUse,
+        V1,
+        V2,
+    };
+    Subgrid subgrid_topo = Subgrid::DoNotUse;    // Enable effect of subgrid topography on snow transport
 
     bool iterative_subl; // if True, enables the iterative sublimation calculation as per Pomeroy and Li 2000
     bool use_R94_lambda; // use the ﻿Raupach 1990 lambda expression using LAI/2 instead of pomeroy stalk density
