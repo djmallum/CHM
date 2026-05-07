@@ -927,8 +927,6 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
 
         auto p = get_suspension_params(face);
 
-        double frac_contrib_nosnw =
-            1.; // Default value for the fraction of the grid contributing to snow transport
         double min_sd_trans_avg = min_sd_trans; // Grid-averaged value for the topographic subgrid holding capacity
 
         if (debug_output)
