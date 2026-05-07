@@ -305,12 +305,12 @@
  */
 
 struct iterHelpers;
+struct suspensionParams;
 struct VegParams;
 struct Present;
 class PBSM3D : public module_base
 {
     REGISTER_MODULE_HPP(PBSM3D);
-    struct suspensionParams;
     suspensionParams get_suspension_params(mesh_elem face);
     double do_topo_v1(mesh_elem face, suspensionParams p);
     void do_topo_v2(iterHelpers helpers, mesh_elem face, suspensionParams p);

@@ -409,7 +409,7 @@ struct iterHelpers
     double rho_p = PhysConst::rho_ice;
     static bool tol(double a, double b)  { return fabs(a - b) < 1e-8; } ;
 };
-struct PBSM3D::suspensionParams
+struct suspensionParams
 {
     double fetch = 1000.0;
     double uref = 0.0;
@@ -417,7 +417,7 @@ struct PBSM3D::suspensionParams
     double u2 = 0.0;
     double u10 = 0.0;
 };
-PBSM3D::suspensionParams PBSM3D::get_suspension_params(mesh_elem face)
+suspensionParams PBSM3D::get_suspension_params(mesh_elem face)
 {
     suspensionParams p;
     if (use_exp_fetch || use_tanh_fetch)
@@ -442,7 +442,7 @@ PBSM3D::suspensionParams PBSM3D::get_suspension_params(mesh_elem face)
     }
     return p;
 }
-double PBSM3D::do_topo_v1(mesh_elem face, PBSM3D::suspensionParams p)
+double PBSM3D::do_topo_v1(mesh_elem face, suspensionParams p)
 {
     double frac_contrib = 1.0;
     double frac_contrib_nosnw = 1.0;
@@ -486,7 +486,7 @@ double PBSM3D::do_topo_v1(mesh_elem face, PBSM3D::suspensionParams p)
     (*face)["hold_topo"_s] = min_sd_trans_avg;
     return frac_contrib;
 }
-double PBSM3D::do_topo_v2(iterHelpers helpers, mesh_elem face, PBSM3D::suspensionParams p)
+double PBSM3D::do_topo_v2(iterHelpers helpers, mesh_elem face, suspensionParams p)
 {
     auto& d = face->get_module_data<data>(ID);
     double min_sd_trans_avg = min_sd_trans;
