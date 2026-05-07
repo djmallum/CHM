@@ -613,6 +613,17 @@ void PBSM3D::doubleCheckVegParam(mesh_elem face,VegParams vp) const
     if (debug_output)
         (*face)["z0"_s] = vp.z0;
 }
+
+template<size_t N>
+static std::array<double,N> get_outward_normal_component(arma::vec (&m)[N], arma::vec uvw)
+{
+    std::array<double,N> udotm = {};
+    for (int j = 0; j < N; ++j)
+    {
+        udotm[j] = arma::dot(uvw, m[j]);
+    }
+    return udotm;
+}
 void PBSM3D::setup_suspension_sys(mesh& domain)
 {
     // Helpers for the u* iterative solver
@@ -1227,16 +1238,13 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 (*face)["u_z" + std::to_string(z)] = u_z;
 
             // negate as direction it's blowing instead of where it is from!!
-            Vector_3 v3(-uvw(0), -uvw(1), uvw(2));
             if (debug_output)
-                face->set_face_vector("uvw" + std::to_string(z), v3);
-
-            // holds wind velocity dot face normal
-            double udotm[5];
-            for (int j = 0; j < 5; ++j)
             {
-                udotm[j] = arma::dot(uvw, m[j]);
+                Vector_3 v3(-uvw(0), -uvw(1), uvw(2));
+                face->set_face_vector("uvw" + std::to_string(z), v3);
             }
+
+            auto udotm = get_outward_normal_component(m, uvw);
             // lateral
             int idx = sizes.global * z + face->cell_global_id;
 
