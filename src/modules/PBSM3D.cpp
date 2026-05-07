@@ -952,8 +952,6 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
         double es = Atmosphere::saturatedVapourPressure(t);
         double ea = rh * es / 1000.; // ea needs to be in kpa
 
-        double v = 1.88e-5; // kinematic viscosity of air, below eqn 13 in Pomeroy 1993
-
         // iterate over the vertical layers
         for (int z = 0; z < sizes.vert_layers; ++z)
         {
