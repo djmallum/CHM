@@ -119,5 +119,18 @@ namespace math
             void writeSystemMatrixMarket(std::string file_prefix);
             void writeSolutionMatrixMarket(std::string file_prefix);
         };
+
+        template< typename T >
+        concept MPI_AWARE_SOLVER = requires( T& t )
+        {
+            { t.getSolutionView() } -> std::same_as<ArrayRCP<const double>>;
+            { t.getRhsMax() } -> std::same_as<double>;
+            { t.getSolutionMax() } -> std::same_as<double>;
+            { t.Solve() } -> std::same_as<SolveConverge>;
+            { t.rhsSumIntoGlobalValue() } -> std::same_as<void>;
+            { t.matrixSumIntoGlobalValue() } -> std::same_as<void>;
+            { t.matrixReplaceGlobalValue() } -> std::same_as<void>;
+            { t.ZeroSystem() } -> std::same_as<void>;
+        };
     }
 }
