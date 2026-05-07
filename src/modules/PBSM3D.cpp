@@ -624,6 +624,292 @@ static std::array<double,N> get_outward_normal_component(arma::vec (&m)[N], arma
     }
     return udotm;
 }
+struct surfaceParams
+{
+    double u_star_saltation_threshold;
+    double hs;
+    double c_salt;
+    double t;
+    double rh;
+    double es;
+    double ea;
+
+    explicit surfaceParams(const iterHelpers helpers, mesh_elem face, const suspensionParams p, const VegParams vp);
+};
+
+surfaceParams::surfaceParams(const iterHelpers helpers, mesh_elem face, const suspensionParams p,const VegParams vp)
+{
+    PBSM3D::data& d = face->get_module_data<PBSM3D::data>(ID);
+
+    double min_sd_trans_avg;
+    double swe;
+    double height_diff;
+    double frac_contrib;
+    // This is the lamdba from Li and Pomeroy eqn 4 that is used to include
+    // exposed vegetation w/ the z0 estimate
+    double lambda = 0;
+
+    d.saltation = false; // default case
+
+    // threshold friction velocity. Compute here as it's used below as well
+    // Pomeroy and Li, 2000
+    // Eqn 7
+    double T = (*face)["t"_s];
+    u_star_saltation_threshold = 0.35 + (1.0 / 150.0) * T + (1.0 / 8200.0) * T * T;
+    if (debug_output)
+        (*face)["u*_th"_s] = u_star_saltation_threshold;
+
+    // we don't have too high of veg. Check for blowing snow
+    if (height_diff <= cutoff && p.snow_depth >= min_sd_trans_avg && !is_water(face))
+    {
+
+        // lambda -> 0 when height_diff ->, such as full or no veg
+        if (use_R94_lambda)
+            // LAI/2.0 suggestion from Raupach 1994 (DOI:10.1007/BF00709229)
+            // Section 3(a)
+            lambda = 0.5 * d.LAI * height_diff;
+        else
+            lambda = d.N * d.dv * height_diff; // Pomeroy formulation
+
+        if (debug_output)
+            (*face)["lambda"_s] = lambda;
+
+        if (z0_ustar_coupling)
+        {
+            // Calculate the new value of z0 to take into account partially filled
+            // vegetation and the momentum sink
+            auto ustarFn = [&](double ustar) -> double
+            {
+                // Li and Pomeroy 2000, eqn 5.
+                // This formulation has the following coeffs built in
+                // c_2 = 1.6;
+                // c_3 = 0.07519;
+                // c_4 = 0.5;
+                // g   = 9.81;
+
+                return p.u2 * PhysConst::kappa / log(2.0 / (0.6131702345e-2 * ustar * ustar + .5 * lambda)) - ustar;
+            };
+            try
+            {
+                auto r = boost::math::tools::bracket_and_solve_root(ustarFn, 1.0, 1.0, false, iterHelpers::tol,
+                                                                    helpers.max_iter);
+                veg_params.ustar = r.first + (r.second - r.first) / 2.0;
+            }
+            catch (...)
+            {
+                // Didn't converge
+                d.saltation = false;
+            }
+        }
+        else
+        {
+            // follow PBSM (Pom & Li 2000; Alpine3D) and don't calculate the feedback of z0 on u*
+            veg_params.ustar = p.u2 * PhysConst::kappa / log(2.0 / 0.0002);
+        }
+
+        if (veg_params.ustar >= u_star_saltation_threshold)
+        {
+            d.saltation = true;
+
+            if (z0_ustar_coupling)
+            {
+                // Update z0 for blowing snow conditions
+                // Li and Pomeroy 2000, eqn 5.
+                // This formulation has the following coeffs built in
+                // c_2 = 1.6;
+                // c_3 = 0.07519;
+                // c_4 = 0.5;
+                // g   = 9.81;
+                veg_params.z0 =
+                    0.6131702345e-2 * veg_params.ustar * veg_params.ustar + .5 * lambda; // pom and li 2000, eqn 4
+            }
+            else
+            {
+                veg_params.z0 = Snow::Z0_SNOW;
+            }
+        }
+    }
+
+    if (!d.saltation)
+    {
+        // we still need a u* for spatial K estimation later
+        veg_params.z0 = Snow::Z0_SNOW;
+        veg_params.ustar = std::max(0.01, PhysConst::kappa * p.uref / log(Atmosphere::Z_U_R / veg_params.z0));
+    }
+
+    doubleCheckVegParam(face, veg_params);
+
+    hs = 0;
+    if (d.saltation)
+        hs = 0.08436 * pow(veg_params.ustar, 1.27); // pomeroy
+
+    d.hs = hs;
+    if (debug_output)
+        (*face)["hs"_s] = hs;
+    if (debug_output)
+        (*face)["is_drifting"_s] = 0;
+    if (debug_output)
+        (*face)["Qsusp_pbsm"_s] = 0; // for santiy checks against pbsm
+
+    double Qsalt = 0;
+    c_salt = 0;
+    t = (*face)["t"_s] + 273.15;
+
+    // Check if we can blow snow in this triagnle
+    // Are we above saltation threshold?
+    // Do we have enough mass in this triangle?
+    // Has saltation been disabled because there is too much veg?
+    if (d.saltation)
+    {
+
+        double rho_f = mio::Atmosphere::stdDryAirDensity(face->get_z(),
+                                                         t); // air density kg/m^3, comment in mio is wrong.1.225;
+
+        if (debug_output)
+            (*face)["blowingsnow_probability"_s] = 0; // default to 0%
+
+        if (debug_output)
+        {
+            double pbsm_qsusp = pow(p.u10, 4.13) / 674100.0;
+            (*face)["Qsusp_pbsm"_s] = pbsm_qsusp;
+        }
+
+        if (debug_output)
+            (*face)["is_drifting"_s] = 1;
+
+        // Pomeroy and Li 2000, eqn 8
+        double Beta = 202.0; // 170.0;
+        double m = 0.16;
+
+        // tau_n_ratio = ustar_n^2 / ustar^2 from MacDonald 2009 eq 3;
+        // we need (ustar_n / ustar)^2 which the original derivation gives
+        // so this is is correctly squared
+        double tau_n_ratio = (m * Beta * lambda) / (1.0 + m * Beta * lambda);
+
+        if (debug_output)
+            (*face)["tau_n_ratio"_s] = tau_n_ratio;
+
+        // Pomeroy 1992, eqn 12, see note above for ustar_n calc, but ustar_n
+        // is correctly squared already
+        c_salt = rho_f / (3.29 * veg_params.ustar) *
+                 (1.0 - tau_n_ratio -
+                  (u_star_saltation_threshold * u_star_saltation_threshold) / (veg_params.ustar * veg_params.ustar));
+
+        // occasionally happens to happen at low wind speeds where the
+        // parameterization breaks.
+        if (c_salt < 0 || std::isnan(c_salt))
+        {
+            c_salt = 0;
+            d.saltation = false;
+        }
+
+        if (debug_output)
+            (*face)["c_salt_fetch_big"_s] = c_salt;
+
+        // exp decay of Liston, eq 10
+        // 95% of max saltation occurs at fetch = 500m
+        // Liston, G., & Sturm, M. (1998). A snow-transport model for complex
+        // terrain. Journal of Glaciology.
+        if (use_exp_fetch && p.fetch < 500)
+        {
+            double fetch_ref = 500;
+            double mu = 3.0;
+            c_salt *= 1.0 - exp(-mu * p.fetch / fetch_ref);
+        }
+        else if (use_tanh_fetch && p.fetch <= 300.) // use Pomeroy & Male 1986 tanh fetch
+        {
+            double fetch_ref = 300;
+            double Lc = 0.5 * tanh(0.1333333333e-1 * fetch_ref - 2.0) + 0.5;
+
+            c_salt *= Lc;
+        }
+
+        // consider the temporal non-steady effects
+        if (use_PomLi_probability) // Pomeroy and Li 2000 upscaled
+                                   // probability
+        {
+            //    1.Essery, R., Li, L. & Pomeroy, J. A distributed model of blowing snow over complex terrain.
+            //    Hydrological Processes 13, 2423–2438 (1999).
+            // Probability of blowing snow
+            double A = (*face)["p_snow_hours"_s];                              // hours since last snowfall
+            double u_mean = 11.2 + 0.365 * T + 0.00706 * T * T + 0.9 * log(A); // eqn 10  T -> air temp, degC
+            double delta = 0.145 * T + 0.00196 * T * T + 4.3;                  // eqn 11
+
+            double z0v = (d.N * d.dv * height_diff) / 2.0; // eqn 14
+            double us = p.u10 / sqrt((1 + 340.0 * z0v));   // eqn 13
+
+            double Pu10 = 1.0 / (1.0 + exp((sqrt(M_PI) * (u_mean - us)) / delta)); // eqn 12
+            (*face)["blowingsnow_probability"_s] = Pu10;
+
+            // decrease the saltation by the probability amount
+            c_salt *= Pu10;
+        }
+
+        // consider subgrid topographic effect
+        if (subgrid_topo != Subgrid::DoNotUse)
+        {
+            c_salt *= frac_contrib;
+        }
+
+        // wind speed in the saltation layer Pomeroy and Gray 1990
+        double uhs = 2.8 * u_star_saltation_threshold; // eqn 7
+
+        // kg/(m*s)
+        Qsalt = c_salt * uhs * hs; // integrate over the depth of the saltation layer, kg/(m*s)
+
+        double mass = 0;
+        double phi = (*face)["vw_dir"_s];
+        Vector_2 v = -math::gis::bearing_to_cartesian(phi);
+
+        // setup wind vector
+        arma::vec uvw(3);
+        uvw(0) = v.x(); // U_x
+        uvw(1) = v.y(); // U_y
+        uvw(2) = 0;
+        double V = face->get_area();
+        double udotm[3] = {0, 0, 0};
+        double E[3] = {0, 0, 0};
+
+        // compute a divergence mass flux of saltation assuming our neighbors are 0 flux
+        // however, we can't compute it w/ an upwind scheme like we do for the true solution later
+        // as we don't know the neighbors values (might not have been computed yet). So this is just an
+        for (int j = 0; j < 3; ++j)
+        {
+            udotm[j] = arma::dot(uvw, d.m[j]);
+            E[j] = face->edge_length(j);
+            mass += -E[j] * Qsalt * udotm[j];
+        }
+
+        mass = mass / V * global_param->dt();
+
+        if (debug_output)
+        {
+            (*face)["csalt_orig"_s] = c_salt;
+            (*face)["mass_qsalt"_s] = mass;
+        }
+
+        if (mass < 0 && std::fabs(mass) > swe)
+        {
+            c_salt = 0;
+            //-swe*V/(hs*uhs*(E[0]*udotm[0]+E[1]*udotm[1]+E[2]*udotm[2])*global_param->dt());
+            // kg/(m*s)
+            Qsalt = c_salt * uhs * hs; // integrate over the depth of the saltation layer, kg/(m*s)
+
+            if (debug_output)
+                (*face)["csalt_reset"_s] = c_salt;
+        }
+    }
+
+    if (debug_output)
+        (*face)["csalt"_s] = c_salt;
+
+    (*face)["Qsalt"_s] = Qsalt;
+
+    rh = (*face)["rh"_s] / 100.;
+    es = Atmosphere::saturatedVapourPressure(t);
+    ea = rh * es / 1000.;
+    return T;
+}
 void PBSM3D::setup_suspension_sys(mesh& domain)
 {
     // Helpers for the u* iterative solver
@@ -699,275 +985,14 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
         // against the blowing snow u* threshold 3) If blowing snow isn't
         // happening, recalculate u* using the normal z0.
         VegParams veg_params;
-        // This is the lamdba from Li and Pomeroy eqn 4 that is used to include
-        // exposed vegetation w/ the z0 estimate
-        double lambda = 0;
 
-        d.saltation = false; // default case
-
-        // threshold friction velocity. Compute here as it's used below as well
-        // Pomeroy and Li, 2000
-        // Eqn 7
-        double T = (*face)["t"_s];
-        double u_star_saltation_threshold =
-            0.35 + (1.0 / 150.0) * T + (1.0 / 8200.0) * T * T; // saltation threshold m/s
-        if (debug_output)
-            (*face)["u*_th"_s] = u_star_saltation_threshold;
-
-        // we don't have too high of veg. Check for blowing snow
-        if (height_diff <= cutoff && p.snow_depth >= min_sd_trans_avg && !is_water(face))
-        {
-
-            // lambda -> 0 when height_diff ->, such as full or no veg
-            if (use_R94_lambda)
-                // LAI/2.0 suggestion from Raupach 1994 (DOI:10.1007/BF00709229)
-                // Section 3(a)
-                lambda = 0.5 * d.LAI * height_diff;
-            else
-                lambda = d.N * d.dv * height_diff; // Pomeroy formulation
-
-            if (debug_output)
-                (*face)["lambda"_s] = lambda;
-
-            if (z0_ustar_coupling)
-            {
-                // Calculate the new value of z0 to take into account partially filled
-                // vegetation and the momentum sink
-                auto ustarFn = [&](double ustar) -> double
-                {
-                    // Li and Pomeroy 2000, eqn 5.
-                    // This formulation has the following coeffs built in
-                    // c_2 = 1.6;
-                    // c_3 = 0.07519;
-                    // c_4 = 0.5;
-                    // g   = 9.81;
-
-                    return p.u2 * PhysConst::kappa / log(2.0 / (0.6131702345e-2 * ustar * ustar + .5 * lambda)) - ustar;
-                };
-                try
-                {
-                    auto r = boost::math::tools::bracket_and_solve_root(ustarFn, 1.0, 1.0, false, iterHelpers::tol,
-                                                                        helpers.max_iter);
-                    veg_params.ustar = r.first + (r.second - r.first) / 2.0;
-                }
-                catch (...)
-                {
-                    // Didn't converge
-                    d.saltation = false;
-                }
-            }
-            else
-            {
-                // follow PBSM (Pom & Li 2000; Alpine3D) and don't calculate the feedback of z0 on u*
-                veg_params.ustar = p.u2 * PhysConst::kappa / log(2.0 / 0.0002);
-            }
-
-            if (veg_params.ustar >= u_star_saltation_threshold)
-            {
-                d.saltation = true;
-
-                if (z0_ustar_coupling)
-                {
-                    // Update z0 for blowing snow conditions
-                    // Li and Pomeroy 2000, eqn 5.
-                    // This formulation has the following coeffs built in
-                    // c_2 = 1.6;
-                    // c_3 = 0.07519;
-                    // c_4 = 0.5;
-                    // g   = 9.81;
-                    veg_params.z0 = 0.6131702345e-2 * veg_params.ustar * veg_params.ustar + .5 * lambda; // pom and li 2000, eqn 4
-                }
-                else
-                {
-                    veg_params.z0 = Snow::Z0_SNOW;
-                }
-            }
-        }
-
-        if (!d.saltation)
-        {
-            // we still need a u* for spatial K estimation later
-            veg_params.z0 = Snow::Z0_SNOW;
-            veg_params.ustar = std::max(0.01, PhysConst::kappa * p.uref / log(Atmosphere::Z_U_R / veg_params.z0));
-        }
-
-        doubleCheckVegParam(face, veg_params);
-
-        // depth of saltation layer
-        double hs = 0;
-        if (d.saltation)
-            hs = 0.08436 * pow(veg_params.ustar, 1.27); // pomeroy
-
-        d.hs = hs;
-        if (debug_output)
-            (*face)["hs"_s] = hs;
-        if (debug_output)
-            (*face)["is_drifting"_s] = 0;
-        if (debug_output)
-            (*face)["Qsusp_pbsm"_s] = 0; // for santiy checks against pbsm
-
-        double Qsalt = 0;
-        double c_salt = 0;
-        double t = (*face)["t"_s] + 273.15;
-
-        // Check if we can blow snow in this triagnle
-        // Are we above saltation threshold?
-        // Do we have enough mass in this triangle?
-        // Has saltation been disabled because there is too much veg?
-        if (d.saltation)
-        {
-
-            double rho_f = mio::Atmosphere::stdDryAirDensity(face->get_z(),
-                                                             t); // air density kg/m^3, comment in mio is wrong.1.225;
-
-            if (debug_output)
-                (*face)["blowingsnow_probability"_s] = 0; // default to 0%
-
-            if (debug_output)
-            {
-                double pbsm_qsusp = pow(p.u10, 4.13) / 674100.0;
-                (*face)["Qsusp_pbsm"_s] = pbsm_qsusp;
-            }
-
-            if (debug_output)
-                (*face)["is_drifting"_s] = 1;
-
-            // Pomeroy and Li 2000, eqn 8
-            double Beta = 202.0; // 170.0;
-            double m = 0.16;
-
-            // tau_n_ratio = ustar_n^2 / ustar^2 from MacDonald 2009 eq 3;
-            // we need (ustar_n / ustar)^2 which the original derivation gives
-            // so this is is correctly squared
-            double tau_n_ratio = (m * Beta * lambda) / (1.0 + m * Beta * lambda);
-
-            if (debug_output)
-                (*face)["tau_n_ratio"_s] = tau_n_ratio;
-
-            // Pomeroy 1992, eqn 12, see note above for ustar_n calc, but ustar_n
-            // is correctly squared already
-            c_salt = rho_f / (3.29 * veg_params.ustar) *
-                     (1.0 - tau_n_ratio - (u_star_saltation_threshold * u_star_saltation_threshold) / (veg_params.ustar * veg_params.ustar));
-
-            // occasionally happens to happen at low wind speeds where the
-            // parameterization breaks.
-            if (c_salt < 0 || std::isnan(c_salt))
-            {
-                c_salt = 0;
-                d.saltation = false;
-            }
-
-            if (debug_output)
-                (*face)["c_salt_fetch_big"_s] = c_salt;
-
-            // exp decay of Liston, eq 10
-            // 95% of max saltation occurs at fetch = 500m
-            // Liston, G., & Sturm, M. (1998). A snow-transport model for complex
-            // terrain. Journal of Glaciology.
-            if (use_exp_fetch && p.fetch < 500)
-            {
-                double fetch_ref = 500;
-                double mu = 3.0;
-                c_salt *= 1.0 - exp(-mu * p.fetch / fetch_ref);
-            }
-            else if (use_tanh_fetch && p.fetch <= 300.) // use Pomeroy & Male 1986 tanh fetch
-            {
-                double fetch_ref = 300;
-                double Lc = 0.5 * tanh(0.1333333333e-1 * fetch_ref - 2.0) + 0.5;
-
-                c_salt *= Lc;
-            }
-
-            // consider the temporal non-steady effects
-            if (use_PomLi_probability) // Pomeroy and Li 2000 upscaled
-                                       // probability
-            {
-                //    1.Essery, R., Li, L. & Pomeroy, J. A distributed model of blowing snow over complex terrain.
-                //    Hydrological Processes 13, 2423–2438 (1999).
-                // Probability of blowing snow
-                double A = (*face)["p_snow_hours"_s];                              // hours since last snowfall
-                double u_mean = 11.2 + 0.365 * T + 0.00706 * T * T + 0.9 * log(A); // eqn 10  T -> air temp, degC
-                double delta = 0.145 * T + 0.00196 * T * T + 4.3;                  // eqn 11
-
-                double z0v = (d.N * d.dv * height_diff) / 2.0; // eqn 14
-                double us = p.u10 / sqrt((1 + 340.0 * z0v));     // eqn 13
-
-                double Pu10 = 1.0 / (1.0 + exp((sqrt(M_PI) * (u_mean - us)) / delta)); // eqn 12
-                (*face)["blowingsnow_probability"_s] = Pu10;
-
-                // decrease the saltation by the probability amount
-                c_salt *= Pu10;
-            }
-
-            // consider subgrid topographic effect
-            if (subgrid_topo != Subgrid::DoNotUse)
-            {
-                c_salt *= frac_contrib;
-            }
-
-            // wind speed in the saltation layer Pomeroy and Gray 1990
-            double uhs = 2.8 * u_star_saltation_threshold; // eqn 7
-
-            // kg/(m*s)
-            Qsalt = c_salt * uhs * hs; // integrate over the depth of the saltation layer, kg/(m*s)
-
-            double mass = 0;
-            double phi = (*face)["vw_dir"_s];
-            Vector_2 v = -math::gis::bearing_to_cartesian(phi);
-
-            // setup wind vector
-            arma::vec uvw(3);
-            uvw(0) = v.x(); // U_x
-            uvw(1) = v.y(); // U_y
-            uvw(2) = 0;
-            double V = face->get_area();
-            double udotm[3] = {0, 0, 0};
-            double E[3] = {0, 0, 0};
-
-            // compute a divergence mass flux of saltation assuming our neighbors are 0 flux
-            // however, we can't compute it w/ an upwind scheme like we do for the true solution later
-            // as we don't know the neighbors values (might not have been computed yet). So this is just an
-            for (int j = 0; j < 3; ++j)
-            {
-                udotm[j] = arma::dot(uvw, d.m[j]);
-                E[j] = face->edge_length(j);
-                mass += -E[j] * Qsalt * udotm[j];
-            }
-
-            mass = mass / V * global_param->dt();
-
-            if (debug_output)
-            {
-                (*face)["csalt_orig"_s] = c_salt;
-                (*face)["mass_qsalt"_s] = mass;
-            }
-
-            if (mass < 0 && std::fabs(mass) > swe)
-            {
-                c_salt = 0;
-                //-swe*V/(hs*uhs*(E[0]*udotm[0]+E[1]*udotm[1]+E[2]*udotm[2])*global_param->dt());
-                // kg/(m*s)
-                Qsalt = c_salt * uhs * hs; // integrate over the depth of the saltation layer, kg/(m*s)
-
-                if (debug_output)
-                    (*face)["csalt_reset"_s] = c_salt;
-            }
-        }
-
-        if (debug_output)
-            (*face)["csalt"_s] = c_salt;
-
-        (*face)["Qsalt"_s] = Qsalt;
-
-        double rh = (*face)["rh"_s] / 100.;
-        double es = Atmosphere::saturatedVapourPressure(t);
-        double ea = rh * es / 1000.; // ea needs to be in kpa
+        surfaceParams surf_param{helpers, face, p,veg_params};
 
         // iterate over the vertical layers
         for (int z = 0; z < sizes.vert_layers; ++z)
         {
             // height in the suspension layer, floats above the snow surface
-            double cz = z * v_edge_height + hs + v_edge_height / 2.; // cell center height
+            double cz = z * v_edge_height + surf_param.hs + v_edge_height / 2.; // cell center height
 
             // compute new U_z at this height in the suspension layer
             double u_z = 0;
@@ -984,7 +1009,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 // use the saltation vel
 
                 // wind speed in the saltation layer Pomeroy and Gray 1990
-                u_z = 2.8 * u_star_saltation_threshold; // eqn 7
+                u_z = 2.8 * surf_param.u_star_saltation_threshold; // eqn 7
             }
             else if (cz < height_diff)
             {
@@ -1074,12 +1099,12 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             // define above, T is in C, t is in K
 
             // (A.6)
-            double D = 2.06e-5 * pow(t / 273.15,
+            double D = 2.06e-5 * pow(surf_param.t / 273.15,
                                      1.75); // diffusivity of water vapour in air, t in K,
             // eqn A-7 in Liston 1998 or Harder 2013 A.6
 
             // (A.9)
-            double lambda_t = 0.000063 * t + 0.00673; //  thermal conductivity, user Harder 2013 A.9, Pomeroy's
+            double lambda_t = 0.000063 * surf_param.t + 0.00673; //  thermal conductivity, user Harder 2013 A.9, Pomeroy's
             //  is off by an order of magnitude, this matches this
             //  https://www.engineeringtoolbox.com/air-properties-d_156.html
 
@@ -1100,13 +1125,13 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 double mw = 0.01801528 * 1000.0; //[kg/mol]  ---> g/mol
                 double R = 8.31441 / 1000.0;     // [J mol-1 K-1]
 
-                double rho = (mw * ea) / (R * t);
+                double rho = (mw * surf_param.ea) / (R * surf_param.t);
 
                 // use Harder 2013 (A.5) Formulation, but Pa formulation for e
                 auto fx = [=](double Ti)
                 {
                     return boost::math::make_tuple(
-                        T +
+                        surf_param.T +
                             D * L *
                                 (rho / (1000.0) -
                                  .611 * mw * exp(17.3 * Ti / (237.3 + Ti)) / (R * (Ti + 273.15) * (1000.0))) /
@@ -1129,7 +1154,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 double Ts = Ti + 273.15; // dmdtz expects in K
 
                 // now use equation 13 with our solved Ts to compute dm/dt(z)
-                dmdtz = 2.0 * M_PI * rm * lambda_t / L * Nu * (Ts - (t + 273.15)); // eqn 13 in Pomeroy and Li 2000
+                dmdtz = 2.0 * M_PI * rm * lambda_t / L * Nu * (Ts - (surf_param.t + 273.15)); // eqn 13 in Pomeroy and Li 2000
             }
             else // Use PBSM. Eqn 11 Pomeroy, Gray, Ladine, 1993  "﻿The
                  // prairie blowing snow model: characteristics, validation,
@@ -1138,9 +1163,9 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 double M = 18.01; // molecular weight of water kg kmol-1
                 double R = 8313;  // universal fas constant J mol-1 K-1
 
-                double sigma = (rh - 1.0) * (1.019 + 0.027 * log(cz)); // undersaturation, Pomeroy and Li 2000, eqn 14
+                double sigma = (surf_param.rh - 1.0) * (1.019 + 0.027 * log(cz)); // undersaturation, Pomeroy and Li 2000, eqn 14
 
-                double rho = (M * es) / (R * t); // saturation vapour density at t
+                double rho = (M * surf_param.es) / (R * surf_param.t); // saturation vapour density at t
                 // radiative energy absorebed by the particle -- take from CRHM's
                 // PBSM implimentation
                 double Qr = 0.9 * M_PI * rm * rm * 120.0; // 120.0 = PBSM_constants::Qstar (Solar Radiation
@@ -1151,8 +1176,8 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
 
                 // eqn 11 in PGL 1993, r_z is used here as in PG95 and Liston ans Sturm (1998)
                 dmdtz = Sh * rho * D *
-                        (6.283185308 * Nu * R * r_z * sigma * t * t * lambda_t - L * M * Qr + Qr * R * t) /
-                        (D * L * Sh * (L * M - R * t) * rho + lambda_t * t * t * Nu * R);
+                        (6.283185308 * Nu * R * r_z * sigma * surf_param.t * surf_param.t * lambda_t - L * M * Qr + Qr * R * surf_param.t) /
+                        (D * L * Sh * (L * M - R * surf_param.t) * rho + lambda_t * surf_param.t * surf_param.t * Nu * R);
             }
             if (debug_output)
                 (*face)["dm/dt"_s] = dmdtz;
