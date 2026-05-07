@@ -599,7 +599,12 @@ double PBSM3D::do_topo_v2(iterHelpers helpers, mesh_elem face, PBSM3D::suspensio
     (*face)["hold_topo"_s] = min_sd_trans_avg;
     return frac_contrib;
 }
-void PBSM3D::doubleCheckVegParam(mesh_elem face,VegParam vp) const
+struct VegParams
+{
+    double z0 = 0.0;
+    double ustar = 1.3;
+}
+void PBSM3D::doubleCheckVegParam(mesh_elem face,VegParams vp) const
 {
     vp.z0 = std::max(Snow::Z0_SNOW, vp.z0);
     vp.ustar = std::max(0.01, vp.ustar);
