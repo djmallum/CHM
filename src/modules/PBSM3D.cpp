@@ -603,7 +603,7 @@ struct VegParams
 {
     double z0 = 0.0;
     double ustar = 1.3;
-}
+};
 void PBSM3D::doubleCheckVegParam(mesh_elem face,VegParams vp) const
 {
     vp.z0 = std::max(Snow::Z0_SNOW, vp.z0);
@@ -612,11 +612,6 @@ void PBSM3D::doubleCheckVegParam(mesh_elem face,VegParams vp) const
         (*face)["ustar"_s] = vp.ustar;
     if (debug_output)
         (*face)["z0"_s] = vp.z0;
-}
-struct VegParams
-{
-    double z0 = 0.0;
-    double ustar = 1.3;
 }
 void PBSM3D::setup_suspension_sys(mesh& domain)
 {
