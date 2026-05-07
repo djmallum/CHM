@@ -486,7 +486,7 @@ double PBSM3D::do_topo_v1(mesh_elem face, PBSM3D::suspensionParams p)
     (*face)["hold_topo"_s] = min_sd_trans_avg;
     return frac_contrib;
 }
-void PBSM3D::do_topo_v2(iterHelpers helpers, mesh_elem face, PBSM3D::suspensionParams p)
+double PBSM3D::do_topo_v2(iterHelpers helpers, mesh_elem face, PBSM3D::suspensionParams p)
 {
     auto& d = face->get_module_data<data>(ID);
     double min_sd_trans_avg = min_sd_trans;
@@ -597,6 +597,7 @@ void PBSM3D::do_topo_v2(iterHelpers helpers, mesh_elem face, PBSM3D::suspensionP
     (*face)["tpi_lim"_s] = tpi_lim;
     (*face)["frac_contrib"_s] = frac_contrib;
     (*face)["hold_topo"_s] = min_sd_trans_avg;
+    return frac_contrib;
 }
 void PBSM3D::doubleCheckVegParam(mesh_elem face,VegParam vp) const
 {
@@ -670,7 +671,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
 
             // Areas with negative TPI are assumed to be filled when SD = fac_fill * TPI.
 
-            do_topo_v2(helpers, face, p);
+            frac_contrib = do_topo_v2(helpers, face, p);
             //func here
             break;
         }
@@ -888,7 +889,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             }
 
             // consider subgrid topographic effect
-            if (use_subgrid_topo || use_subgrid_topo_V2)
+            if (subgrid_topo != Subgrid::DoNotUse)
             {
                 c_salt *= frac_contrib;
             }
