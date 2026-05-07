@@ -686,7 +686,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
         // 2) Calculate a u* that uses the blowing snow z0. Then test this
         // against the blowing snow u* threshold 3) If blowing snow isn't
         // happening, recalculate u* using the normal z0.
-
+        VegParams veg_params;
         // This is the lamdba from Li and Pomeroy eqn 4 that is used to include
         // exposed vegetation w/ the z0 estimate
         double lambda = 0;
@@ -736,7 +736,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 {
                     auto r = boost::math::tools::bracket_and_solve_root(ustarFn, 1.0, 1.0, false, iterHelpers::tol,
                                                                         helpers.max_iter);
-                    ustar = r.first + (r.second - r.first) / 2.0;
+                    veg_params.ustar = r.first + (r.second - r.first) / 2.0;
                 }
                 catch (...)
                 {
@@ -747,10 +747,10 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             else
             {
                 // follow PBSM (Pom & Li 2000; Alpine3D) and don't calculate the feedback of z0 on u*
-                ustar = u2 * PhysConst::kappa / log(2.0 / 0.0002);
+                veg_params.ustar = p.u2 * PhysConst::kappa / log(2.0 / 0.0002);
             }
 
-            if (ustar >= u_star_saltation_threshold)
+            if (veg_params.ustar >= u_star_saltation_threshold)
             {
                 d.saltation = true;
 
@@ -763,11 +763,11 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                     // c_3 = 0.07519;
                     // c_4 = 0.5;
                     // g   = 9.81;
-                    d.z0 = 0.6131702345e-2 * ustar * ustar + .5 * lambda; // pom and li 2000, eqn 4
+                    veg_params.z0 = 0.6131702345e-2 * veg_params.ustar * veg_params.ustar + .5 * lambda; // pom and li 2000, eqn 4
                 }
                 else
                 {
-                    d.z0 = Snow::Z0_SNOW;
+                    veg_params.z0 = Snow::Z0_SNOW;
                 }
             }
         }
@@ -775,22 +775,16 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
         if (!d.saltation)
         {
             // we still need a u* for spatial K estimation later
-            d.z0 = Snow::Z0_SNOW;
-            ustar = std::max(0.01, PhysConst::kappa * uref / log(Atmosphere::Z_U_R / d.z0));
+            veg_params.z0 = Snow::Z0_SNOW;
+            veg_params.ustar = std::max(0.01, PhysConst::kappa * p.uref / log(Atmosphere::Z_U_R / veg_params.z0));
         }
 
-        // sanity checks
-        d.z0 = std::max(Snow::Z0_SNOW, d.z0);
-        ustar = std::max(0.01, ustar);
-        if (debug_output)
-            (*face)["ustar"_s] = ustar;
-        if (debug_output)
-            (*face)["z0"_s] = d.z0;
+        doubleCheckVegParam(face, veg_params);
 
         // depth of saltation layer
         double hs = 0;
         if (d.saltation)
-            hs = 0.08436 * pow(ustar, 1.27); // pomeroy
+            hs = 0.08436 * pow(veg_params.ustar, 1.27); // pomeroy
 
         d.hs = hs;
         if (debug_output)
@@ -840,8 +834,8 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
 
             // Pomeroy 1992, eqn 12, see note above for ustar_n calc, but ustar_n
             // is correctly squared already
-            c_salt = rho_f / (3.29 * ustar) *
-                     (1.0 - tau_n_ratio - (u_star_saltation_threshold * u_star_saltation_threshold) / (ustar * ustar));
+            c_salt = rho_f / (3.29 * veg_params.ustar) *
+                     (1.0 - tau_n_ratio - (u_star_saltation_threshold * u_star_saltation_threshold) / (veg_params.ustar * veg_params.ustar));
 
             // occasionally happens to happen at low wind speeds where the
             // parameterization breaks.
@@ -993,8 +987,8 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 //                std::max(0.01,face->veg_attribute("LAI"));
                 //                //bring wind down to canopy top
                 //                double u_cantop = std::max(0.01,
-                //                Atmosphere::Z_U_R, d.CanopyHeight, 0 , d.z0));
                 //                Atmosphere::log_scale_wind(suspension_params.uref,
+                //                Atmosphere::Z_U_R, d.CanopyHeight, 0 , veg_params.z0));
                 //
                 //                u_z = Atmosphere::exp_scale_wind(u_cantop,
                 //                d.CanopyHeight, cz, LAI);
@@ -1003,7 +997,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             {
                 if (hz < Atmosphere::Z_U_R)
                 {
-                    u_z = std::max(0.01, Atmosphere::log_scale_wind(p.uref, Atmosphere::Z_U_R, hz, p.snow_depth, d.z0));
+                    u_z = std::max(0.01, Atmosphere::log_scale_wind(p.uref, Atmosphere::Z_U_R, hz, p.snow_depth, veg_params.z0));
                 }
                 else
                 {
@@ -1181,7 +1175,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 }
             }
             // Li and Pomeroy 2000
-            double l = PhysConst::kappa * (cz + d.z0) * l__max / (PhysConst::kappa * (cz + d.z0) + l__max);
+            double l = PhysConst::kappa * (cz + veg_params.z0) * l__max / (PhysConst::kappa * (cz + veg_params.z0) + l__max);
             if (debug_output)
                 (*face)["l"_s] = l;
 
@@ -1195,7 +1189,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             if (rouault_diffusion_coeff)
             {
                 double c2 = 1.0;
-                double dc = 1.0 / (1.0 + (c2 * w * w) / (1.56 * ustar * ustar));
+                double dc = 1.0 / (1.0 + (c2 * w * w) / (1.56 * veg_params.ustar * veg_params.ustar));
                 diffusion_coeff = dc; // nope, snow_diffusion_const is shared, use a new
             }
             if (debug_output)
@@ -1205,7 +1199,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             // seems to over predict transports.
             // with pomeroy fall velocity, 0.3 gives good agreement w/ published
             // Qsusp values. Low value compensates for low fall velocity
-            K[3] = K[4] = diffusion_coeff * ustar * l;
+            K[3] = K[4] = diffusion_coeff * veg_params.ustar * l;
 
             if (debug_output)
                 (*face)["K" + std::to_string(z)] = K[3];

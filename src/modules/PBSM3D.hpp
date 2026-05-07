@@ -305,6 +305,7 @@
  */
 
 struct iterHelpers;
+struct VegParams;
 struct Present;
 class PBSM3D : public module_base
 {
@@ -313,6 +314,7 @@ class PBSM3D : public module_base
     suspensionParams get_suspension_params(mesh_elem face);
     double do_topo_v1(mesh_elem face, suspensionParams p);
     void do_topo_v2(iterHelpers helpers, mesh_elem face, suspensionParams p);
+    void doubleCheckVegParam(mesh_elem face, VegParams vp) const;
     void setup_suspension_sys(mesh& domain);
     bool do_suspension_solve(mesh& domain);
     void setup_deposition_sys(mesh& domain);
@@ -409,8 +411,6 @@ class PBSM3D : public module_base
 
         // used to flag the large vegetation areas or other via landcover types to not do any saltation at this point.
         bool saltation;
-
-        double z0;
 
         double sum_drift;
         double sum_subl;
