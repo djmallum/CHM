@@ -637,7 +637,7 @@ void surfaceParams::sanity_check(mesh_elem face,const bool debug_output)
         (*face)["z0"_s] = z0;
 }
 
-surfaceParams PBSM3D::set_surfaceParams(const iterHelpers helpers, mesh_elem face, const suspensionParams p)
+surfaceParams PBSM3D::set_surfaceParams(const iterHelpers helpers, mesh_elem face, const suspensionParams p, const double frac_contrib)
 {
     // The strategy here is as follows:
     // 0) If the exposed vegetation is above $cutoff, inhibit saltation and
@@ -654,14 +654,16 @@ surfaceParams PBSM3D::set_surfaceParams(const iterHelpers helpers, mesh_elem fac
 
     surfaceParams sp{};
     double min_sd_trans_avg = min_sd_trans;
-    double swe;
+    double swe = (*face)["swe"_s];
+    swe = is_nan(swe) ? 0 : swe;   // handle the first timestep where swe won't have been
+    // updated if we override the module order
+
     // height difference between snowcover and veg
     sp.height_diff = std::max(0.0, d.CanopyHeight - p.snow_depth);
     if (!enable_veg)
         sp.height_diff = 0;
     if (debug_output)
         (*face)["height_diff"_s] = sp.height_diff;
-    double frac_contrib;
     // This is the lamdba from Li and Pomeroy eqn 4 that is used to include
     // exposed vegetation w/ the z0 estimate
     double lambda = 0;
@@ -950,8 +952,8 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
         if (debug_output)
             (*face)["U_10m"_s] = p.u10;
 
-        double swe = (*face)["swe"_s]; // mm   -->    kg/m^2
-        swe = is_nan(swe) ? 0 : swe;   // handle the first timestep where swe won't have been
+        //double swe = (*face)["swe"_s]; // mm   -->    kg/m^2
+        //swe = is_nan(swe) ? 0 : swe;   // handle the first timestep where swe won't have been
         // updated if we override the module order
 
 
@@ -983,7 +985,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             break;
         }
 
-        auto surf_param = set_surfaceParams(helpers, face, p,veg_params);
+        auto surf_param = set_surfaceParams(helpers, face, p, frac_contrib);
 
         // iterate over the vertical layers
         for (int z = 0; z < sizes.vert_layers; ++z)

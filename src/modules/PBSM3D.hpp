@@ -314,7 +314,7 @@ class PBSM3D : public module_base
     suspensionParams get_suspension_params(mesh_elem face);
     double do_topo_v1(mesh_elem face, suspensionParams p);
     double do_topo_v2(iterHelpers helpers, mesh_elem face, suspensionParams p);
-    surfaceParams set_surfaceParams(const iterHelpers helpers, mesh_elem face, const suspensionParams p);
+    surfaceParams set_surfaceParams(const iterHelpers helpers, mesh_elem face, const suspensionParams p, double frac_contrib);
     void setup_suspension_sys(mesh& domain);
     bool do_suspension_solve(mesh& domain);
     void setup_deposition_sys(mesh& domain);
