@@ -321,7 +321,8 @@ class PBSM3D : public module_base
     void setup_deposition_sys(mesh& domain);
     void do_deposition_solve(mesh& domain, Present);
     void comm_to_ghosts(mesh& domain);
-    void lateral_neighbours(math::LinearAlgebra::NearestNeighborProblem& NNP,const suspensionData& sd);
+    static void lateral_neighbours(math::LinearAlgebra::NearestNeighborProblem& NNP,const suspensionData& sd);
+    static void vertical_neighbours(math::LinearAlgebra::NearestNeighborProblem& NNP, surfaceParams& surf_param, const suspensionData& sd);
 
   public:
     PBSM3D(config_file cfg);
