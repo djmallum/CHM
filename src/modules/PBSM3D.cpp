@@ -824,7 +824,7 @@ surfaceParams PBSM3D::set_surfaceParams(const iterHelpers helpers, mesh_elem fac
         }
 
         if (debug_output)
-            (*face)["c_salt_fetch_big"_s] = c_salt;
+            (*face)["c_salt_fetch_big"_s] = sp.c_salt;
 
         // exp decay of Liston, eq 10
         // 95% of max saltation occurs at fetch = 500m
@@ -1031,7 +1031,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             {
                 if (hz < Atmosphere::Z_U_R)
                 {
-                    u_z = std::max(0.01, Atmosphere::log_scale_wind(p.uref, Atmosphere::Z_U_R, hz, p.snow_depth, veg_params.z0));
+                    u_z = std::max(0.01, Atmosphere::log_scale_wind(p.uref, Atmosphere::Z_U_R, hz, p.snow_depth, surf_param.z0));
                 }
                 else
                 {
@@ -1144,7 +1144,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                             1);
                 };
 
-                double guess = T;
+                double guess = surf_param.T;
                 double min = -100;
                 double max = 50;
                 int digits = 6;
@@ -1209,7 +1209,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
                 }
             }
             // Li and Pomeroy 2000
-            double l = PhysConst::kappa * (cz + veg_params.z0) * l__max / (PhysConst::kappa * (cz + veg_params.z0) + l__max);
+            double l = PhysConst::kappa * (cz + surf_param.z0) * l__max / (PhysConst::kappa * (cz + surf_param.z0) + l__max);
             if (debug_output)
                 (*face)["l"_s] = l;
 
@@ -1223,7 +1223,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             if (rouault_diffusion_coeff)
             {
                 double c2 = 1.0;
-                double dc = 1.0 / (1.0 + (c2 * w * w) / (1.56 * veg_params.ustar * veg_params.ustar));
+                double dc = 1.0 / (1.0 + (c2 * w * w) / (1.56 * surf_param.ustar * surf_param.ustar));
                 diffusion_coeff = dc; // nope, snow_diffusion_const is shared, use a new
             }
             if (debug_output)
@@ -1233,7 +1233,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             // seems to over predict transports.
             // with pomeroy fall velocity, 0.3 gives good agreement w/ published
             // Qsusp values. Low value compensates for low fall velocity
-            K[3] = K[4] = diffusion_coeff * veg_params.ustar * l;
+            K[3] = K[4] = diffusion_coeff * surf_param.ustar * l;
 
             if (debug_output)
                 (*face)["K" + std::to_string(z)] = K[3];
