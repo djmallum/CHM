@@ -600,15 +600,6 @@ double PBSM3D::do_topo_v2(iterHelpers helpers, mesh_elem face, suspensionParams 
     return frac_contrib;
 }
 
-void surfaceParams::sanity_check(mesh_elem face,const bool debug_output) const
-{
-    z0 = std::max(Snow::Z0_SNOW, z0);
-    ustar = std::max(0.01, ustar);
-    if (debug_output)
-        (*face)["ustar"_s] = ustar;
-    if (debug_output)
-        (*face)["z0"_s] = z0;
-}
 
 template<size_t N>
 static std::array<double,N> get_outward_normal_component(arma::vec (&m)[N], arma::vec uvw)
@@ -634,8 +625,17 @@ struct surfaceParams
     double z0 = 0.0;
     double ustar = 1.3;
 
-    void sanity_check(mesh_elem face, bool debug_output) const;
+    void sanity_check(mesh_elem face, bool debug_output);
 };
+void surfaceParams::sanity_check(mesh_elem face,const bool debug_output)
+{
+    z0 = std::max(Snow::Z0_SNOW, z0);
+    ustar = std::max(0.01, ustar);
+    if (debug_output)
+        (*face)["ustar"_s] = ustar;
+    if (debug_output)
+        (*face)["z0"_s] = z0;
+}
 
 surfaceParams PBSM3D::set_surfaceParams(const iterHelpers helpers, mesh_elem face, const suspensionParams p)
 {
@@ -755,7 +755,7 @@ surfaceParams PBSM3D::set_surfaceParams(const iterHelpers helpers, mesh_elem fac
         sp.ustar = std::max(0.01, PhysConst::kappa * p.uref / log(Atmosphere::Z_U_R / sp.z0));
     }
 
-    sp.sanity_check(face);
+    sp.sanity_check(face,debug_output);
 
     sp.hs = 0;
     if (d.saltation)
