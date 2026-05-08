@@ -308,6 +308,7 @@ struct iterHelpers;
 struct suspensionParams;
 struct surfaceParams;
 struct Present;
+struct suspensionData;
 class PBSM3D : public module_base
 {
     REGISTER_MODULE_HPP(PBSM3D);
@@ -320,6 +321,7 @@ class PBSM3D : public module_base
     void setup_deposition_sys(mesh& domain);
     void do_deposition_solve(mesh& domain, Present);
     void comm_to_ghosts(mesh& domain);
+    void lateral_neighbours(math::LinearAlgebra::NearestNeighborProblem& NNP,const suspensionData& sd);
 
   public:
     PBSM3D(config_file cfg);
