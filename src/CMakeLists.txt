@@ -207,7 +207,8 @@ message("-- Final compile: ${CHM_BUILD_FLAGS}")
 
 add_library(CHMmath OBJECT
   math/LinearAlgebra.cpp
-  )
+		math/StencilAssembly.hpp
+)
 
 target_link_libraries(CHMmath
   ${EXT_TARGETS}
