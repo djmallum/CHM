@@ -23,6 +23,8 @@
 
 #include "PBSM3D.hpp"
 
+#include "StencilAssembly.hpp"
+
 REGISTER_MODULE_CPP(PBSM3D);
 
 struct my_fill_topo_params
@@ -930,11 +932,27 @@ surfaceParams PBSM3D::set_surfaceParams(const iterHelpers helpers, mesh_elem fac
     sp.ea = sp.rh * sp.es / 1000.;
     return sp;
 }
+
+math::LinearAlgebra::VertLayer get_layer_category(const size_t z_idx,const size_t top_idx)
+{
+    using namespace math::LinearAlgebra;
+    if (z_idx == 0)
+    {
+        return VertLayer::Bottom;
+    }
+    else if (z_idx == top_idx)
+    {
+        return VertLayer::Top;
+    }
+    else
+        return VertLayer::Middle;
+};
 #define SUSP_WARN "Return value must be used"
 struct suspensionData
 {
     mesh_elem face;
     const PBSM3D::data& d;
+    const math::LinearAlgebra::Sizes& sizes;
     const surfaceParams& surf_param;
     size_t z{};
     double csubl{};
@@ -947,9 +965,9 @@ struct suspensionData
     std::array<double,5> K{};
     std::array<double,5> alpha{};
     std::array<double,5> udotm{};
-    size_t idx{};
+    size_t _idx{};
+    size_t idx() const { return _idx;}
     double V{};
-    const math::LinearAlgebra::Sizes& sizes;
 
     [[nodiscard(SUSP_WARN)]]
     double diagonal(int f) const
@@ -964,7 +982,7 @@ struct suspensionData
     }
 
     [[nodiscard(SUSP_WARN)]]
-    double boundary(int f) const
+    double boundary_diagonal(int f) const
     {
         return -0.1e-1 * alpha[f] - .99 * d.A[f] * udotm[f] + csubl * V;
     }
@@ -976,13 +994,84 @@ struct suspensionData
     }
 
     [[nodiscard(SUSP_WARN)]]
+    bool has_neighbour(int f) const
+    {
+        return d.face_neigh[f];
+    };
+
+    [[nodiscard(SUSP_WARN)]]
     double edge_height() const
     {
         return _edge_height;
     };
 
+    [[nodiscard(SUSP_WARN)]]
+    bool donor_on_diag(int f) const
+    {
+        return udotm[f] > 0;
+    };
+
+    [[nodiscard(SUSP_WARN)]]
+    double donor_term(int f) const
+    {
+        return - d.A[f] * udotm[f];
+    };
+
+    [[nodiscard(SUSP_WARN)]]
+    math::LinearAlgebra::VertLayer layer() const
+    {
+        return get_layer_category(z,sizes.vert_layers - 1);
+    };
+
+    [[nodiscard(SUSP_WARN)]]
+    static constexpr int top_face()
+    {
+        return 3;
+    };
+
+    [[nodiscard(SUSP_WARN)]]
+    static constexpr int bottom_face()
+    {
+        return 4;
+    };
+
+    double alpha_bottom(const size_t face_idx) const
+    {
+        double alpha_special = -d.A[face_idx] * K[face_idx] / (surf_param.hs / 2.0 + _edge_height / 2.0);
+        return alpha_special;
+    };
+
+    [[nodiscard(SUSP_WARN)]]
+    double bottom_boundary_diagonal() const
+    {
+        constexpr size_t face_idx = bottom_face();
+
+        double alpha_special = alpha_bottom(face_idx);
+
+        return V * csubl - d.A[face_idx] * udotm[face_idx] - alpha_special;
+    };
+
+    [[nodiscard(SUSP_WARN)]]
+    double bottom_boundary_rhs() const
+    {
+        return -alpha_bottom(bottom_face()) * surf_param.c_salt;
+    };
+
+    [[nodiscard(SUSP_WARN)]]
+    double top_boundary_rhs_in() const
+    {
+        return 0.0;
+    };
+
+    [[nodiscard(SUSP_WARN)]]
+    double top_boundary_rhs_out() const
+    {
+        return 0.0;
+    };
+
     suspensionData(mesh_elem& face, const PBSM3D::data& d, const math::LinearAlgebra::Sizes& s, const surfaceParams& sp) : face(face), d(d), sizes(s), surf_param(sp) {};
 };
+static_assert(math::LinearAlgebra::DonorScheme<suspensionData>, "Should satisfy DonorScheme<T>");
 
 // Step 1 of the refactoring is to put everything in member functions,
 // using structs to clean up parameters.
@@ -990,311 +1079,307 @@ struct suspensionData
 // Step 2 is to extract functions into free functions in math namespace using concepts
 // to enforce member functions so that this can work with generic code.
 
-void PBSM3D::lateral_neighbours(math::LinearAlgebra::NearestNeighborProblem& NNP,const suspensionData& sd)
-{
-    for (int f = 0; f < 3; f++)
-    {
-        if (sd.udotm[f] > 0)
-        {
-
-            if (sd.d.face_neigh[f])
-            {
-                // int nidx = sd.sizes.global * sd.z + face->neighbor(f)->cell_global_id;
-
-                // Diagonal value
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(f) - sd.d.A[f] * sd.udotm[f]);
-                // Off diagonal value
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(f), sd.off_diagonal(f));
-            }
-            else // missing neighbor case
-            {
-                // no mass in
-                //                            elements[ idx_idx_off ] += V*csubl-d.A[f]*udotm[f]-alpha[f];
-
-                // allow mass into the domain from ghost cell
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.boundary(f));
-            }
-        }
-        else
-        {
-            if (sd.d.face_neigh[f])
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(f));
-                // Off diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(f), -sd.d.A[f] * sd.udotm[f] + sd.off_diagonal(f));
-            }
-            else
-            {
-                // No mass in
-                //                            elements[ idx_idx_off ] +=  V*csubl-alpha[f];
-
-                // allow mass in
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.boundary(f));
-            }
-        }
-    }
-}
-enum class VertLayer
-{
-    Bottom,
-    Middle,
-    Top
-};
-
-VertLayer get_layer_category(const size_t z_idx,const size_t top_idx)
-{
-    if (z_idx == 0)
-    {
-        return VertLayer::Bottom;
-    }
-    else if (z_idx == top_idx)
-    {
-        return VertLayer::Top;
-    }
-    else
-        return VertLayer::Middle;
-};
-double suspensionData::vertical_boundary_diagonal() const
-{
-    constexpr size_t face_idx = 4;
-
-    double alpha = - d.A[face_idx] * K[face_idx] / (surf_param.hs / 2.0 + _edge_height / 2.0);
-
-    return V * csubl - d.A[face_idx] * udotm[face_idx] - alpha;
-}
-void PBSM3D::vertical_neighbours(math::LinearAlgebra::NearestNeighborProblem& NNP, const suspensionData& sd)
-{
-    const size_t top_layer = sd.sizes.vert_layers - 1;
-    const auto& surf_param = sd.surf_param;
-
-    switch (VertLayer layer = get_layer_category(sd.z, top_layer))
-    {
-        case VertLayer::Bottom:
-        {
-            double alpha4 = sd.d.A[4] * sd.K[4] / (surf_param.hs / 2.0 + sd.edge_height() / 2.0);
-
-            // bottom face, only turbulent diffusion
-            //              elements[idx_idx_off] += V * csubl - alpha4;
-
-            // includes advection term
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx,sd.vertical_boundary_diagonal());
-            // RHS
-            // TODO generalize this and extract to be done later
-            double val = -alpha4 * surf_param.c_salt;
-            NNP.rhsSumIntoGlobalValue(sd.idx, val);
-
-            if (sd.udotm[3] > 0)
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - d.A[3] * sd.udotm[3]);
-                // Off diagonal
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), sd.off_diagonal(3));
-            }
-            else
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
-                // Off diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3),
-                                                          -sd.d.A[3] * sd.udotm[3] + sd.off_diagonal(3));
-            }
-            break;
-        }
-        case VertLayer::Top:
-        {
-            //(kg/m^2/s)/(m/s)  ---->  kg/m^3
-            double cprecip = 0; //(*face)["p_snow"_s]/global_param->dt()/w;
-
-            // (*face)["p_snow"_s]=0;
-            // (*face)["p"_s]=0;
-
-            if (sd.udotm[3] > 0)
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - sd.d.A[3] * sd.udotm[3]);
-                // RHS
-                const double val = -sd.alpha[3] * cprecip;
-                NNP.rhsSumIntoGlobalValue(sd.idx, val);
-            }
-            else
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
-                // RHS
-                double val = sd.d.A[3] * cprecip * sd.udotm[3] - sd.alpha[3] * cprecip;
-                NNP.rhsSumIntoGlobalValue(sd.idx, val);
-            }
-
-            // sizes.local * (z - 1) + face->cell_local_id
-            if (sd.udotm[4] > 0)
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4) - sd.d.A[4] * sd.udotm[4]);
-
-                // Off diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4), sd.off_diagonal(4));
-            }
-            else
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(s.idx, s.idx, sd.diagonal(4));
-                // Off diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4),
-                                                          -sd.d.A[4] * sd.udotm[4] + sd.off_diagonal(4));
-            }
-            break;
-        }
-        case VertLayer::Middle:
-        {
-            if (sd.udotm[3] > 0)
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - sd.d.A[3] * sd.udotm[3]);
-                // Off diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), sd.off_diagonal(3));
-            }
-            else
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
-                // Off diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), -sd.d.A[3] * sd.udotm[3] + sd.diagonal(3));
-            }
-
-            // sizes.local * (z + 1) + face->cell_local_id (looking down)
-            if (sd.udotm[4] > 0)
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4) - sd.d.A[4] * sd.udotm[4]);
-                // Off diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4), sd.off_diagonal(4));
-            }
-            else
-            {
-                // Diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4));
-                // Off diagonal entry
-                NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4),
-                                                          -sd.d.A[4] * sd.udotm[4] + sd.off_diagonal(4));
-            }
-            break;
-        }
-    }
-
-
-
-
-    }
-    if (sd.z == 0)
-    {
-        double alpha4 = sd.d.A[4] * sd.K[4] / (surf_param.hs / 2.0 + v_edge_height / 2.0);
-
-        // bottom face, only turbulent diffusion
-        //              elements[idx_idx_off] += V * csubl - alpha4;
-
-        // includes advection term
-        NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx,
-                                                  sd.V * sd.csubl - sd.d.A[4] * sd.udotm[4] - alpha4);
-        // RHS
-        double val = -alpha4 * surf_param.c_salt;
-        NNP.rhsSumIntoGlobalValue(sd.idx, val);
-
-        if (sd.udotm[3] > 0)
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - d.A[3] * sd.udotm[3]);
-            // Off diagonal
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), sd.off_diagonal(3));
-        }
-        else
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
-            // Off diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3),
-                                                      -sd.d.A[3] * sd.udotm[3] + sd.off_diagonal(3));
-        }
-    }
-    else if (sd.z == sizes.vert_layers - 1) // top z layer
-    {
-        //(kg/m^2/s)/(m/s)  ---->  kg/m^3
-        double cprecip = 0; //(*face)["p_snow"_s]/global_param->dt()/w;
-
-        // (*face)["p_snow"_s]=0;
-        // (*face)["p"_s]=0;
-
-        if (sd.udotm[3] > 0)
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - sd.d.A[3] * sd.udotm[3]);
-            // RHS
-            const double val = -sd.alpha[3] * cprecip;
-            NNP.rhsSumIntoGlobalValue(sd.idx, val);
-        }
-        else
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
-            // RHS
-            double val = sd.d.A[3] * cprecip * sd.udotm[3] - sd.alpha[3] * cprecip;
-            NNP.rhsSumIntoGlobalValue(sd.idx, val);
-        }
-
-        // sizes.local * (z - 1) + face->cell_local_id
-        if (sd.udotm[4] > 0)
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4) - sd.d.A[4] * sd.udotm[4]);
-
-            // Off diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4), sd.off_diagonal(4));
-        }
-        else
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(s.idx, s.idx, sd.diagonal(4));
-            // Off diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4),
-                                                      -sd.d.A[4] * sd.udotm[4] + sd.off_diagonal(4));
-        }
-    }
-    else // middle layers
-    {
-        // sizes.local * (z + 1) + face->cell_local_id (looking up)
-        if (sd.udotm[3] > 0)
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - sd.d.A[3] * sd.udotm[3]);
-            // Off diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), sd.off_diagonal(3));
-        }
-        else
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
-            // Off diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), -sd.d.A[3] * sd.udotm[3] + sd.diagonal(3));
-        }
-
-        // sizes.local * (z + 1) + face->cell_local_id (looking down)
-        if (sd.udotm[4] > 0)
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4) - sd.d.A[4] * sd.udotm[4]);
-            // Off diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4), sd.off_diagonal(4));
-        }
-        else
-        {
-            // Diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4));
-            // Off diagonal entry
-            NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4),
-                                                      -sd.d.A[4] * sd.udotm[4] + sd.off_diagonal(4));
-        }
-    }
-}
+// void PBSM3D::lateral_neighbours(math::LinearAlgebra::NearestNeighborProblem& NNP,const suspensionData& sd)
+// {
+//     if constexpr(DonorSchemeImpl<suspensionData>)
+//     {
+//         for (int f = 0; f < 3; f++)
+//         {
+//             if (sd.donor_on_diag()) // (sd.udotm[f] > 0)
+//             {
+//
+//                 if (sd.d.face_neigh[f])
+//                 {
+//                     // TODO check these cell_global_id calls or uses of neighbour_idx for id local_id or global_id is used!!
+//                     // int nidx = sd.sizes.global * sd.z + face->neighbor(f)->cell_global_id;
+//
+//                     // Diagonal value
+//                     if constexpr (DonorSchemeImpl<suspensionData>)
+//                         NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(f) - sd.d.A[f] * sd.udotm[f]);
+//
+//                     // Off diagonal value
+//                     NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(f), sd.off_diagonal(f));
+//                 }
+//                 else // missing neighbor case
+//                 {
+//                     // no mass in
+//                     //                            elements[ idx_idx_off ] += V*csubl-d.A[f]*udotm[f]-alpha[f];
+//
+//                     // allow mass into the domain from ghost cell
+//                     NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.boundary(f));
+//                 }
+//             }
+//             else
+//             {
+//                 if (sd.d.face_neigh[f])
+//                 {
+//                     // Diagonal entry
+//                     NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(f));
+//                     // Off diagonal entry
+//                     NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(f), -sd.d.A[f] * sd.udotm[f] + sd.off_diagonal(f));
+//                 }
+//                 else
+//                 {
+//                     // No mass in
+//                     //                            elements[ idx_idx_off ] +=  V*csubl-alpha[f];
+//
+//                     // allow mass in
+//                     NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.boundary(f));
+//                 }
+//             }
+//         }
+//     }
+// }
+// void PBSM3D::donor_scheme(math::LinearAlgebra::NearestNeighborProblem& NNP,const suspensionData& sd)
+// {
+//     if (sd.donor_condition() && sd.)
+//     {
+//
+//
+//     }
+// };
+// enum class VertLayer
+// {
+//     Bottom,
+//     Middle,
+//     Top
+// };
+//
+// double suspensionData::vertical_boundary_diagonal() const
+// {
+//     constexpr size_t face_idx = 4;
+//
+//     double alpha = - d.A[face_idx] * K[face_idx] / (surf_param.hs / 2.0 + _edge_height / 2.0);
+//
+//     return V * csubl - d.A[face_idx] * udotm[face_idx] - alpha;
+// }
+// void PBSM3D::vertical_neighbours(math::LinearAlgebra::NearestNeighborProblem& NNP, const suspensionData& sd)
+// {
+//     const size_t top_layer = sd.sizes.vert_layers - 1;
+//     const auto& surf_param = sd.surf_param;
+//
+//     switch (VertLayer layer = get_layer_category(sd.z, top_layer))
+//     {
+//         case VertLayer::Bottom:
+//         {
+//             double alpha4 = sd.d.A[4] * sd.K[4] / (surf_param.hs / 2.0 + sd.edge_height() / 2.0);
+//
+//             // bottom face, only turbulent diffusion
+//             //              elements[idx_idx_off] += V * csubl - alpha4;
+//
+//             // includes advection term
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx,sd.vertical_boundary_diagonal());
+//             // RHS
+//             // TODO generalize this and extract to be done later
+//             double val = -alpha4 * surf_param.c_salt;
+//             NNP.rhsSumIntoGlobalValue(sd.idx, val);
+//
+//             if (sd.udotm[3] > 0)
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - d.A[3] * sd.udotm[3]);
+//                 // Off diagonal
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), sd.off_diagonal(3));
+//             }
+//             else
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
+//                 // Off diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3),
+//                                                           -sd.d.A[3] * sd.udotm[3] + sd.off_diagonal(3));
+//             }
+//             break;
+//         }
+//         case VertLayer::Top:
+//         {
+//             //(kg/m^2/s)/(m/s)  ---->  kg/m^3
+//             double cprecip = 0; //(*face)["p_snow"_s]/global_param->dt()/w;
+//
+//             // (*face)["p_snow"_s]=0;
+//             // (*face)["p"_s]=0;
+//
+//             if (sd.udotm[3] > 0)
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - sd.d.A[3] * sd.udotm[3]);
+//                 // RHS
+//                 const double val = -sd.alpha[3] * cprecip;
+//                 NNP.rhsSumIntoGlobalValue(sd.idx, val);
+//             }
+//             else
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
+//                 // RHS
+//                 double val = sd.d.A[3] * cprecip * sd.udotm[3] - sd.alpha[3] * cprecip;
+//                 NNP.rhsSumIntoGlobalValue(sd.idx, val);
+//             }
+//
+//             if (sd.udotm[4] > 0)
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4) - sd.d.A[4] * sd.udotm[4]);
+//
+//                 // Off diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4), sd.off_diagonal(4));
+//             }
+//             else
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(s.idx, s.idx, sd.diagonal(4));
+//                 // Off diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4),
+//                                                           -sd.d.A[4] * sd.udotm[4] + sd.off_diagonal(4));
+//             }
+//             break;
+//         }
+//         case VertLayer::Middle:
+//         {
+//             if (sd.udotm[3] > 0)
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - sd.d.A[3] * sd.udotm[3]);
+//                 // Off diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), sd.off_diagonal(3));
+//             }
+//             else
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
+//                 // Off diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), -sd.d.A[3] * sd.udotm[3] + sd.diagonal(3));
+//             }
+//
+//             if (sd.udotm[4] > 0)
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4) - sd.d.A[4] * sd.udotm[4]);
+//                 // Off diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4), sd.off_diagonal(4));
+//             }
+//             else
+//             {
+//                 // Diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4));
+//                 // Off diagonal entry
+//                 NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4),
+//                                                           -sd.d.A[4] * sd.udotm[4] + sd.off_diagonal(4));
+//             }
+//             break;
+//         }
+//     }
+//
+//
+//
+//
+//     }
+//     if (sd.z == 0)
+//     {
+//         double alpha4 = sd.d.A[4] * sd.K[4] / (surf_param.hs / 2.0 + v_edge_height / 2.0);
+//
+//         // bottom face, only turbulent diffusion
+//         //              elements[idx_idx_off] += V * csubl - alpha4;
+//
+//         // includes advection term
+//         NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx,
+//                                                   sd.V * sd.csubl - sd.d.A[4] * sd.udotm[4] - alpha4);
+//         // RHS
+//         double val = -alpha4 * surf_param.c_salt;
+//         NNP.rhsSumIntoGlobalValue(sd.idx, val);
+//
+//         if (sd.udotm[3] > 0)
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - d.A[3] * sd.udotm[3]);
+//             // Off diagonal
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), sd.off_diagonal(3));
+//         }
+//         else
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
+//             // Off diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3),
+//                                                       -sd.d.A[3] * sd.udotm[3] + sd.off_diagonal(3));
+//         }
+//     }
+//     else if (sd.z == sizes.vert_layers - 1) // top z layer
+//     {
+//         //(kg/m^2/s)/(m/s)  ---->  kg/m^3
+//         double cprecip = 0; //(*face)["p_snow"_s]/global_param->dt()/w;
+//
+//         // (*face)["p_snow"_s]=0;
+//         // (*face)["p"_s]=0;
+//
+//         if (sd.udotm[3] > 0)
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - sd.d.A[3] * sd.udotm[3]);
+//             // RHS
+//             const double val = -sd.alpha[3] * cprecip;
+//             NNP.rhsSumIntoGlobalValue(sd.idx, val);
+//         }
+//         else
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
+//             // RHS
+//             double val = sd.d.A[3] * cprecip * sd.udotm[3] - sd.alpha[3] * cprecip;
+//             NNP.rhsSumIntoGlobalValue(sd.idx, val);
+//         }
+//
+//         if (sd.udotm[4] > 0)
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4) - sd.d.A[4] * sd.udotm[4]);
+//
+//             // Off diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4), sd.off_diagonal(4));
+//         }
+//         else
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(s.idx, s.idx, sd.diagonal(4));
+//             // Off diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4),
+//                                                       -sd.d.A[4] * sd.udotm[4] + sd.off_diagonal(4));
+//         }
+//     }
+//     else // middle layers
+//     {
+//         if (sd.udotm[3] > 0)
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3) - sd.d.A[3] * sd.udotm[3]);
+//             // Off diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), sd.off_diagonal(3));
+//         }
+//         else
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(3));
+//             // Off diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(3), -sd.d.A[3] * sd.udotm[3] + sd.diagonal(3));
+//         }
+//
+//         if (sd.udotm[4] > 0)
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4) - sd.d.A[4] * sd.udotm[4]);
+//             // Off diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4), sd.off_diagonal(4));
+//         }
+//         else
+//         {
+//             // Diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.idx, sd.diagonal(4));
+//             // Off diagonal entry
+//             NNP.matrixSumIntoGlobalValues(sd.idx, sd.neighbour_idx(4),
+//                                                       -sd.d.A[4] * sd.udotm[4] + sd.off_diagonal(4));
+//         }
+//     }
+// }
 void PBSM3D::setup_suspension_sys(mesh& domain)
 {
     // Helpers for the u* iterative solver
@@ -1552,7 +1637,7 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             suspensionData susp_data(face,d,sizes,surf_param);
             susp_data._edge_height = v_edge_height;
             susp_data.csubl = dmdtz / mm; // EQN 21 POMEROY 1993 (PBSM)
-
+            susp_data._idx = sizes.global * z + face->cell_global_id;
             // eddy diffusivity (m^2/s)
             // 0,1,2 will all be K = 0, as no horizontal diffusion process
             double K[5] = {0, 0, 0, 0, 0};
@@ -1632,7 +1717,6 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
 
             susp_data.udotm = get_outward_normal_component(m, uvw);
             // lateral
-            int idx = sizes.global * z + face->cell_global_id;
 
             // TODO move this to a separate step, like with donor scheme
             susp_data.V = face->get_area() * v_edge_height;
@@ -1649,10 +1733,11 @@ void PBSM3D::setup_suspension_sys(mesh& domain)
             d.csubl[z] = susp_data.csubl;
 
 
-            lateral_neighbours(*suspension_NNP, susp_data);
+            //lateral_neighbours(*suspension_NNP, susp_data);
+            math::LinearAlgebra::lateral_neighbours(*suspension_NNP,susp_data);
 
-            // vertical layers
-            vertical_neighbours(face, d, surf_param, z, susp_data, K, idx);
+            // vertical_neighbours(*suspension_NNP, susp_data);
+            math::LinearAlgebra::vertical_neighbours(*suspension_NNP, susp_data);
 
         } // end z iter
 
