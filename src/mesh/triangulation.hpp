@@ -255,7 +255,8 @@ public:
      * @param i
      * @return
      */
-    Point_2 edge_midpoint(int i);
+    template<typename T>
+    T edge_midpoint(int i);
 
     /**
      * Returns the verticies a and b that make up edge i
@@ -1476,12 +1477,25 @@ std::pair<Point_2,Point_2> face<Gt, Fb>::edge_vertexes(int i)
     auto b = this->vertex(_domain->cw(i))->point();
     return std::make_pair(a,b);
 };
+template<typename T>
+struct always_false : std::false_type {};
 template < class Gt, class Fb>
-Point_2 face<Gt, Fb>::edge_midpoint(int i)
+template<typename T = Point_2>
+T face<Gt, Fb>::edge_midpoint(int i)
 {
+    static_assert(!(std::same_as<T,Point_2> || std::same_as<T,Point_3>),
+        "Only Point_2 and Point_3 types are permitted as return types of this function");
+
     auto a = this->vertex(_domain->ccw(i))->point();
     auto b = this->vertex(_domain->cw(i))->point();
-    Point_2 midpoint( (a.x()+b.x())/2.0 , (a.y() + b.y()) / 2.0);
+    T midpoint;
+    midpoint.x() = (a.x + b.x())/2.0;
+    midpoint.y() = (a.y + b.y())/2.0;
+    if constexpr (std::same_as<T,Point_3>)
+    {
+        midpoint.z() = (a.z() + b.z())/2.0;
+    }
+
     return midpoint;
 };
 
