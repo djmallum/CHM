@@ -62,11 +62,13 @@ set(MODULE_SRCS
         modules/PBSM3D.cpp
 		modules/snobal.cpp
 		modules/fsm.cpp
+		modules/SoilMoistureMovement.hpp
 
 		modules/testing/mpi_example.cpp
 
 
-		CACHE INTERNAL "" FORCE )
+		CACHE INTERNAL "" FORCE
+    )
 
 
 set(CHM_SRCS
@@ -424,7 +426,7 @@ if (BUILD_TESTS)
 			#    test_daily.cpp
             tests/test_triangulation.cpp
 			tests/main.cpp
-    )
+	)
 
 	set(GTEST_LINK
 			GTest::gtest
