@@ -68,6 +68,7 @@ public:
     void run(mesh &domain) override;
     void init(mesh& domain) override;
 
+    static constexpr auto NUM_NEIGHBOURS = 5;
 private:
 
     class faceInterpolator
@@ -87,7 +88,6 @@ private:
         const double cell_centre_distance;
     };
 
-    static constexpr auto NUM_NEIGHBOURS = 5;
     class data : public face_info
     {
         const std::array<faceInterpolator,NUM_NEIGHBOURS> interpolator;

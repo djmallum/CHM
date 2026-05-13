@@ -180,17 +180,21 @@ bool SoilMoistureMovement::solverData::has_neighbour(int f) const { return d.has
 size_t SoilMoistureMovement::solverData::neighbour_idx(int f) const { return d.neighbour_idx(f); }
 double SoilMoistureMovement::solverData::diagonal(int f) const
 {
-    // TODO on diagonal elements
+    return 1.0 / NUM_NEIGHBOURS + d.alpha[f] / soil_moisture_capacity(f) * K_unsat(f); /* TODO everything about geometry or constant
+                                                                      *  in time goes in alpha, could make it a type
+                                                                      */
 }
 double SoilMoistureMovement::solverData::off_diagonal(int f) const
 {
+    return -\alpha[f] / soil_moisture_capacity(f) * K_unsat(f); // TODO see diagonal
     // TODO off diagonal contributions
 }
 double SoilMoistureMovement::solverData::boundary_diagonal(int f) const
 {
-    /* TODO what to put on the diagonal for faces without a neighbour at f
-     * Is this a boundary condition? Neumann?
-     */
+    return 1.0 / NUM_NEIGHBOURS; /*
+                                  * no flux, so contribution from psi[n+1] and psi_j[n+1] terms are zero
+                                  * Remaining contribution is from the psi[n+1] from the time derivative
+                                  */
 }
 math::LinearAlgebra::VertLayer SoilMoistureMovement::solverData::layer() const { return z_idx; }
 double SoilMoistureMovement::solverData::bottom_boundary_diagonal() const
