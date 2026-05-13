@@ -58,6 +58,14 @@ namespace math::LinearAlgebra
         { c.boundary_rhs(f) } -> std::convertible_to<double>;
     };
 
+    template <class C>
+    concept InHomogeneous = CellStencil<C> && requires (const C& c, int f)
+    {
+        { c.rhs(f) } -> std::convertible_to<double>;
+    };
+
+    template <class C>
+    concept Homogeneous = !InHomogeneous<C>;
 
     // OPTIONAL: Donor scheme for terms.
     //
@@ -136,6 +144,8 @@ namespace math::LinearAlgebra
             } else {
                 sys.matrixSumIntoGlobalValues(i, i, c.diagonal(f));
                 sys.matrixSumIntoGlobalValues(i, j, c.off_diagonal(f));
+                if constexpr (!Homogeneous<C>)
+                    sys.rhsSumIntoGlobalValue(i, c.rhs(f));
             }
         }
     }
