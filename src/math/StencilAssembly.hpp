@@ -38,8 +38,26 @@ namespace math::LinearAlgebra
         { c.neighbour_idx(f) }       -> std::convertible_to<std::size_t>;
         { c.diagonal(f) }            -> std::convertible_to<double>;
         { c.off_diagonal(f) }        -> std::convertible_to<double>;
+    };
+
+    template <class C>
+    concept BoundaryDiagonalSpecial = CellStencil<C> && requires (const C& c, int f)
+    {
         { c.boundary_diagonal(f) }   -> std::convertible_to<double>;
     };
+
+    template <class C>
+    concept BoundaryOffDiagonalSpecial = CellStencil<C> && requires (const C& c, int f)
+    {
+        { c.boundary_off_diagonal(f) } -> std::convertible_to<double>;
+    };
+
+    template <class C>
+    concept BoundaryRHSSpecial = CellStencil<C> && requires (const C& c, int f)
+    {
+        { c.boundary_rhs(f) } -> std::convertible_to<double>;
+    };
+
 
     // OPTIONAL: Donor scheme for terms.
     //
@@ -89,7 +107,18 @@ namespace math::LinearAlgebra
             const auto i = c.idx();
 
             if (!c.has_neighbour(f)) {
-                sys.matrixSumIntoGlobalValues(i, i, c.boundary_diagonal(f));
+                if constexpr (BoundaryDiagonalSpecial<C>)
+                    sys.matrixSumIntoGlobalValues(i, i, c.boundary_diagonal(f));
+
+                if constexpr (BoundaryOffDiagonalSpecial<C>)
+                {
+                    const auto j = c.neighbour_idx(f);
+                    sys.matrixSumIntoGlobalValues(i, j, c.boundary_off_diagonal(f));
+                }
+
+                if constexpr (BoundaryRHSSpecial<C>)
+                    sys.rhsSumIntoGlobalValue(i, c.boundary_rhs(f));
+
                 return;
             }
 
