@@ -60,16 +60,13 @@ namespace math::LinearAlgebra
 namespace math::optin {                                                              \
                                                                                      \
     template <class C>                                                               \
-    concept NAME##OptIn = requires { typename C::NAME##OptIn; };                     \
-                                                                                     \
-    template <class C>                                                               \
     concept NAME##OptOut = requires { typename C::NAME##OptOut; };                   \
                                                                                      \
     template <class C>                                                               \
     concept NAME##Member = requires MEMBER_CHECK;                                    \
                                                                                      \
     template <class C>                                                               \
-    concept NAME##ChoiceMade = NAME##OptIn<C> || NAME##OptOut<C>;                    \
+    concept NAME##ChoiceMade = NAME##Member<C> || NAME##OptOut<C>;                    \
                                                                                      \
 } /* namespace math::optin */
 
