@@ -70,32 +70,86 @@ namespace math::optin {                                                         
                                                                                      \
 } /* namespace math::optin */
 
-    template <class C>
-    concept BoundaryDiagonalSpecial = CellStencil<C> && requires (const C& c, int f)
-    {
-        { c.boundary_diagonal(f) }   -> std::convertible_to<double>;
-    };
+// boundary_diagonal(int) -> double
+DEFINE_OPTIONAL_FEATURE(BoundaryDiagonal,
+    (const C& c, int f) { { c.boundary_diagonal(f) } -> std::convertible_to<double>; })
+
+// boundary_off_diagonal(int) -> double
+DEFINE_OPTIONAL_FEATURE(BoundaryOffDiagonal,
+    (const C& c, int f) { { c.boundary_off_diagonal(f) } -> std::convertible_to<double>; })
+
+// boundary_rhs(int) -> double
+DEFINE_OPTIONAL_FEATURE(BoundaryRHS,
+    (const C& c, int f) { { c.boundary_rhs(f) } -> std::convertible_to<double>; })
+
+// rhs(int) -> double  (inhomogeneous RHS for interior faces)
+DEFINE_OPTIONAL_FEATURE(RHS,
+    (const C& c, int f) { { c.rhs(f) } -> std::convertible_to<double>; })
+
+DEFINE_OPTIONAL_FEATURE(DonorScheme,
+    (const C& c, int f) {
+    { c.donor_on_diag(f) } -> std::convertible_to<bool>;
+    { c.donor_term(f) }    -> std::convertible_to<double>;
+    }
+    )
+
+// Undefine helper macro to avoid leaking
+#undef DEFINE_OPTIONAL_FEATURE
+
+// -----------------------------------------------------------------------------
+// Re-exported convenience concepts for library users
+// -----------------------------------------------------------------------------
+namespace math::LinearAlgebra
+{
+    // Opt-in/out/member/choice concepts are available under math::optin namespace.
+    // For convenience, provide short aliases used in the assembler below.
 
     template <class C>
-    concept BoundaryOffDiagonalSpecial = CellStencil<C> && requires (const C& c, int f)
-    {
-        { c.boundary_off_diagonal(f) } -> std::convertible_to<double>;
-    };
+    concept BoundaryDiagonalOptOut = math::optin::BoundaryDiagonalOptOut<C>;
 
     template <class C>
-    concept BoundaryRHSSpecial = CellStencil<C> && requires (const C& c, int f)
-    {
-        { c.boundary_rhs(f) } -> std::convertible_to<double>;
-    };
+    concept BoundaryDiagonalMember = math::optin::BoundaryDiagonalMember<C>;
 
     template <class C>
-    concept InHomogeneous = CellStencil<C> && requires (const C& c, int f)
-    {
-        { c.rhs(f) } -> std::convertible_to<double>;
-    };
+    concept BoundaryDiagonalChoiceMade = math::optin::BoundaryDiagonalChoiceMade<C>;
 
     template <class C>
-    concept Homogeneous = !InHomogeneous<C>;
+    concept BoundaryOffDiagonalOptOut = math::optin::BoundaryOffDiagonalOptOut<C>;
+
+    template <class C>
+    concept BoundaryOffDiagonalMember = math::optin::BoundaryOffDiagonalMember<C>;
+
+    template <class C>
+    concept BoundaryOffDiagonalChoiceMade = math::optin::BoundaryOffDiagonalChoiceMade<C>;
+
+    template <class C>
+    concept BoundaryRHSOptOut = math::optin::BoundaryRHSOptOut<C>;
+
+    template <class C>
+    concept BoundaryRHSMember = math::optin::BoundaryRHSMember<C>;
+
+    template <class C>
+    concept BoundaryRHSChoiceMade = math::optin::BoundaryRHSChoiceMade<C>;
+
+    template <class C>
+    concept RHSOptOut = math::optin::RHSOptOut<C>;
+
+    template <class C>
+    concept RHSMember = math::optin::RHSMember<C>;
+
+    template <class C>
+    concept RHSChoiceMade = math::optin::RHSChoiceMade<C>;
+
+    template <class C>
+    concept DonorSchemeOptOut = math::optin::DonorSchemeOptOut<C>;
+
+    template <class C>
+    concept DonorSchemeMember = math::optin::DonorSchemeMember<C>;
+
+    template <class C>
+    concept DonorSchemeChoiceMade = math::optin::DonorSchemeChoiceMade<C>;
+
+}
 
     // OPTIONAL: Donor scheme for terms.
     //
@@ -117,6 +171,7 @@ namespace math::optin {                                                         
     // the bottom, top, or middle of a stacked column. Top/bottom faces
     // are reported via top_face()/bottom_face() so the implementer
     // chooses their indexing convention.
+namespace math::LinearAlgebra {
     enum class VertLayer { Bottom, Middle, Top };  // _____ of the stack
 
     template <class C>
