@@ -105,49 +105,49 @@ namespace math::LinearAlgebra
     // For convenience, provide short aliases used in the assembler below.
 
     template <class C>
-    concept BoundaryDiagonalOptOut = math::optin::BoundaryDiagonalOptOut<C>;
+    concept BoundaryDiagonalOptOut = optin::BoundaryDiagonalOptOut<C>;
 
     template <class C>
-    concept BoundaryDiagonalMember = math::optin::BoundaryDiagonalMember<C>;
+    concept BoundaryDiagonalMember = optin::BoundaryDiagonalMember<C>;
 
     template <class C>
-    concept BoundaryDiagonalChoiceMade = math::optin::BoundaryDiagonalChoiceMade<C>;
+    concept BoundaryDiagonalChoiceMade = optin::BoundaryDiagonalChoiceMade<C>;
 
     template <class C>
-    concept BoundaryOffDiagonalOptOut = math::optin::BoundaryOffDiagonalOptOut<C>;
+    concept BoundaryOffDiagonalOptOut = optin::BoundaryOffDiagonalOptOut<C>;
 
     template <class C>
-    concept BoundaryOffDiagonalMember = math::optin::BoundaryOffDiagonalMember<C>;
+    concept BoundaryOffDiagonalMember = optin::BoundaryOffDiagonalMember<C>;
 
     template <class C>
-    concept BoundaryOffDiagonalChoiceMade = math::optin::BoundaryOffDiagonalChoiceMade<C>;
+    concept BoundaryOffDiagonalChoiceMade = optin::BoundaryOffDiagonalChoiceMade<C>;
 
     template <class C>
-    concept BoundaryRHSOptOut = math::optin::BoundaryRHSOptOut<C>;
+    concept BoundaryRHSOptOut = optin::BoundaryRHSOptOut<C>;
 
     template <class C>
-    concept BoundaryRHSMember = math::optin::BoundaryRHSMember<C>;
+    concept BoundaryRHSMember = optin::BoundaryRHSMember<C>;
 
     template <class C>
-    concept BoundaryRHSChoiceMade = math::optin::BoundaryRHSChoiceMade<C>;
+    concept BoundaryRHSChoiceMade = optin::BoundaryRHSChoiceMade<C>;
 
     template <class C>
-    concept RHSOptOut = math::optin::RHSOptOut<C>;
+    concept RHSOptOut = optin::RHSOptOut<C>;
 
     template <class C>
-    concept RHSMember = math::optin::RHSMember<C>;
+    concept RHSMember = optin::RHSMember<C>;
 
     template <class C>
-    concept RHSChoiceMade = math::optin::RHSChoiceMade<C>;
+    concept RHSChoiceMade = optin::RHSChoiceMade<C>;
 
     template <class C>
-    concept DonorSchemeOptOut = math::optin::DonorSchemeOptOut<C>;
+    concept DonorSchemeOptOut = optin::DonorSchemeOptOut<C>;
 
     template <class C>
-    concept DonorSchemeMember = math::optin::DonorSchemeMember<C>;
+    concept DonorSchemeMember = optin::DonorSchemeMember<C>;
 
     template <class C>
-    concept DonorSchemeChoiceMade = math::optin::DonorSchemeChoiceMade<C>;
+    concept DonorSchemeChoiceMade = optin::DonorSchemeChoiceMade<C>;
 
 }
 
