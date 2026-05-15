@@ -39,6 +39,39 @@ namespace math::LinearAlgebra
         { c.diagonal(f) }            -> std::convertible_to<double>;
         { c.off_diagonal(f) }        -> std::convertible_to<double>;
     };
+}
+
+// -----------------------------------------------------------------------------
+// Opt-in / Opt-out generator
+// -----------------------------------------------------------------------------
+//
+// Usage: DEFINE_OPTIONAL_FEATURE(Name, MEMBER_CHECK)
+//   - Generates NameOptIn<NameOptOut, NameMember, NameChoiceMade>
+//   - MEMBER_CHECK is a requires-expression fragment of the form:
+//       (const C& c, int f) { { c.boundary_diagonal(f) } -> std::convertible_to<double>; }
+//   - For features with different signatures, write the MEMBER_CHECK accordingly.
+//
+// The generator uses nested-type tokens by default (e.g. `using BoundaryDiagonalOptIn = void;`).
+// It is straightforward to extend detection to boolean flags if you prefer.
+//
+// -----------------------------------------------------------------------------
+
+#define DEFINE_OPTIONAL_FEATURE(NAME, MEMBER_CHECK)                                  \
+namespace math::optin {                                                              \
+                                                                                     \
+    template <class C>                                                               \
+    concept NAME##OptIn = requires { typename C::NAME##OptIn; };                     \
+                                                                                     \
+    template <class C>                                                               \
+    concept NAME##OptOut = requires { typename C::NAME##OptOut; };                   \
+                                                                                     \
+    template <class C>                                                               \
+    concept NAME##Member = requires MEMBER_CHECK;                                    \
+                                                                                     \
+    template <class C>                                                               \
+    concept NAME##ChoiceMade = NAME##OptIn<C> || NAME##OptOut<C>;                    \
+                                                                                     \
+} /* namespace math::optin */
 
     template <class C>
     concept BoundaryDiagonalSpecial = CellStencil<C> && requires (const C& c, int f)
