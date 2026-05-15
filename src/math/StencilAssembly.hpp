@@ -21,8 +21,8 @@
 
 namespace math::LinearAlgebra
 {
-	// container that holds a matrix, consistent with the NearestNeighborProblem
-	// class syntax
+    // container that holds a matrix, consistent with the NearestNeighborProblem
+    // class syntax
     template <class S>
     concept LinearSystem = requires(S& s, std::size_t i, std::size_t j, double v) {
         { s.matrixSumIntoGlobalValues(i, j, v) };
@@ -93,6 +93,51 @@ DEFINE_OPTIONAL_FEATURE(DonorScheme,
     }
     )
 
+// // Donor scheme: donor_on_diag(int) -> bool, donor_term(int) -> double
+// namespace math::optin {
+// template <class C>
+// concept DonorSchemeMember = requires(const C& c, int f) {
+//     { c.donor_on_diag(f) } -> std::convertible_to<bool>;
+//     { c.donor_term(f) }    -> std::convertible_to<double>;
+// };
+//
+// template <class C>
+// concept DonorSchemeOptIn = requires { typename C::DonorSchemeOptIn; };
+//
+// template <class C>
+// concept DonorSchemeOptOut = requires { typename C::DonorSchemeOptOut; };
+//
+// template <class C>
+// concept DonorSchemeChoiceMade = DonorSchemeOptIn<C> || DonorSchemeOptOut<C>;
+// }
+
+    // template <class C>
+    // concept BoundaryDiagonalSpecial = CellStencil<C> && requires (const C& c, int f)
+    // {
+    //     { c.boundary_diagonal(f) }   -> std::convertible_to<double>;
+    // };
+    //
+    // template <class C>
+    // concept BoundaryOffDiagonalSpecial = CellStencil<C> && requires (const C& c, int f)
+    // {
+    //     { c.boundary_off_diagonal(f) } -> std::convertible_to<double>;
+    // };
+    //
+    // template <class C>
+    // concept BoundaryRHSSpecial = CellStencil<C> && requires (const C& c, int f)
+    // {
+    //     { c.boundary_rhs(f) } -> std::convertible_to<double>;
+    // };
+    //
+    // template <class C>
+    // concept InHomogeneous = CellStencil<C> && requires (const C& c, int f)
+    // {
+    //     { c.rhs(f) } -> std::convertible_to<double>;
+    // };
+
+    // template <class C>
+    // concept Homogeneous = !InHomogeneous<C>;
+
 // Undefine helper macro to avoid leaking
 #undef DEFINE_OPTIONAL_FEATURE
 
@@ -158,12 +203,12 @@ namespace math::LinearAlgebra
     //   - donor_on_diag(f): true when the term belongs on the
     //                       diagonal, false when it belongs on
     //                       the off-diagonal.
-    //   - advect(f): the signed advection coefficient ( e.g. -A[f]*udotm[f] ).
-    template <class C>
-    concept DonorScheme = requires(const C& c, int f) {
-        { c.donor_on_diag(f) }       -> std::convertible_to<bool>;
-        { c.donor_term(f) }          -> std::convertible_to<double>;
-    };
+    // //   - advect(f): the signed advection coefficient ( e.g. -A[f]*udotm[f] ).
+    // template <class C>
+    // concept DonorScheme = requires(const C& c, int f) {
+    //     { c.donor_on_diag(f) }       -> std::convertible_to<bool>;
+    //     { c.donor_term(f) }          -> std::convertible_to<double>;
+    // };
 
     // ---- 4. OPTIONAL: vertical extension for stacked / extruded meshes.
     //
@@ -180,9 +225,10 @@ namespace math::LinearAlgebra {
         { c.top_face() }                    -> std::convertible_to<int>;
         { c.bottom_face() }                 -> std::convertible_to<int>;
         { c.bottom_boundary_diagonal() }    -> std::convertible_to<double>;
+        { c.bottom_boundary_off_diagonal() }    -> std::convertible_to<double>;
         { c.bottom_boundary_rhs() }         -> std::convertible_to<double>;
         { c.top_boundary_rhs_in() }         -> std::convertible_to<double>; // outflow case
-        requires requires { { c.top_boundary_rhs_out() }        -> std::convertible_to<double>;} == DonorScheme<C>; // inflow case
+        requires requires { { c.top_boundary_rhs_out() }        -> std::convertible_to<double>;} == !DonorSchemeOptOut<C>; // inflow case
     };
 
     // ============================================================
@@ -191,47 +237,91 @@ namespace math::LinearAlgebra {
 
     namespace detail
     {
-        // Assemble one face of the upwind FVM stencil into (S, c).
+    template <LinearSystem S, CellStencil C> void normal_face(S& sys, const C& c, int f)
+    {
+        const auto i = c.idx();
+        const auto j = c.neighbour_idx(f);
+        sys.matrixSumIntoGlobalValues(i, i, c.diagonal(f)); // diagonal so row = col
+        sys.matrixSumIntoGlobalValues(i, j, c.off_diagonal(f)); // off diagonal so row != col
+        if constexpr (RHSMember<C>)
+        {
+            sys.rhsSumIntoGlobalValue(i, c.rhs(f));
+        }
+    }
+    template <LinearSystem S, CellStencil C> void boundary_conditions(S& sys, const C& c, int f)
+    {
+        const auto i = c.idx();
+
+        if constexpr (BoundaryDiagonalMember<C>)
+        {
+            sys.matrixSumIntoGlobalValues(i, i, c.boundary_diagonal(f));
+        }
+
+        // Boundary off-diagonal handling
+        if constexpr (BoundaryOffDiagonalMember<C>)
+        {
+            const auto j = c.neighbour_idx(f);
+            sys.matrixSumIntoGlobalValues(i, j, c.boundary_off_diagonal(f));
+        }
+
+        // Boundary RHS handling
+        if constexpr (BoundaryRHSMember<C>)
+        {
+            sys.rhsSumIntoGlobalValue(i, c.boundary_rhs(f));
+        }
+    }
+    template <LinearSystem S, CellStencil C> void do_donor(S& sys, const C& c, int f)
+    {
+        const double a = c.donor_term(f);
+        const auto i = c.idx();
+        const auto j = c.neighbour_idx(f);
+        if (c.donor_on_diag(f))
+        {
+            sys.matrixSumIntoGlobalValues(i, i, c.diagonal(f) + a);
+            sys.matrixSumIntoGlobalValues(i, j, c.off_diagonal(f));
+        }
+        else
+        {
+            sys.matrixSumIntoGlobalValues(i, i, c.diagonal(f));
+            sys.matrixSumIntoGlobalValues(i, j, c.off_diagonal(f) + a);
+        }
+    }
+#define FEATURE_HOWTO \
+"To opt out, add `using FeatureOptOut = void;` to your cell type. " \
+"Otherwise provide the required member(s)."
+    template <CellStencil C> static void check_opt_ins()
+    {
+        // Ensure the implementer explicitly chose opt-in or opt-out for all features
+        static_assert(BoundaryDiagonalChoiceMade<C>, FEATURE_HOWTO);
+        static_assert(BoundaryOffDiagonalChoiceMade<C>, FEATURE_HOWTO);
+        static_assert(BoundaryRHSChoiceMade<C>, FEATURE_HOWTO);
+        static_assert(RHSChoiceMade<C>, FEATURE_HOWTO);
+        static_assert(DonorSchemeChoiceMade<C>, FEATURE_HOWTO);
+    }
+
+    template <LinearSystem S, CellStencil C> void interior_face(S& sys, const C& c, int f)//int f, const auto i, const auto j)
+    {
+        if constexpr (DonorSchemeMember<C>)
+        {
+            do_donor(sys, c, f);
+        }
+        else
+        {
+            normal_face(sys, c, f);
+        }
+    }
+    // Assemble one face of the upwind FVM stencil into (S, c).
         // Pure: same shape for lateral or vertical face -- the only
         // thing that varies is which face index `f` is.
         template <LinearSystem S, CellStencil C>
         void assemble_face(S& sys, const C& c, int f)
         {
-            const auto i = c.idx();
-
             if (!c.has_neighbour(f)) {
-                if constexpr (BoundaryDiagonalSpecial<C>)
-                    sys.matrixSumIntoGlobalValues(i, i, c.boundary_diagonal(f));
-
-                if constexpr (BoundaryOffDiagonalSpecial<C>)
-                {
-                    const auto j = c.neighbour_idx(f);
-                    sys.matrixSumIntoGlobalValues(i, j, c.boundary_off_diagonal(f));
-                }
-
-                if constexpr (BoundaryRHSSpecial<C>)
-                    sys.rhsSumIntoGlobalValue(i, c.boundary_rhs(f));
-
+                boundary_conditions(sys, c, f);
                 return;
             }
 
-            const auto j = c.neighbour_idx(f);
-
-            if constexpr (DonorScheme<C>) {
-                const double a = c.donor_term(f);
-                if (c.donor_on_diag(f)) {
-                    sys.matrixSumIntoGlobalValues(i, i, c.diagonal(f) + a);
-                    sys.matrixSumIntoGlobalValues(i, j, c.off_diagonal(f));
-                } else {
-                    sys.matrixSumIntoGlobalValues(i, i, c.diagonal(f));
-                    sys.matrixSumIntoGlobalValues(i, j, c.off_diagonal(f) + a);
-                }
-            } else {
-                sys.matrixSumIntoGlobalValues(i, i, c.diagonal(f));
-                sys.matrixSumIntoGlobalValues(i, j, c.off_diagonal(f));
-                if constexpr (!Homogeneous<C>)
-                    sys.rhsSumIntoGlobalValue(i, c.rhs(f));
-            }
+            interior_face(sys, c, f);
         }
     }
 
@@ -240,11 +330,14 @@ namespace math::LinearAlgebra {
     // ============================================================
 
     // Assemble all lateral faces (0 .. NLateral-1) of a cell.
-    template <LinearSystem S, CellStencil C, int NLateral = 3>
+    template <size_t Neighbours = 3, LinearSystem S, CellStencil C>
     void lateral_neighbours(S& sys, const C& c)
     {
-        for (int f = 0; f < NLateral; ++f)
-            detail::assemble_face(sys, c, f);
+        check_opt_ins<C>();
+
+        for (size_t f = 0; f < Neighbours; ++f)
+            detail::assemble_face(sys, c,
+                static_cast<int>(f));
     }
 
     // Assemble vertical (top + bottom) faces with layer-aware boundary
@@ -253,40 +346,130 @@ namespace math::LinearAlgebra {
         requires VerticallyStacked<C>
     void vertical_neighbours(S& sys, const C& c)
     {
-        const auto i  = c.idx();
+        check_opt_ins<C>();
+
+        // Now do runtime selection of which face is boundary vs interior.
         const int top = c.top_face();
         const int bot = c.bottom_face();
 
         switch (c.layer()) {
         case VertLayer::Bottom:
-            // Bottom face is a Dirichlet/flux boundary, top face is interior.
-            sys.matrixSumIntoGlobalValues(i, i, c.bottom_boundary_diagonal());
-            sys.rhsSumIntoGlobalValue   (i,    c.bottom_boundary_rhs());
-            detail::assemble_face(sys, c, top);
+            // bottom is boundary, top is interior
+            detail::boundary_conditions(sys, c, bot);
+            detail::interior_face(sys, c, top);
             break;
 
         case VertLayer::Top:
-            // Top face is a (precip) boundary, bottom face is interior.
-            if constexpr (DonorScheme<C>) {
-                if (c.donor_on_diag(top)) {
-                    sys.matrixSumIntoGlobalValues(i, i, c.diagonal(top) + c.donor_term(top));
-                    sys.rhsSumIntoGlobalValue   (i,    c.top_boundary_rhs_in());
-                } else {
-                    sys.matrixSumIntoGlobalValues(i, i, c.diagonal(top));
-                    sys.rhsSumIntoGlobalValue   (i,    c.top_boundary_rhs_out());
-                }
-            } else {
-                sys.matrixSumIntoGlobalValues(i, i, c.diagonal(top));
-                sys.rhsSumIntoGlobalValue   (i,    c.top_boundary_rhs_in());
-            }
-            detail::assemble_face(sys, c, bot);
+            // top is boundary, bottom is interior
+            detail::boundary_conditions(sys, c, top);
+            detail::interior_face(sys, c, bot);
             break;
 
         case VertLayer::Middle:
-            detail::assemble_face(sys, c, top);
-            detail::assemble_face(sys, c, bot);
+            // both faces are interior
+            detail::interior_face(sys, c, bot);
+            detail::interior_face(sys, c, top);
             break;
         }
+        // static_assert(DonorSchemeChoiceMade<C>,FEATURE_HOWTO);
+        //
+        // const int top = c.top_face();
+        // const int bot = c.bottom_face();
+        //
+        // switch (c.layer()) {
+        //     case VertLayer::Bottom:
+        //         detail::boundary_conditions(sys, c, bot);
+        //         detail::interior_face(sys, c, top);
+        //         break;
+        //     case VertLayer::Top:
+        //         detail::boundary_conditions(sys, c, top);
+        //         detail::interior_face(sys, c, bot);
+        //         break;
+        //     case VertLayer::Middle:
+        //         detail::interior_face(sys, c, bot);
+        //         detail::interior_face(sys, c, top);
+        //         break;
+        // }
     }
 
+#undef FEATURE_HOWTO
 } // namespace math::LinearAlgebra
+// -----------------------------------------------------------------------------
+// Just keeping this here for full version
+// // Public free functions (lateral + vertical assembly)
+// // -----------------------------------------------------------------------------
+// namespace math::LinearAlgebra
+// {
+//     // Assemble all lateral faces (0 .. NLateral-1) of a cell.
+//     template <LinearSystem S, CellStencil C, int NLateral = 3>
+//     void lateral_neighbours(S& sys, const C& c)
+//     {
+//         for (int f = 0; f < NLateral; ++f)
+//             detail::assemble_face(sys, c, f);
+//     }
+//
+//     // Assemble vertical (top + bottom) faces with layer-aware boundary
+//     // conditions. Only enabled when the cell type explicitly opts in to vertical stacking.
+//     template <LinearSystem S, CellStencil C>
+//         requires VerticallyStackedChoiceMade<C>
+//     void vertical_neighbours(S& sys, const C& c)
+//     {
+//         // Ensure the implementer explicitly chose opt-in or opt-out for vertical stacking
+//         static_assert(VerticallyStackedChoiceMade<C>,
+//             "Cell type must declare either VerticallyStackedOptIn or VerticallyStackedOptOut");
+//
+//         if constexpr (!VerticallyStackedOptIn<C>) {
+//             // If the cell explicitly opted out, this function should not be used.
+//             // Provide a helpful static_assert to catch misuse at compile time.
+//             static_assert(VerticallyStackedOptIn<C>,
+//                 "vertical_neighbours called for a cell that opted out of vertical stacking");
+//         }
+//
+//         // From here on we know VerticallyStackedOptIn<C> is true
+//         static_assert(VerticallyStackedMember<C>,
+//             "Cell declared VerticallyStackedOptIn but is missing required vertical members");
+//
+//         // If DonorScheme is also opted-in, ensure the vertical-specific outflow member exists
+//         if constexpr (DonorSchemeOptIn<C>) {
+//             static_assert(requires(const C& cc) { { cc.top_boundary_rhs_out() } -> std::convertible_to<double>; },
+//                 "Cell declared DonorSchemeOptIn and VerticallyStackedOptIn but is missing top_boundary_rhs_out()");
+//         }
+//
+//         const auto i  = c.idx();
+//         const int top = c.top_face();
+//         const int bot = c.bottom_face();
+//
+//         switch (c.layer()) {
+//         case VertLayer::Bottom:
+//             // Bottom face is a Dirichlet/flux boundary, top face is interior
+//             sys.matrixSumIntoGlobalValues(i, i, c.bottom_boundary_diagonal());
+//             sys.rhsSumIntoGlobalValue   (i,    c.bottom_boundary_rhs());
+//             detail::assemble_face(sys, c, top);
+//             break;
+//
+//         case VertLayer::Top:
+//             // Top face is a (precip) boundary, bottom face is interior.
+//             if constexpr (DonorSchemeOptIn<C>) {
+//                 // donor scheme handles inflow/outflow split
+//                 if (c.donor_on_diag(top)) {
+//                     sys.matrixSumIntoGlobalValues(i, i, c.diagonal(top) + c.donor_term(top));
+//                     sys.rhsSumIntoGlobalValue   (i,    c.top_boundary_rhs_in());
+//                 } else {
+//                     sys.matrixSumIntoGlobalValues(i, i, c.diagonal(top));
+//                     sys.rhsSumIntoGlobalValue   (i,    c.top_boundary_rhs_out());
+//                 }
+//             } else {
+//                 sys.matrixSumIntoGlobalValues(i, i, c.diagonal(top));
+//                 sys.rhsSumIntoGlobalValue   (i,    c.top_boundary_rhs_in());
+//             }
+//             detail::assemble_face(sys, c, bot);
+//             break;
+//
+//         case VertLayer::Middle:
+//             detail::assemble_face(sys, c, top);
+//             detail::assemble_face(sys, c, bot);
+//             break;
+//         }
+//     }
+//
+// } // namespace math::LinearAlgebra
