@@ -214,6 +214,12 @@ public:
     double slope();
 
     /**
+    * Vector parallel to the face of the triangle pointing in the direction of downhill. Calculated on first use, subsequent usages will not recalculate
+    * \return downslope unit vector [-]
+    */
+    Vector_3 downslope_dir();
+
+    /**
     * Normalized face normal. Calculated on first use, subsequent usages will not recalculate
     */
     Vector_3 normal();
@@ -248,10 +254,12 @@ public:
      * @param i
      * @return
      */
-    Vector_2 edge(int i);
+    template<typename T = Vector_2>
+    T edge(int i);
 
     /**
      * Returns the midpoint (x,y) of edge i
+     * Returns (x,y,z) if T == Vector_3
      * @param i
      * @return
      */
@@ -271,7 +279,8 @@ public:
      * @param i
      * @return
      */
-    Vector_2 edge_unit_normal(int i);
+    template<typename T = Vector_2>
+    T edge_unit_normal(int i);
 
     /// Returns the nearest station to the face
     /// @return
@@ -437,8 +446,8 @@ public:
 
 //    void set_module_data(const std::string &module, face_info *fi);
 
-    template<typename T>
-    T& make_module_data(const std::string &module);
+    template<typename T,typename... Args>
+    T& make_module_data(const std::string &module,Args&&... args);
 
     std::string _debug_name; //for debugging to find the elem that we want
     int _debug_ID; //also for debugging. ID == the position in the output order, starting at 0
@@ -513,6 +522,7 @@ private:
 
     std::shared_ptr<Point_3> _center;
     std::shared_ptr<Vector_3> _normal;
+    std::shared_ptr<Vector_3> _downslope;
 
 
     variablestorage<double> _variables;
@@ -1437,37 +1447,64 @@ double face<Gt, Fb>::aspect()
 }
 
 template < class Gt, class Fb>
-Vector_2 face<Gt, Fb>::edge_unit_normal(int i)
+template<typename T>
+T face<Gt, Fb>::edge_unit_normal(int i)
 {
-    auto e = edge(i);
-    auto e1 = edge( (i+1) % 3);
 
     //use this method to get the vector going in the right dir
 //    http://gamedev.stackexchange.com/a/26952
 
-    //one of the normals is defined as
-    Vector_2 n(e.y(),-e.x());
+    if constexpr (std::is_same_v<T,Vector_2>)
+    {
+        const auto e = edge(i);
+        const auto e1 = edge( (i+1) % 3);
+        //one of the normals is defined as
+        Vector_2 n(e.y(),-e.x());
 
-    //dot normal with e1
-    double D = e1.x()*n.x()+e1.y()*n.y();
+        //dot normal with e1
+        double D = e1.x()*n.x()+e1.y()*n.y();
 
-    //if positive, negate to point the proper dir
-    if(D > 0)
-        n = -n;
+        //if positive, negate to point the proper dir
+        if(D > 0)
+            n = -n;
 
-    return n/CGAL::sqrt(n.squared_length());
+        return n/CGAL::sqrt(n.squared_length());
+    }
+    else
+    {
+        /*
+         * edge(i) is the edge shared with neighbor(i).
+         * It is computed as a vector pointing from the counter-clockwise vertex
+         * to the clockwise vertex.
+         */
+        const auto e = - edge<Vector_3>(i);
+
+        const auto n = normal();
+
+        const auto outward_normal = CGAL::cross_product(e,n);
+
+        return outward_normal/std::sqrt(outward_normal.squared_length());
+
+    }
 
 };
 
 template < class Gt, class Fb>
-Vector_2 face<Gt, Fb>::edge(int i)
+template<typename T>
+T face<Gt, Fb>::edge(int i)
 {
+    static_assert(std::same_as<T,Vector_2> || std::same_as<T,Vector_3>,
+        "Only Vector_2 and Vector_3 types are permitted as return types of this function");
+
     auto a = this->vertex(_domain->ccw(i))->point();
     auto b = this->vertex(_domain->cw(i))->point();
 
     auto v = b-a;
 
-    return Vector_2(v.x(),v.y());//,v.z());
+    if constexpr (std::is_same_v<T,Vector_2>)
+        return Vector_2(v.x(),v.y());//,v.z());
+    else
+        return Vector_3(v.x(),v.y(),v.z());
 
 };
 template < class Gt, class Fb>
@@ -1480,23 +1517,27 @@ std::pair<Point_2,Point_2> face<Gt, Fb>::edge_vertexes(int i)
 template<typename T>
 struct always_false : std::false_type {};
 template < class Gt, class Fb>
-template<typename T = Point_2>
+template<typename T>
 T face<Gt, Fb>::edge_midpoint(int i)
 {
-    static_assert(!(std::same_as<T,Point_2> || std::same_as<T,Point_3>),
+    static_assert(std::same_as<T,Point_2> || std::same_as<T,Point_3>,
         "Only Point_2 and Point_3 types are permitted as return types of this function");
 
     auto a = this->vertex(_domain->ccw(i))->point();
     auto b = this->vertex(_domain->cw(i))->point();
-    T midpoint;
-    midpoint.x() = (a.x + b.x())/2.0;
-    midpoint.y() = (a.y + b.y())/2.0;
-    if constexpr (std::same_as<T,Point_3>)
+    if constexpr (std::same_as<T,Point_2>)
     {
-        midpoint.z() = (a.z() + b.z())/2.0;
+        return T((a.x() + b.x())/2.0,
+           (a.y() + b.y())/2.0);
     }
-
-    return midpoint;
+    else if constexpr (std::same_as<T,Point_3>)
+    {
+       return T((a.x() + b.x())/2.0,
+           (a.y() + b.y())/2.0,
+           (a.z() + b.z())/2.0);
+    }
+    CHM_THROW_EXCEPTION(module_error,"edge_midpoint template used type that was not Point_2 or Point_3");
+    return T{};
 };
 
 template < class Gt, class Fb>
@@ -1530,6 +1571,41 @@ double face<Gt, Fb>::slope()
     }
 
     return _slope;
+}
+template <class Gt, class Fb>
+Vector_3 face<Gt, Fb>::downslope_dir()
+{
+    if (!_downslope)
+    {
+        arma::vec g(3);
+
+        g(0) = 0.0; //x
+        g(1) = 0.0; //y
+        g(2) = -1.0; // -\hat{z}
+
+        arma::vec normal(3);
+
+        if (!_normal)
+            this->normal();
+
+        normal(0) = (*_normal)[0];
+        normal(1) = (*_normal)[1];
+        normal(2) = (*_normal)[2];
+
+
+        auto g_proj_face = [&]()
+        {
+            auto g_p = g - arma::dot(g,normal) * normal;
+            return g_p / arma::norm(g_p);
+        }();
+
+        _downslope = std::make_shared<Vector_3>(
+            g_proj_face[0],
+            g_proj_face[1],
+            g_proj_face[2]);
+    }
+
+    return *_downslope;
 }
 
 template < class Gt, class Fb>
@@ -1803,15 +1879,15 @@ timeseries::iterator face<Gt, Fb>::now()
 
 
 template < class Gt, class Vb>
-template<typename T>
-T& face<Gt, Vb>::make_module_data(const std::string &module)
+template<typename T, typename... Args>
+T& face<Gt, Vb>::make_module_data(const std::string &module, Args&&... args)
 {
 
     //we don't already have this, make a new one.
     if(!_module_face_data[module])
     {
 //        T* data = new T;
-        _module_face_data[module] = std::make_unique<T>();
+        _module_face_data[module] = std::make_unique<T>(args...);
     }
 
     return get_module_data<T&>(module);
