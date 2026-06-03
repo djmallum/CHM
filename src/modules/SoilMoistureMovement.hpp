@@ -52,10 +52,6 @@
  *
  * @}
  */
-template<typename T>
-concept Indexable = requires(T obj, size_t idx) {
-    { obj[idx] } -> std::convertible_to<size_t>;  // Return type convertible to size_t
-};
 class SoilMoistureMovement : public module_base
 {
 REGISTER_MODULE_HPP(SoilMoistureMovement)
@@ -71,8 +67,6 @@ public:
     static constexpr auto NUM_NEIGHBOURS = 5;
     static constexpr auto NUM_LAYERS = 3;
 
-    static std::string get_theta_name(const int layer) noexcept { return "theta" + std::to_string(layer); }
-    static std::string get_psi_name(const int layer) noexcept { return "psi" + std::to_string(layer); }
 
 private:
     struct Pair
@@ -168,12 +162,6 @@ private:
     std::array<std::array<data::faceType, NumNeighbours>, NumLayers>
     build_geometry(mesh_elem& face,std::index_sequence<Ns...>);
 
-    struct Sizes
-    {
-        size_t local;
-        size_t global;
-        size_t vert_layers = 1;
-    } sizes{};
     enum class Neighbour
     {
         Lateral_0 = 0, // switch cases will receive a number from 0-4, even if lateral cases are the same
@@ -236,8 +224,8 @@ private:
     };
     std::optional<math::LinearAlgebra::NearestNeighborProblem> moisture_content_solver;
 
-    data::faceType get_lateral_boundary(const mesh_elem& face, size_t nn) const;
-    data::faceType get_geometry(const mesh_elem& face,GeoHelper geo_helper) const;
+    static data::faceType get_lateral_boundary(const mesh_elem& face, size_t nn);
+    static data::faceType get_geometry(const mesh_elem& face,GeoHelper geo_helper);
 
     auto try_solution(const mesh& domain)
     {

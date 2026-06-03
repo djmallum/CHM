@@ -284,7 +284,7 @@ SoilMoistureMovement::data::faceType SoilMoistureMovement::get_lateral_boundary(
     return Boundary(DeltaZ, dist_to_face);
 }
 SoilMoistureMovement::data::faceType
-SoilMoistureMovement::get_geometry(const mesh_elem& face, const GeoHelper geo_helper) const
+SoilMoistureMovement::get_geometry(const mesh_elem& face, const GeoHelper geo_helper)
 {
 
     // TODO handle faces at the edge of their process,
