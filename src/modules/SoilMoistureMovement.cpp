@@ -24,34 +24,21 @@
 #include "SoilMoistureMovement.hpp"
 
 #include "Soil.h"
-
+#include "SoilMoistureSolverCore/Details.hpp"
 #include <boost/xpressive/detail/utility/traits_utils.hpp>
-REGISTER_MODULE_CPP(SoilMoistureMovement);
+REGISTER_MODULE_CPP(SoilMoistureMovement)
 
-SoilMoistureMovement::SoilMoistureMovement(const config_file& cfg) : module_base("SoilMoistureMovement", parallel::domain, cfg)
+SoilMoistureMovement::SoilMoistureMovement(const config_file& cfg)
+    : module_base("SoilMoistureMovement", parallel::domain, cfg),
+    _solver(ID,SoilMoistureSolver::param_builder(cfg,*global_param))
 {
     // TODO Add depends/provides
 }
 
-
-void SoilMoistureMovement::build_matrix(const mesh& domain)
+void SoilMoistureMovement::init(mesh& domain)
 {
-#pragma omp parallel for
-    for (size_t i = 0; i < domain->size_local_faces(); i++)
-    {
-        for (size_t z = 0; z < sizes.vert_layers; z++)
-        {
-            auto face = domain->face(i);
-            auto& d = face->get_module_data<data>(ID);
-
-            solverData solver_data(d, face, z, sizes,ID);
-
-
-            math::LinearAlgebra::assemble_all_neighbours<NUM_NEIGHBOURS>(*moisture_content_solver, solver_data);
-        }
-    }
+    _solver.init(domain);
 }
-
 
 void SoilMoistureMovement::run(mesh& domain)
 {
@@ -61,21 +48,9 @@ void SoilMoistureMovement::run(mesh& domain)
     //     set_all_nan_on_skip(face);
     //     return;
     // }
-    build_matrix(domain);
-
-    auto [numIters, residual] = try_solution(domain);
-    const std::string warn = std::format("Richards Eqn Solve. Iterations: {}, residual: {}", numIters, residual);
-    SPDLOG_DEBUG(warn);
-
-    auto runoff_sol = moisture_content_solver->getSolutionView();
-
-    write_output(domain, runoff_sol);
+    _solver.run(domain);
 }
-struct SoilMoistureMovement::GeoHelper
-{
-    size_t nn;
-    size_t layer;
-};
+
 auto translate_down(const double centre_depth, const Point_3& original_point)
 {
     return Point_3(original_point.x(), original_point.y(), original_point.z() - centre_depth);
@@ -527,136 +502,3 @@ SoilMoistureMovement::data::data(const LayerNeighbourArray<opt<faceInterpolator>
 // {
 //     return interpolator[f].elevation();
 // }
-
-double SoilMoistureMovement::solverData::soil_water_capacity(int i) const
-{
-    /*
-     * Derivative of theta(psi) with respect to psi. Comes from the chain rule of the time derivative
-     * Pointed out everywhere that doing this with no approximation or iteration will result
-     * in poor physics, particularly near the wetting front. We are not resolving the wetting front.
-     */
-//    const auto result =-std::pow(d.psi_n / d.air_entry_tension,-1/d.pore_size_dist_index) / (d.pore_size_dist_index * d.psi_n);
-
-    return -std::pow(d.psi_n.at(z_idx) / d.air_entry_tension,-1/d.pore_size_dist_index) / (d.pore_size_dist_index * d.psi_n.at(z_idx)); //may need to correct this near saturation...
-}
-double SoilMoistureMovement::solverData::K_unsaturated(int i) const
-{
-    /* Campbell (1974)
-     * Also see: Deb and Shukla (2012) for long list
-     */
-    // TODO K_unsaturated should also handle vertical neighbours too!!
-    const auto neigh = face->neighbor(i);
-    const auto d_neigh = neigh->get_module_data<data>(ID.data());
-
-    // TODO testing this equation for accuracy AND behaviour near saturation and dry soil
-    // Source is Campbell (1974)
-    // Good source is also Deb and Shukla (2012)
-    // TODO i is face number not layer!!
-    auto campbell_eqn = [layer = this->z_idx](const data& d)
-    {
-        return d.K_saturated * std::pow(d.air_entry_tension / d.psi_n.at(layer),2+3/d.pore_size_dist_index);
-    };
-
-    Pair pair;
-    pair.owner = campbell_eqn(d);
-    pair.neighbour = campbell_eqn(d_neigh);
-
-    return d.interp_to_face[z_idx][i]->interp(pair);
-}
-SoilMoistureMovement::solverData::solverData(data& d, mesh_elem& face, const int layer, const Sizes& sizes, const std::string_view id)
-    : face(face), d(d), z_idx(layer), sizes(sizes), ID(id)
-{
-}
-
-size_t SoilMoistureMovement::solverData::idx() const { return sizes.global * z_idx + face->cell_global_id; }
-bool SoilMoistureMovement::solverData::has_neighbour(const int f) const { return d.neighbour_idx_[f][z_idx].has_value(); }
-size_t SoilMoistureMovement::solverData::neighbour_idx(const int f) const
-{
-    const auto i = d.neighbour_idx_[f][z_idx];
-    if (!i)
-    {
-        const std::string err = std::format("neighbour_idx invoked for a face without a neighbour at index {} of face {}",
-            f,face->cell_global_id);
-        CHM_THROW_EXCEPTION(module_error,err);
-    }
-    return *i;
-}
-double SoilMoistureMovement::solverData::rhs(int f) const
-{
-    // const auto elevation = d.get_elevation(f);
-    const auto* face_geometry = std::get_if<Interior>(&d.cell_geometry[f][z_idx]);
-    if (!face_geometry)
-    {
-        const std::string err = std::format("Boundary face detected in non-boundary function. At triangle {}, face {}, and layer {}",
-            this->face->cell_global_id,f,z_idx);
-        CHM_THROW_EXCEPTION(module_error,err);
-    }
-
-    // TODO neighbour.z - z = the distance between the neighbour centre and the centre of the current cell.
-    // Therefore, when one defines alpha for this term, as written it must include the distance between
-    return d.psi_n.at(z_idx) / NUM_NEIGHBOURS + d.alpha.at(f).at(z_idx) / soil_water_capacity(f) *
-        K_unsaturated(f) * (face_geometry->geometry.elevation.neighbour - face_geometry->geometry.elevation.owner);
-}
-double SoilMoistureMovement::solverData::diagonal(int f) const
-{
-    return 1.0 / NUM_NEIGHBOURS + d.alpha.at(f).at(z_idx) / soil_water_capacity(f) * K_unsaturated(f); /* TODO everything about geometry or constant
-                                                                      *  in time goes in alpha, could make it a type
-                                                                      */
-}
-double SoilMoistureMovement::solverData::off_diagonal(int f) const
-{
-    return -d.alpha.at(f).at(z_idx) / soil_water_capacity(f) * K_unsaturated(f); // TODO see diagonal
-    // TODO off diagonal contributions
-}
-double SoilMoistureMovement::solverData::side_boundary_diagonal(int) {
-    return 1.0 / NUM_NEIGHBOURS;
-}
-double SoilMoistureMovement::solverData::side_boundary_off_diagonal(const int f)
-{
-    return 0.0;
-}
-double SoilMoistureMovement::solverData::side_boundary_rhs(const int f) const
-{
-    if (f > 2)
-        CHM_THROW_EXCEPTION(module_error,"side boundary must only be faces 0, 1, or 2");
-
-    const auto* face_geo = std::get_if<Boundary>(&d.cell_geometry[z_idx][f]);
-    if (!face_geo)
-    {
-        const std::string err = std::format("Interior face detected in a boundary function. At triangle {}, face {}, and layer {}",
-            this->face->cell_global_id,f,z_idx);
-        CHM_THROW_EXCEPTION(module_error,err);
-    }
-    const auto elevation_change = face_geo->DeltaZ;
-
-    return d.psi_n.at(z_idx) / NUM_NEIGHBOURS + d.alpha.at(f).at(z_idx) / soil_water_capacity(f) * K_unsaturated(f) * elevation_change;
-}
-
-double SoilMoistureMovement::solverData::bottom_boundary_diagonal([[maybe_unused]] int) {
-    return 1.0 / NUM_NEIGHBOURS;
-}
-double SoilMoistureMovement::solverData::bottom_boundary_off_diagonal([[maybe_unused]] int)
-{
-    return 0.0;
-}
-double SoilMoistureMovement::solverData::bottom_boundary_rhs(const int f) const
-{
-    // WARNING: alpha for the bottom boundary must not include the distance to the neighbour
-    // cell centre. Impossible to obtain since it doesn't exist. But its worth being aware.
-    return d.psi_n.at(z_idx) / NUM_NEIGHBOURS + d.alpha.at(f).at(z_idx) / soil_water_capacity(f) * K_unsaturated(f);
-}
-
-double SoilMoistureMovement::solverData::top_boundary_diagonal(int)
-{
-    return 1.0 / NUM_NEIGHBOURS; // TODO add to comment here what kind of BC this represents
-}
-double SoilMoistureMovement::solverData::top_boundary_off_diagonal(int)
-{
-    // top boundary is no flux
-    // off-diagonal terms require that psi_j - psi != 0
-    return 0.0;
-}
-double SoilMoistureMovement::solverData::top_boundary_rhs(int) const
-{
-    return d.psi_n.at(z_idx) / NUM_NEIGHBOURS;
-}

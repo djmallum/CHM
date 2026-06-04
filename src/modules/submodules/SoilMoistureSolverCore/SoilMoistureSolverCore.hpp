@@ -9,83 +9,46 @@
 #include "Details.hpp"
 #include <spdlog/spdlog.h>
 #include "Data.hpp"
+#include "Adaptor.hpp"
 
 namespace SoilMoistureSolver
 {
-namespace detail
-{
-class solverData
-{
-    mesh_elem& face;
-    data& d;
-    const int z_idx;
-    const Sizes sizes;
-    const std::string_view ID;
 
-    double soil_water_capacity(int) const;
-    double K_unsaturated(int) const;
-public:
-    solverData(data& d, mesh_elem& face, int z, const Sizes& sizes, std::string_view);
-
-    [[nodiscard]] size_t idx() const ;
-    [[nodiscard]] bool has_neighbour(int f) const;
-    [[nodiscard]] size_t neighbour_idx(int f) const;
-
-    [[nodiscard]] static constexpr int top_face() { return static_cast<int>(Neighbour::Top); }
-    [[nodiscard]] static constexpr int bottom_face() { return static_cast<int>(Neighbour::Bottom); }
-
-    // without tags
-    using donor_choice = math::without_donor_tag;
-    using boundary_donor_choice = math::without_boundary_donor_tag;
-    using boundary_choice = math::without_boundary_tag;
-
-    // Normal faces
-    using rhs_choice = math::with_rhs_tag;
-    [[nodiscard]] double rhs(int) const;
-    [[nodiscard]] double diagonal(int f) const;
-    [[nodiscard]] double off_diagonal(int f) const;
-
-    // Boundaries
-    using side_boundary_choice = math::with_side_boundary_tag;
-    [[nodiscard]] static double side_boundary_diagonal(int);
-    [[nodiscard]] static double side_boundary_off_diagonal(int);
-    [[nodiscard]] double side_boundary_rhs(int) const;
-
-    using bottom_boundary_choice = math::with_bottom_boundary_tag;
-    [[nodiscard]] static double bottom_boundary_diagonal(int);
-    [[nodiscard]] static double bottom_boundary_off_diagonal(int);
-    [[nodiscard]] double bottom_boundary_rhs(int) const;
-
-    using top_boundary_choice = math::with_top_boundary_tag;
-    [[nodiscard]] static double top_boundary_diagonal(int);
-    [[nodiscard]] static double top_boundary_off_diagonal(int);
-    [[nodiscard]] double top_boundary_rhs(int) const;
-
-};
-}
 
 using namespace detail;
-template<Mesh mesh,Element mesh_elem>
+
+static Params param_builder(const config_file& cfg, const global& g)
+{
+    Params p;
+    p.recharge_soil_depth = cfg.get<double>("recharge_soil_depth");
+    p.lower_soil_depth = cfg.get<double>("lower_soil_depth");
+    p.detention_depth = cfg.get<double>("detention_depth");
+    p.time_step_seconds = g.dt();
+
+    return p;
+}
+
+template<MeshInterface M>
 class SoilMoistureSolverCore
 {
 public:
     explicit SoilMoistureSolverCore(const std::string& id,const Params& p) : _ID(id),_params(p) {}
-    void run(mesh& domain);
-    void init(mesh& domain);
+    void run(M& domain);
+    void init(M& domain);
 private:
     const std::string _ID;
     const Params _params;
     std::optional<math::LinearAlgebra::NearestNeighborProblem> moisture_content_solver;
     Sizes sizes{};
 
-    void build_matrix(mesh&);
-    auto try_solution(const mesh& domain);
+    void build_matrix(M&);
+    auto try_solution(const M& domain);
     template<Indexable T>
-    void write_output(mesh& domain, T& runoff_sol);
+    void write_output(M& domain, T& runoff_sol);
 };
 
-template<Mesh mesh,Element mesh_elem>
-void SoilMoistureSolverCore<mesh,mesh_elem>::build_matrix(mesh& domain)
+template<MeshInterface M>
+void SoilMoistureSolverCore<M>::build_matrix(M& domain)
 {
 #pragma omp parallel for
     for (size_t i = 0; i < domain->size_local_faces(); i++)
@@ -103,8 +66,8 @@ void SoilMoistureSolverCore<mesh,mesh_elem>::build_matrix(mesh& domain)
     }
 }
 
-template<Mesh mesh,Element mesh_elem>
-auto SoilMoistureSolverCore<mesh,mesh_elem>::try_solution(const mesh& domain)
+template<MeshInterface M>
+auto SoilMoistureSolverCore<M>::try_solution(const M& domain)
 {
     try
     {
@@ -127,9 +90,9 @@ auto SoilMoistureSolverCore<mesh,mesh_elem>::try_solution(const mesh& domain)
 static std::string get_theta_name(const int layer) noexcept { return "theta" + std::to_string(layer); }
 static std::string get_psi_name(const int layer) noexcept { return "psi" + std::to_string(layer); }
 
-template<Mesh mesh, Element mesh_elem>
+template<MeshInterface M>
 template <Indexable T>
-void SoilMoistureSolverCore<mesh, mesh_elem>::write_output(mesh& domain, T& runoff_sol)
+void SoilMoistureSolverCore<M>::write_output(M& domain, T& runoff_sol)
 {
 #pragma omp parallel for
     for (size_t i = 0; i < domain->size_local_faces(); i++)
@@ -155,8 +118,8 @@ void SoilMoistureSolverCore<mesh, mesh_elem>::write_output(mesh& domain, T& runo
         domain->ghost_neighbors_communicate_variable(psi_name);
     }
 }
-template <Mesh mesh, Element mesh_elem>
-void SoilMoistureSolverCore<mesh, mesh_elem>::run(mesh& domain)
+template <MeshInterface M>
+void SoilMoistureSolverCore<M>::run(M& domain)
 {
     // TODO maybe include the following if necessary
     // if(is_water(face))
@@ -175,8 +138,8 @@ void SoilMoistureSolverCore<mesh, mesh_elem>::run(mesh& domain)
     write_output(domain, runoff_sol);
 }
 
-template <Mesh mesh, Element mesh_elem>
-void SoilMoistureSolverCore<mesh, mesh_elem>::init(mesh& domain)
+template <MeshInterface M>
+void SoilMoistureSolverCore<M>::init(M& domain)
 {
     /*
      * Since this is made to work directly with a soil module with specific parameters,
@@ -316,8 +279,8 @@ void SoilMoistureSolverCore<mesh, mesh_elem>::init(mesh& domain)
                 },geometry[layer][nn]);
             }
         }
-
-        face->template make_module_data<data>(_ID,face_interp, geometry, alpha, neighbour_idx, _params);
+        cellInfo cell_info{face_interp, geometry, alpha, neighbour_idx};
+        face->template make_module_data<data>(_ID,cell_info,face_interp, geometry, alpha, neighbour_idx, _params);
 
 
     }

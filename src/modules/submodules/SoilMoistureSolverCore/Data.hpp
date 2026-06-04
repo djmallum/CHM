@@ -27,7 +27,7 @@ struct cellInfo
 class data : public face_info
 {
 public:
-    template<Element mesh_elem>
+    template<ElementInterface mesh_elem>
     explicit data(const cellInfo& cell,
         const mesh_elem& face);
 
@@ -46,7 +46,7 @@ inline double data::theta(const int i) const
     return result;
 }
 
-template <Element mesh_elem>
+template <ElementInterface mesh_elem>
 data::data(const cellInfo& cell,
     const mesh_elem& face)
 : cell_info(cell)
@@ -62,7 +62,7 @@ data::data(const cellInfo& cell,
     std::ranges::fill(psi_n, initial_psi);
 }
 
-template<Element mesh_elem>
+template<ElementInterface mesh_elem>
 static faceType get_lateral_boundary(const mesh_elem& face,const size_t nn)
 {
     const auto dir_vec = face->downslope_dir();
@@ -85,7 +85,7 @@ static faceType get_lateral_boundary(const mesh_elem& face,const size_t nn)
     return Boundary(DeltaZ, dist_to_face);
 }
 
-template<Element mesh_elem>
+template<ElementInterface mesh_elem>
 static faceType get_geometry(const mesh_elem& face, const Params& p ,const GeoHelper geo_helper)
 {
 
@@ -122,7 +122,7 @@ static faceType get_geometry(const mesh_elem& face, const Params& p ,const GeoHe
     return Interior(face, geo_helper, p);
 }
 
-template <Element mesh_elem, size_t NumNeighbours, size_t... Is>
+template <ElementInterface mesh_elem, size_t NumNeighbours, size_t... Is>
 std::array<faceType, NumNeighbours> build_layers(mesh_elem& face, const Params& p, const size_t i, std::index_sequence<Is...>) {
     std::array<std::optional<faceType>, NumNeighbours> scratch{};
     for (const auto neighbour : all_neighbours)
@@ -136,7 +136,7 @@ std::array<faceType, NumNeighbours> build_layers(mesh_elem& face, const Params& 
 }
 
 
-template <Element mesh_elem, size_t NumNeighbours, size_t NumLayers, size_t... Ns>
+template <ElementInterface mesh_elem, size_t NumNeighbours, size_t NumLayers, size_t... Ns>
 std::array<std::array<faceType, NumNeighbours>, NumLayers>
 build_geometry(mesh_elem& face, const Params& p, std::index_sequence<Ns...>) {
     return { build_layers<NumNeighbours>(face, p, Ns, std::make_index_sequence<NumNeighbours>{}) ... };
