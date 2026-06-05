@@ -48,7 +48,7 @@ namespace Soil {
         virtual double saturated_conductivity(const std::string&) const = 0;
 
         virtual double ayers_texture(const std::string& texture, const std::string& ground_cover) const = 0;
-        double lookup(const mymap& map, const std::string& key) const;
+        static double lookup(const mymap& map, const std::string& key);
         virtual ~_soils_base() = default;
 
     private:

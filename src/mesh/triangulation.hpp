@@ -320,6 +320,16 @@ public:
      */
     double veg_attribute(const std::string &variable);
 
+
+    /**
+     * Retrieves a soil attribute for the face. This will preferentially look for a distributed variable,
+     * before falling back to looking for a classified landcover map + paramter table (from config).
+     * @param variable Name of variable to lookup.
+     * @return Value of the variable at this face
+     */
+    template<typename T>
+    T soil_attribute(const std::string &variable);
+
     /**
      * Sets the vector for the given variable.
      * Does not support timeseries output.
@@ -1777,6 +1787,39 @@ double face<Gt, Fb>::veg_attribute(const std::string &variable)
     else
     {
         CHM_THROW_EXCEPTION(module_error, "Parameter " + variable +" does not exist.");
+    }
+
+    return result;
+};
+
+template < class Gt, class Fb >
+template<typename T>
+T face<Gt, Fb>::soil_attribute(const std::string &variable)
+{
+    T result{};
+
+    // first see if we have a distributed map of this parameter
+    if(has_parameter(variable))
+    {
+        result = parameter(variable);
+    }
+    else if(has_parameter("soil"_s)) // Ok, try to look it up in a classified landcover lookup table
+    {
+        int LC = parameter("soil"_s);
+        auto param = _domain->_global->parameters; //this grabs the loaded landcover map
+        try
+        {
+            result = param.get<T>("soil." + std::to_string(LC) + "."+variable);
+        }
+        catch(const boost::property_tree::ptree_bad_path& e)
+        {
+            CHM_THROW_EXCEPTION(module_error, "Soil Parameter " + variable +" does not exist.");
+        }
+
+    }
+    else
+    {
+        CHM_THROW_EXCEPTION(module_error, "Soil Parameter " + variable +" does not exist.");
     }
 
     return result;

@@ -154,7 +154,8 @@ void SoilMoistureSolverCore<M>::init(M& domain)
     for (size_t i = 0; i < domain->size_local_faces(); i++)
     {
         auto face = domain->face(i);
-        auto geometry = build_geometry<NUM_NEIGHBOURS,NUM_LAYERS>(face,
+        using element = std::decay_t<decltype(face)>;
+        auto geometry = build_geometry<element,NUM_NEIGHBOURS,NUM_LAYERS>(face, _params,
                 std::make_index_sequence<NUM_LAYERS>{});
 
         LayerNeighbourArray<opt<faceInterpolator>> face_interp;
@@ -280,7 +281,7 @@ void SoilMoistureSolverCore<M>::init(M& domain)
             }
         }
         cellInfo cell_info{face_interp, geometry, alpha, neighbour_idx};
-        face->template make_module_data<data>(_ID,cell_info,face_interp, geometry, alpha, neighbour_idx, _params);
+        face->template make_module_data<data>(_ID,cell_info,face);
 
 
     }

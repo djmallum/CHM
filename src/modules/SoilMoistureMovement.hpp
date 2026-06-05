@@ -24,7 +24,6 @@
 #pragma once
 
 #include "LinearAlgebra.hpp"
-#include "SoilMoistureSolverCore/SoilMoistureSolverCore.hpp"
 #include "module_base.hpp"
 #include "submodules/SoilMoistureSolverCore/SoilMoistureSolverCore.hpp"
 #include "triangulation.hpp"

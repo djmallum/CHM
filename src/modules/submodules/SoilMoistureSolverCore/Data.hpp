@@ -27,9 +27,9 @@ struct cellInfo
 class data : public face_info
 {
 public:
-    template<ElementInterface mesh_elem>
+    template<ElementInterface E>
     explicit data(const cellInfo& cell,
-        const mesh_elem& face);
+        const E& face);
 
     cellInfo cell_info;
     double K_saturated;
@@ -46,24 +46,24 @@ inline double data::theta(const int i) const
     return result;
 }
 
-template <ElementInterface mesh_elem>
+template <ElementInterface E>
 data::data(const cellInfo& cell,
-    const mesh_elem& face)
+    const E& face)
 : cell_info(cell)
 {
     const auto& soil_param = Soil::get_soil_obj<Soil::soils_na>();
-    const auto soil_type = face->soil_attribute("soil_type");
+    const auto soil_type = face->template soil_attribute<std::string>("soil_type");
     pore_size_dist_index = soil_param.pore_size_dist(soil_type);
     air_entry_tension = soil_param.air_entry_tension(soil_type);
     K_saturated = soil_param.saturated_conductivity(soil_type);
 
-    const auto initial_psi = face->soil_attribute("initial_pressure_head");
+    const auto initial_psi = face->template soil_attribute<double>("initial_pressure_head");
     // TODO this should be in theta, converted to psi, with a block for 0 saturation
     std::ranges::fill(psi_n, initial_psi);
 }
 
-template<ElementInterface mesh_elem>
-static faceType get_lateral_boundary(const mesh_elem& face,const size_t nn)
+template<ElementInterface E>
+static faceType get_lateral_boundary(const E& face,const size_t nn)
 {
     const auto dir_vec = face->downslope_dir();
     const auto edge_normal = face->template edge_unit_normal<Vector_3>(nn);
@@ -85,8 +85,8 @@ static faceType get_lateral_boundary(const mesh_elem& face,const size_t nn)
     return Boundary(DeltaZ, dist_to_face);
 }
 
-template<ElementInterface mesh_elem>
-static faceType get_geometry(const mesh_elem& face, const Params& p ,const GeoHelper geo_helper)
+template<ElementInterface E>
+static faceType get_geometry(const E& face, const Params& p ,const GeoHelper geo_helper)
 {
 
     // TODO handle faces at the edge of their process,
@@ -122,8 +122,8 @@ static faceType get_geometry(const mesh_elem& face, const Params& p ,const GeoHe
     return Interior(face, geo_helper, p);
 }
 
-template <ElementInterface mesh_elem, size_t NumNeighbours, size_t... Is>
-std::array<faceType, NumNeighbours> build_layers(mesh_elem& face, const Params& p, const size_t i, std::index_sequence<Is...>) {
+template <ElementInterface E, size_t NumNeighbours, size_t... Is>
+std::array<faceType, NumNeighbours> build_layers(E& face, const Params& p, const size_t i, std::index_sequence<Is...>) {
     std::array<std::optional<faceType>, NumNeighbours> scratch{};
     for (const auto neighbour : all_neighbours)
     {
@@ -136,9 +136,9 @@ std::array<faceType, NumNeighbours> build_layers(mesh_elem& face, const Params& 
 }
 
 
-template <ElementInterface mesh_elem, size_t NumNeighbours, size_t NumLayers, size_t... Ns>
+template <ElementInterface E, size_t NumNeighbours, size_t NumLayers, size_t... Ns>
 std::array<std::array<faceType, NumNeighbours>, NumLayers>
-build_geometry(mesh_elem& face, const Params& p, std::index_sequence<Ns...>) {
-    return { build_layers<NumNeighbours>(face, p, Ns, std::make_index_sequence<NumNeighbours>{}) ... };
+build_geometry(E& face, const Params& p, std::index_sequence<Ns...>) {
+    return { build_layers<E,NumNeighbours>(face, p, Ns, std::make_index_sequence<NumNeighbours>{}) ... };
 }
 }

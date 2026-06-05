@@ -86,7 +86,7 @@ public:
     int hour();
     int min();
     int sec();
-    int dt();
+    int dt() const;
     boost::posix_time::ptime posix_time();
 
     /**

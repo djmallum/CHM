@@ -4,23 +4,18 @@
 
 namespace Soil
 {
-    double _soils_base::lookup(const mymap& map, const std::string& key) const
-    {
-        auto it = map.find(key);
-        if (it != map.end())
+    double _soils_base::lookup(const mymap& map, const std::string& key)
+{
+        if (const auto it = map.find(key); it != map.end())
         {
            return it->second;
         }
-        else
-        {
-
-           CHM_THROW_EXCEPTION(module_error, "Soil Type does not exist in map"); 
-        } 
-    }
+        CHM_THROW_EXCEPTION(module_error, "Soil Type does not exist in map");
+}
 
     soils_na::soils_na()
     {
-        _make_hash();
+        soils_na::_make_hash();
     }
 
     soils_na::~soils_na()

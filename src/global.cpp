@@ -80,8 +80,7 @@ double global::posix_time_double()
     return duration.total_seconds();
 }
 
-int global::dt()
-{
+int global::dt() const {
     return _dt;
 }
 

@@ -62,11 +62,13 @@ set(MODULE_SRCS
         modules/PBSM3D.cpp
 		modules/snobal.cpp
 		modules/fsm.cpp
+		modules/SoilMoistureMovement.cpp
 
 		modules/testing/mpi_example.cpp
 
 
-		modules/SoilMoistureMovement.cpp
+		modules/submodules/SoilMoistureSolverCore/Details.cpp
+
 		CACHE INTERNAL "" FORCE
 )
 
@@ -114,6 +116,7 @@ set (HEADER_FILES
         modules/interp_met
 		modules/snobal
 		modules/testing
+        modules/submodules
 		math
         libmaw
         interpolation
