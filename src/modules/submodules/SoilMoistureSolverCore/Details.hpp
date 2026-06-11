@@ -7,6 +7,7 @@ namespace SoilMoistureSolver::detail
 {
 static inline constexpr size_t NUM_LAYERS = 3;
 static inline constexpr size_t NUM_NEIGHBOURS = 5;
+static inline constexpr size_t NUM_SIDES = 3; // Because triangle
 
 struct Params
 {
@@ -67,20 +68,7 @@ struct GeoHelper
     Neighbour nn;
     size_t layer;
 
-    bool top_or_bottom_boundary() const
-    {
-        switch (nn)
-        {
-        case Neighbour::Top:
-            if (layer == NUM_LAYERS) return true;
-            return false;
-        case Neighbour::Bottom:
-            if (layer == 0) return true;
-            return false;
-        default:
-            return false;
-        }
-    }
+    bool top_or_bottom_boundary() const;
 };
 
 class faceInterpolator

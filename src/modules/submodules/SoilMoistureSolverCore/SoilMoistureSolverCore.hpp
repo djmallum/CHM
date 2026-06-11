@@ -1,13 +1,11 @@
-//
-// Created by Allum, Donovan on 2026-06-03.
-//
-
 #pragma once
 #include "LinearAlgebra.hpp"
 #include "StencilAssembly.hpp"
 #include "Concepts.hpp"
 #include "Details.hpp"
 #include <spdlog/spdlog.h>
+
+#include <utility>
 #include "Data.hpp"
 #include "Adaptor.hpp"
 
@@ -19,7 +17,7 @@ using namespace detail;
 
 static Params param_builder(const config_file& cfg, const global& g)
 {
-    Params p;
+    Params p{};
     p.recharge_soil_depth = cfg.get<double>("recharge_soil_depth");
     p.lower_soil_depth = cfg.get<double>("lower_soil_depth");
     p.detention_depth = cfg.get<double>("detention_depth");
@@ -32,7 +30,7 @@ template<MeshInterface M>
 class SoilMoistureSolverCore
 {
 public:
-    explicit SoilMoistureSolverCore(const std::string& id,const Params& p) : _ID(id),_params(p) {}
+    explicit SoilMoistureSolverCore(std::string id,const Params& p) : _ID(std::move(id)),_params(p) {}
     void run(M& domain);
     void init(M& domain);
 private:
@@ -59,7 +57,6 @@ void SoilMoistureSolverCore<M>::build_matrix(M& domain)
             auto& d = face->template get_module_data<data>(_ID);
 
             solverData solver_data(d, face, z, sizes,_ID);
-
 
             math::LinearAlgebra::assemble_all_neighbours<NUM_NEIGHBOURS>(*moisture_content_solver, solver_data);
         }
@@ -144,6 +141,9 @@ void SoilMoistureSolverCore<M>::init(M& domain)
     /*
      * Since this is made to work directly with a soil module with specific parameters,
      * vert_layers is a constant
+     *
+     * TODO Extract this data into a separate class and then this goes into the constructor
+     * Maybe not allll of it.
      */
     sizes.local = domain->size_local_faces();
     sizes.global = domain->size_global_faces();
@@ -184,9 +184,8 @@ void SoilMoistureSolverCore<M>::init(M& domain)
             for (size_t layer = 0; layer < NUM_LAYERS; ++layer)
             {
                 const auto nn = static_cast<size_t>(neighbour);
-                std::visit([&face_interp,nn,layer]<typename T0>(T0&& arg)
+                std::visit([&face_interp,nn,layer]<typename T>(T&& arg)
                 {
-                    using T = std::decay_t<T0>;
                     if constexpr (std::is_same_v<T, Interior>)
                     {
                         face_interp[layer][nn].emplace(arg.geometry);
@@ -205,9 +204,8 @@ void SoilMoistureSolverCore<M>::init(M& domain)
                     face_area[layer][nn] = side_length * depths[layer];
                     //neighbour
                     neighbour_idx[layer][nn] =
-                        std::visit([layer,nn,this,&face]<typename T0>(T0&& arg) -> std::optional<int>
+                        std::visit([layer,nn,this,&face]<typename T>(T&&) -> std::optional<int>
                         {
-                            using T = std::decay_t<T0>;
                             if constexpr(std::is_same_v<T, Interior>)
                             {
                                 return std::optional<int>(sizes.global * layer + face->neighbor(nn)->cell_global_id);
@@ -221,9 +219,8 @@ void SoilMoistureSolverCore<M>::init(M& domain)
                     face_area[layer][nn] = tri_area;
                     //neighbour
                     neighbour_idx[layer][nn] =
-                        std::visit([layer,this,&face]<typename T0>(T0&& arg) -> std::optional<int>
+                        std::visit([layer,this,&face]<typename T>(T&&) -> std::optional<int>
                         {
-                            using T = std::decay_t<T0>;
                             if constexpr(std::is_same_v<T, Interior>)
                             {
                                 if (layer == NUM_LAYERS - 1)
@@ -244,9 +241,8 @@ void SoilMoistureSolverCore<M>::init(M& domain)
                     face_area[layer][nn] = tri_area;
                     //neighbour
                     neighbour_idx[layer][nn] =
-                        std::visit([layer,this,&face]<typename T0>(T0&& arg) -> std::optional<int>
+                        std::visit([layer,this,&face]<typename T>(T&&) -> std::optional<int>
                         {
-                            using T = std::decay_t<T0>;
                             if constexpr(std::is_same_v<T, Interior>)
                             {
                                 if (layer == 0)
@@ -265,9 +261,8 @@ void SoilMoistureSolverCore<M>::init(M& domain)
                 }
 
                 alpha[layer][nn] = _params.time_step_seconds * face_area[layer][nn] / volume[layer];
-                alpha[layer][nn] *= std::visit([]<typename T0>(T0&& arg)
+                alpha[layer][nn] *= std::visit([]<typename T>(T&& arg) -> double
                 {
-                    using T = std::decay_t<T0>;
                     if constexpr (std::is_same_v<T, Interior>)
                     {
                         return arg.geometry.cell_centre_distance;
@@ -277,6 +272,8 @@ void SoilMoistureSolverCore<M>::init(M& domain)
                         // There exists a mythical neighbour past the boundary
                         return 2.0 * arg.distance_to_face;
                     }
+
+                    CHM_THROW_EXCEPTION(module_error,"Visiting to invalid type, should be unreachable");
                 },geometry[layer][nn]);
             }
         }

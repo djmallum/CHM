@@ -16,8 +16,8 @@ class solverData
     const Sizes sizes;
     const std::string_view ID;
 
-    double soil_water_capacity() const;
-    double K_unsaturated(int) const;
+    [[nodiscard]] double soil_water_capacity() const;
+    [[nodiscard]] double K_unsaturated(int) const;
 public:
     solverData(data& d, E& face, int layer, const Sizes& sizes, std::string_view);
 
@@ -77,23 +77,28 @@ double solverData<E>::K_unsaturated(int i) const
      * Also see: Deb and Shukla (2012) for long list
      */
     // TODO K_unsaturated should also handle vertical neighbours too!!
-    const auto neigh = face->neighbor(i);
-    const auto d_neigh = neigh->template get_module_data<data>(ID.data());
 
-    // TODO testing this equation for accuracy AND behaviour near saturation and dry soil
-    // Source is Campbell (1974)
-    // Good source is also Deb and Shukla (2012)
-    // TODO i is face number not layer!!
-    auto campbell_eqn = [layer = this->z_idx](const data& d)
+    if (i < NUM_SIDES)
     {
-        return d.K_saturated * std::pow(d.air_entry_tension / d.psi_n.at(layer),2+3/d.pore_size_dist_index);
-    };
+        const auto neigh = face->neighbor(i);
+        const auto d_neigh = neigh->template get_module_data<data>(ID.data());
 
-    Pair pair;
-    pair.owner = campbell_eqn(d);
-    pair.neighbour = campbell_eqn(d_neigh);
+        // TODO testing this equation for accuracy AND behaviour near saturation and dry soil
+        // Source is Campbell (1974)
+        // Good source is also Deb and Shukla (2012)
+        // TODO i is face number not layer!!
+        auto campbell_eqn = [layer = this->z_idx](const data& d)
+        {
+            return d.K_saturated * std::pow(d.air_entry_tension / d.psi_n.at(layer),2+3/d.pore_size_dist_index);
+        };
 
-    return d.cell_info.interp_to_face[z_idx][i]->interp(pair);
+        Pair pair;
+        pair.owner = campbell_eqn(d);
+        pair.neighbour = campbell_eqn(d_neigh);
+
+        return d.cell_info.interp_to_face[z_idx][i]->interp(pair);
+    }
+
 }
 
 template<ElementInterface E>

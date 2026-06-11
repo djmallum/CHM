@@ -50,4 +50,20 @@ Geometry set_bottom_geo(const Point_3& cell_centre,
     g.elevation.neighbour = g.elevation.owner - g.cell_centre_distance;
     return g;
 }
+bool GeoHelper::top_or_bottom_boundary() const
+{
+    switch (nn)
+    {
+    case Neighbour::Top:
+        if (layer == NUM_LAYERS)
+            return true;
+        return false;
+    case Neighbour::Bottom:
+        if (layer == 0)
+            return true;
+        return false;
+    default:
+        return false;
+    }
 }
+} // namespace SoilMoistureSolver::detail
