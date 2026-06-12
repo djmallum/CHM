@@ -103,12 +103,14 @@ private:
 
 // compile time hash of strings
 #ifndef SAFE_CHECKS
+    using HashName = uint64_t;
     constexpr uint64_t operator""_s(const char* s, std::size_t len)
     {
         return xxh64::hash (s, len);
     }
 
 #else
+    using HashName = const char*;
     constexpr const char* operator""_s(const char* s, std::size_t len)
     {
         return s;

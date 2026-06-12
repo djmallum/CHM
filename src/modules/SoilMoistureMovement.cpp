@@ -33,18 +33,18 @@ SoilMoistureMovement::SoilMoistureMovement(const config_file& cfg)
 {
     // TODO Add depends/provides
 
-    auto _provides = [this](const std::string& s)
+    auto _provides = [this](HashName s)
     {
         this->provides(s);
     };
 
-    auto _depends = [this](const std::string& s)
+    auto _depends = [this](HashName s)
     {
         this->depends(s);
     };
 
-    _solver.depends(_depends);
-    _solver.provides(_provides);
+    Solver::depends(_depends);
+    Solver::provides(_provides);
 }
 
 void SoilMoistureMovement::init(mesh& domain)
