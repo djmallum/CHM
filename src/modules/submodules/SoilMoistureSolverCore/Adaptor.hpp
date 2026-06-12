@@ -17,6 +17,8 @@ class solverData
     const std::string_view ID;
 
     [[nodiscard]] double soil_water_capacity() const;
+    double _K_unsat_lateral_face(int i, orderedPair op) const;
+    double _K_unsat_vertical_Face(int i, orderedPair op) const;
     [[nodiscard]] double K_unsaturated(int) const;
 public:
     solverData(data& d, E& face, int layer, const Sizes& sizes, std::string_view);
@@ -70,34 +72,89 @@ double solverData<E>::soil_water_capacity() const
     return -std::pow(d.psi_n.at(z_idx) / d.air_entry_tension,-1/d.pore_size_dist_index) / (d.pore_size_dist_index * d.psi_n.at(z_idx)); //may need to correct this near saturation...
 }
 
-template<ElementInterface E>
+static double K_unsaturated_Campbell(const data& d, const size_t layer)
+{
+    return d.K_saturated * std::pow(d.air_entry_tension / d.psi_n.at(layer),2+3/d.pore_size_dist_index);
+}
+template <ElementInterface E> double solverData<E>::_K_unsat_lateral_face(int i, const orderedPair op) const
+{
+    const auto& neigh = face->neighbor(i);
+    if (has_neighbour(i))
+    {
+        const auto& d_neigh = neigh->template get_module_data<data>(ID.data());
+
+        // TODO testing this equation for accuracy AND behaviour near saturation and dry soil
+        // Source is Campbell (1974)
+        // Good source is also Deb and Shukla (2012)
+
+        const Pair pair_to_interp{.owner = K_unsaturated_Campbell(d, op.layer),
+                                  .neighbour = K_unsaturated_Campbell(d_neigh, op.layer)};
+
+        return d.cell_info.value_at_face(op, pair_to_interp);
+    }
+
+
+
+    return K_unsaturated_Campbell(d,op.layer);
+
+}
+template <ElementInterface E> double solverData<E>::_K_unsat_vertical_Face(const int i, const orderedPair op) const
+{
+    if (has_neighbour(i))
+    {
+        size_t layer_to{};
+        if (face_index_to_Neighbour(i) == Neighbour::Top)
+        {
+            layer_to = z_idx + 1;
+        }
+        else if (face_index_to_Neighbour(i) == Neighbour::Bottom)
+        {
+            layer_to = z_idx - 1;
+        }
+        else
+        {
+            CHM_THROW_EXCEPTION(module_error, "Should only be top or bottom face in this part of the code");
+        };
+
+        if (z_idx == 0 || z_idx == cellFacesAndVerticalLayers.layer - 1)
+        {
+            const std::string err = std::format("z_idx value indicates that this should be a boundary cell"
+                                                " but the code reached here. z_idx = {}",
+                                                z_idx);
+            CHM_THROW_EXCEPTION(module_error, err);
+        }
+
+        const Pair pair_to_interp{.owner = K_unsaturated_Campbell(d, op.layer),
+                                  .neighbour = K_unsaturated_Campbell(d, layer_to)};
+
+        return d.cell_info.value_at_face(op, pair_to_interp);
+    }
+
+    if (const auto& boundary = d.cell_info.get_faceType<Boundary>(op); boundary.neighbour_type == Neighbour::Top)
+    {
+        constexpr std::string_view err = "Top boundary condition does not require K_saturated and yet it was requested";
+        CHM_THROW_EXCEPTION(module_error, err.data());
+    }
+
+    return K_unsaturated_Campbell(d, op.layer);
+}
+template <ElementInterface E>
 double solverData<E>::K_unsaturated(int i) const
 {
     /* Campbell (1974)
      * Also see: Deb and Shukla (2012) for long list
      */
     // TODO K_unsaturated should also handle vertical neighbours too!!
+    // TODO Must handle boundary as well
+
+    const orderedPair op{.layer = z_idx, .face = static_cast<size_t>(i)};
 
     if (i < NUM_SIDES)
     {
-        const auto neigh = face->neighbor(i);
-        const auto d_neigh = neigh->template get_module_data<data>(ID.data());
-
-        // TODO testing this equation for accuracy AND behaviour near saturation and dry soil
-        // Source is Campbell (1974)
-        // Good source is also Deb and Shukla (2012)
-        // TODO i is face number not layer!!
-        auto campbell_eqn = [layer = this->z_idx](const data& d)
-        {
-            return d.K_saturated * std::pow(d.air_entry_tension / d.psi_n.at(layer),2+3/d.pore_size_dist_index);
-        };
-
-        Pair pair;
-        pair.owner = campbell_eqn(d);
-        pair.neighbour = campbell_eqn(d_neigh);
-
-        return d.cell_info.interp_to_face[z_idx][i]->interp(pair);
+        return _K_unsat_lateral_face(i, op);
     }
+
+    return _K_unsat_vertical_Face(i, op);
 
 }
 
@@ -117,7 +174,7 @@ bool solverData<E>::has_neighbour(const int f) const { return d.cell_info.neighb
 template<ElementInterface E>
 size_t solverData<E>::neighbour_idx(const int f) const
 {
-    const auto i = d.cell_info.neighbour_idx_[f][z_idx];
+    const auto i = d.cell_info.get_neighbour_idx(orderedPair{.layer=z_idx,.face=static_cast<size_t>(f)});
     if (!i)
     {
         const std::string err = std::format("neighbour_idx invoked for a face without a neighbour at index {} of face {}",
@@ -141,14 +198,14 @@ double solverData<E>::rhs(int f) const
 
     // TODO neighbour.z - z = the distance between the neighbour centre and the centre of the current cell.
     // Therefore, when one defines alpha for this term, as written it must include the distance between
-    return d.psi_n.at(z_idx) / NUM_NEIGHBOURS + d.cell_info.alpha.at(f).at(z_idx) / soil_water_capacity() *
+    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face + d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() *
         K_unsaturated(f) * (face_geometry->geometry.elevation.neighbour - face_geometry->geometry.elevation.owner);
 }
 
 template<ElementInterface E>
 double solverData<E>::diagonal(const int f) const
 {
-    return 1.0 / NUM_NEIGHBOURS + d.cell_info.alpha.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f); /* TODO everything about geometry or constant
+    return 1.0 / cellFacesAndVerticalLayers.face + d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f); /* TODO everything about geometry or constant
                                                                       *  in time goes in alpha, could make it a type
                                                                       */
 }
@@ -156,13 +213,13 @@ double solverData<E>::diagonal(const int f) const
 template<ElementInterface E>
 double solverData<E>::off_diagonal(const int f) const
 {
-    return -d.cell_info.alpha.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f); // TODO see diagonal
+    return -d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f); // TODO see diagonal
     // TODO off diagonal contributions
 }
 
 template<ElementInterface E>
 double solverData<E>::side_boundary_diagonal(int) {
-    return 1.0 / NUM_NEIGHBOURS;
+    return 1.0 / cellFacesAndVerticalLayers.face;
 }
 
 template<ElementInterface E>
@@ -186,12 +243,12 @@ double solverData<E>::side_boundary_rhs(const int f) const
     }
     const auto elevation_change = face_geo->DeltaZ;
 
-    return d.psi_n.at(z_idx) / NUM_NEIGHBOURS + d.cell_info.alpha.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f) * elevation_change;
+    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face + d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f) * elevation_change;
 }
 
 template<ElementInterface E>
 double solverData<E>::bottom_boundary_diagonal([[maybe_unused]] int) {
-    return 1.0 / NUM_NEIGHBOURS;
+    return 1.0 / cellFacesAndVerticalLayers.face;
 }
 
 template<ElementInterface E>
@@ -205,13 +262,13 @@ double solverData<E>::bottom_boundary_rhs(const int f) const
 {
     // WARNING: alpha for the bottom boundary must not include the distance to the neighbour
     // cell centre. Impossible to obtain since it doesn't exist. But its worth being aware.
-    return d.psi_n.at(z_idx) / NUM_NEIGHBOURS + d.cell_info.alpha.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f);
+    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face + d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f);
 }
 
 template<ElementInterface E>
 double solverData<E>::top_boundary_diagonal(int)
 {
-    return 1.0 / NUM_NEIGHBOURS; // TODO add to comment here what kind of BC this represents
+    return 1.0 / cellFacesAndVerticalLayers.face; // TODO add to comment here what kind of BC this represents
 }
 
 template<ElementInterface E>
@@ -225,6 +282,6 @@ double solverData<E>::top_boundary_off_diagonal(int)
 template<ElementInterface E>
 double solverData<E>::top_boundary_rhs(int) const
 {
-    return d.psi_n.at(z_idx) / NUM_NEIGHBOURS;
+    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face;
 }
 }

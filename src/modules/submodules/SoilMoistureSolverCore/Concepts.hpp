@@ -18,6 +18,7 @@ concept ElementInterface = requires(const T& t,Args&&... args)
     { t->template get_module_data<data>(std::declval<std::string>())} -> std::same_as<data&>;
     { t->template edge_unit_normal<Vector_3>(std::declval<size_t>())} -> std::same_as<Vector_3>;
     { t->template edge_midpoint<Point_3>(std::declval<size_t>())} -> std::same_as<Point_3>;
+    { t->downslope_dir() } -> std::same_as<Vector_3>;
     //{ t->soil_attribute(std::declval<std::string>())} -> std::floating_point;
     { t->neighbor(std::declval<size_t>())} -> std::same_as<T>;
     { t->cell_global_id } -> std::convertible_to<size_t>;

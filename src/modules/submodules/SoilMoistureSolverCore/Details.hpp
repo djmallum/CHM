@@ -5,9 +5,17 @@
 
 namespace SoilMoistureSolver::detail
 {
-static inline constexpr size_t NUM_LAYERS = 3;
-static inline constexpr size_t NUM_NEIGHBOURS = 5;
+struct orderedPair {
+    const size_t layer{};
+    const size_t face{};
+
+    auto operator<=>(const orderedPair&) const = default;
+    [[nodiscard]] bool top_or_bottom_boundary() const;
+};
+
 static inline constexpr size_t NUM_SIDES = 3; // Because triangle
+constexpr auto cellFacesAndVerticalLayers = orderedPair{.layer = 3,.face = 5};
+
 
 struct Params
 {
@@ -42,12 +50,17 @@ enum class Neighbour
     // WARNING
     // DO NOT CHANGE THESE VALUES
     // Array indexing relies on this
-    Lateral_0 = 0, // switch cases will receive a number from 0-4, even if lateral cases are the same
-    Lateral_1 = 1,
-    Lateral_2 = 2,
-    Top = 3,
-    Bottom = 4
+    Lateral_0, // switch cases will receive a number from 0-4, even if lateral cases are the same
+    Lateral_1,
+    Lateral_2,
+    Top,
+    Bottom
 };
+
+constexpr Neighbour face_index_to_Neighbour(const orderedPair&);
+constexpr Neighbour face_index_to_Neighbour(size_t);
+
+constexpr int Neighbour_to_face_index(Neighbour);
 
 // Do this to double-check Neighbour will cast correctly
 static_assert(Neighbour::Bottom == static_cast<Neighbour>(4) &&
@@ -62,14 +75,7 @@ constexpr std::array all_neighbours = {
     Neighbour::Bottom
 };
 
-static_assert(all_neighbours.size() == NUM_NEIGHBOURS,"Length of all_neighbours array does not match NUM_NEIGHBOURS");
-struct GeoHelper
-{
-    Neighbour nn;
-    size_t layer;
-
-    bool top_or_bottom_boundary() const;
-};
+static_assert(all_neighbours.size() == dim_size.face,"Length of all_neighbours array does not match dim_size.face");
 
 class faceInterpolator
 {
@@ -90,45 +96,46 @@ class Boundary
   public:
     const double DeltaZ;
     const double distance_to_face;
-    explicit Boundary(double dz, double df);
+    const Neighbour neighbour_type;
+    explicit Boundary(double dz, double df,Neighbour type);
 };
 
 class Interior
 {
   public:
     template<ElementInterface E>
-    explicit Interior(const E&, GeoHelper, const Params&);
+    explicit Interior(const E&, const orderedPair&, const Params&);
     const Geometry geometry;
     faceInterpolator interpolator{geometry};
 };
 
 
 template<ElementInterface E>
-Interior::Interior(const E& face, const GeoHelper gh, const Params& p) : geometry(set_interior_geometry(face,gh,p))
+Interior::Interior(const E& face, const orderedPair& op, const Params& p) : geometry(set_interior_geometry(face,op,p))
 {
 
 }
 
 template<ElementInterface E>
-static Geometry set_interior_geometry(const E& face, const GeoHelper geo_help, const Params& p )
+static Geometry set_interior_geometry(const E& face, const orderedPair& op, const Params& p )
 {
     const auto face_centre = face->center();
     //const auto lower_depth = cfg.get<double>("lower_soil_depth");
     //const auto recharge_depth = cfg.get<double>("recharge_soil_depth");
     //const auto detention_depth = cfg.get<double>("detention_layer_depth");
-    switch (geo_help.layer)
+    switch (op.layer)
     {
     case 0: // lower soil layer
     {
-        return lower_layer_boundary(face, geo_help, face_centre, p.lower_soil_depth, p.recharge_soil_depth);
+        return lower_layer_boundary(face, op, face_centre, p.lower_soil_depth, p.recharge_soil_depth);
     }
     case 1: // recharge depth
     {
-        return recharge_layer_boundary(face, geo_help, face_centre, p.lower_soil_depth, p.recharge_soil_depth, p.detention_depth);
+        return recharge_layer_boundary(face, op, face_centre, p.lower_soil_depth, p.recharge_soil_depth, p.detention_depth);
     }
     case 2:
     {
-        return detention_layer_boundary(face, geo_help, face_centre, p.recharge_soil_depth, p.detention_depth);
+        return detention_layer_boundary(face, op, face_centre, p.recharge_soil_depth, p.detention_depth);
     }
     default:
     {
@@ -152,18 +159,18 @@ Geometry set_bottom_geo(const Point_3& cell_centre, Pair depth);
 
 template<ElementInterface E>
 static Geometry detention_layer_boundary(
-    const E& face, const GeoHelper geo_help, const Point_3& face_centre,
+    const E& face, const orderedPair& op, const Point_3& face_centre,
     const double recharge_depth, const double detention_depth)
 {
     const auto centre_depth = detention_depth / 2.0;
     const auto cell_centre = translate_up(centre_depth, face_centre);
 
-    switch (static_cast<Neighbour>(geo_help.nn))
+    switch (static_cast<Neighbour>(op.face))
     {
     case Neighbour::Lateral_0:
     case Neighbour::Lateral_1:
     case Neighbour::Lateral_2:
-        return set_lateral_geo(face, geo_help, cell_centre, centre_depth);
+        return set_lateral_geo(face, op, cell_centre, centre_depth);
     case Neighbour::Top:
     {
         const std::string err = std::format("Not Possible, interior boundaries only for this type");
@@ -185,19 +192,19 @@ static Geometry detention_layer_boundary(
 }
 
 template<ElementInterface E> static Geometry
-recharge_layer_boundary(const E& face, const GeoHelper geo_help,
+recharge_layer_boundary(const E& face, const orderedPair& op,
                                                         const Point_3& face_centre, const double lower_depth,
                                                         const double recharge_depth, const double detention_depth)
 {
     const auto centre_depth = recharge_depth / 2.0;
     const auto cell_centre = translate_down(centre_depth, face_centre);
 
-    switch (geo_help.nn)
+    switch (static_cast<Neighbour>(op.face))
     {
     case Neighbour::Lateral_0:
     case Neighbour::Lateral_1:
     case Neighbour::Lateral_2:
-        return set_lateral_geo(face, geo_help, cell_centre, centre_depth);
+        return set_lateral_geo(face, op, cell_centre, centre_depth);
     case Neighbour::Top:
     {
         Pair p;
@@ -223,20 +230,20 @@ recharge_layer_boundary(const E& face, const GeoHelper geo_help,
 
 template<ElementInterface E>
 static Geometry lower_layer_boundary(const E& face,
-                                                          const GeoHelper geo_help,
+                                                          const orderedPair& op,
                                                           const Point_3& face_centre, const double lower_depth,
                                                           const double recharge_depth)
 {
     const auto centre_depth = lower_depth / 2.0 + recharge_depth;
     const auto cell_centre = translate_down(centre_depth, face_centre);
 
-    switch (geo_help.nn)
+    switch (static_cast<Neighbour>(op.face))
     {
     case Neighbour::Lateral_0:
     case Neighbour::Lateral_1:
     case Neighbour::Lateral_2:
     {
-        return set_lateral_geo(face, geo_help, cell_centre, centre_depth);
+        return set_lateral_geo(face, op, cell_centre, centre_depth);
     }
     case Neighbour::Top:
     {
@@ -260,15 +267,15 @@ static Geometry lower_layer_boundary(const E& face,
 }
 
 template<ElementInterface E>
-static Geometry set_lateral_geo(const E& face, const GeoHelper geo_help,
+static Geometry set_lateral_geo(const E& face, const orderedPair& op,
                                                const Point_3& cell_centre,
                                                const double centre_depth)
 {
     Geometry g;
-    const auto edge = translate_down(centre_depth,face->template edge_midpoint<Point_3>(static_cast<int>(geo_help.nn)));
+    const auto edge = translate_down(centre_depth,face->template edge_midpoint<Point_3>(static_cast<int>(op.face)));
     g.to_face.owner = CGAL::sqrt(CGAL::squared_distance(cell_centre, edge));
 
-    const auto centre_neighbour = translate_down(centre_depth,face->neighbor(static_cast<int>(geo_help.nn))->center());
+    const auto centre_neighbour = translate_down(centre_depth,face->neighbor(static_cast<int>(op.face))->center());
 
     g.to_face.neighbour = CGAL::sqrt(CGAL::squared_distance(centre_neighbour, edge));
 
