@@ -431,7 +431,7 @@ if (BUILD_TESTS)
 			#    test_daily.cpp
             tests/test_triangulation.cpp
 			tests/main.cpp
-			physics/Soil.cpp
+			tests/test_stencil_assembly.cpp
 	)
 
 	set(GTEST_LINK

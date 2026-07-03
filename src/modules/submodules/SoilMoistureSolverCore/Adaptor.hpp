@@ -4,6 +4,7 @@
 #include "Data.hpp"
 #include "Details.hpp"
 #include "StencilAssembly.hpp"
+#include "core.hpp"
 
 namespace SoilMoistureSolver::detail
 {
@@ -12,23 +13,23 @@ class solverData
 {
     E& face;
     data& d;
-    const int z_idx;
+    const size_t z_idx;
     const Sizes sizes;
     const std::string_view ID;
 
     [[nodiscard]] double soil_water_capacity() const;
-    double _K_unsat_lateral_face(int i, orderedPair op) const;
-    double _K_unsat_vertical_Face(int i, orderedPair op) const;
-    [[nodiscard]] double K_unsaturated(int) const;
+    double _K_unsat_lateral_face(size_t i, orderedPair op) const;
+    double _K_unsat_vertical_Face(size_t i, orderedPair op) const;
+    [[nodiscard]] double K_unsaturated(size_t) const;
 public:
-    solverData(data& d, E& face, int layer, const Sizes& sizes, std::string_view);
+    solverData(data& d, E& face, size_t layer, const Sizes& sizes, std::string_view);
 
     [[nodiscard]] size_t idx() const ;
-    [[nodiscard]] bool has_neighbour(int f) const;
-    [[nodiscard]] size_t neighbour_idx(int f) const;
+    [[nodiscard]] bool has_neighbour(size_t f) const;
+    [[nodiscard]] size_t neighbour_idx(size_t f) const;
 
-    static constexpr int top_face() { return static_cast<int>(Neighbour::Top); }
-    static constexpr int bottom_face() { return static_cast<int>(Neighbour::Bottom); }
+    static constexpr size_t top_face() { return static_cast<size_t>(Neighbour::Top); }
+    static constexpr size_t bottom_face() { return static_cast<size_t>(Neighbour::Bottom); }
 
     // without tags
     using donor_choice = math::without_donor_tag;
@@ -37,25 +38,25 @@ public:
 
     // Normal faces
     using rhs_choice = math::with_rhs_tag;
-    [[nodiscard]] double rhs(int) const;
-    [[nodiscard]] double diagonal(int f) const;
-    [[nodiscard]] double off_diagonal(int f) const;
+    [[nodiscard]] double rhs(size_t) const;
+    [[nodiscard]] double diagonal(size_t f) const;
+    [[nodiscard]] double off_diagonal(size_t f) const;
 
     // Boundaries
     using side_boundary_choice = math::with_side_boundary_tag;
-    [[nodiscard]] static double side_boundary_diagonal(int);
-    [[nodiscard]] static double side_boundary_off_diagonal(int);
-    [[nodiscard]] double side_boundary_rhs(int) const;
+    [[nodiscard]] static double side_boundary_diagonal(size_t);
+    [[nodiscard]] static double side_boundary_off_diagonal(size_t);
+    [[nodiscard]] double side_boundary_rhs(size_t) const;
 
     using bottom_boundary_choice = math::with_bottom_boundary_tag;
-    [[nodiscard]] static double bottom_boundary_diagonal(int);
-    [[nodiscard]] static double bottom_boundary_off_diagonal(int);
-    [[nodiscard]] double bottom_boundary_rhs(int) const;
+    [[nodiscard]] static double bottom_boundary_diagonal(size_t);
+    [[nodiscard]] static double bottom_boundary_off_diagonal(size_t);
+    [[nodiscard]] double bottom_boundary_rhs(size_t) const;
 
     using top_boundary_choice = math::with_top_boundary_tag;
-    [[nodiscard]] static double top_boundary_diagonal(int);
-    [[nodiscard]] static double top_boundary_off_diagonal(int);
-    [[nodiscard]] double top_boundary_rhs(int) const;
+    [[nodiscard]] static double top_boundary_diagonal(size_t);
+    [[nodiscard]] static double top_boundary_off_diagonal(size_t);
+    [[nodiscard]] double top_boundary_rhs(size_t) const;
 
 };
 
@@ -76,7 +77,7 @@ static double K_unsaturated_Campbell(const data& d, const size_t layer)
 {
     return d.K_saturated * std::pow(d.air_entry_tension / d.psi_n.at(layer),2+3/d.pore_size_dist_index);
 }
-template <ElementInterface E> double solverData<E>::_K_unsat_lateral_face(int i, const orderedPair op) const
+template <ElementInterface E> double solverData<E>::_K_unsat_lateral_face(size_t i, const orderedPair op) const
 {
     const auto& neigh = face->neighbor(i);
     if (has_neighbour(i))
@@ -98,7 +99,7 @@ template <ElementInterface E> double solverData<E>::_K_unsat_lateral_face(int i,
     return K_unsaturated_Campbell(d,op.layer);
 
 }
-template <ElementInterface E> double solverData<E>::_K_unsat_vertical_Face(const int i, const orderedPair op) const
+template <ElementInterface E> double solverData<E>::_K_unsat_vertical_Face(const size_t i, const orderedPair op) const
 {
     if (has_neighbour(i))
     {
@@ -139,7 +140,7 @@ template <ElementInterface E> double solverData<E>::_K_unsat_vertical_Face(const
     return K_unsaturated_Campbell(d, op.layer);
 }
 template <ElementInterface E>
-double solverData<E>::K_unsaturated(int i) const
+double solverData<E>::K_unsaturated(size_t i) const
 {
     /* Campbell (1974)
      * Also see: Deb and Shukla (2012) for long list
@@ -159,7 +160,7 @@ double solverData<E>::K_unsaturated(int i) const
 }
 
 template<ElementInterface E>
-solverData<E>::solverData(data& d, E& face, const int layer, const Sizes& sizes, const std::string_view id)
+solverData<E>::solverData(data& d, E& face, const size_t layer, const Sizes& sizes, const std::string_view id)
     : face(face), d(d), z_idx(layer), sizes(sizes), ID(id)
 {
 }
@@ -169,12 +170,12 @@ template<ElementInterface E>
 size_t solverData<E>::idx() const { return sizes.global * z_idx + face->cell_global_id; }
 
 template<ElementInterface E>
-bool solverData<E>::has_neighbour(const int f) const { return d.cell_info.neighbour_idx_[f][z_idx].has_value(); }
+bool solverData<E>::has_neighbour(const size_t f) const { return d.cell_info.get_neighbour_idx(orderedPair{.layer=z_idx,.face=f}).has_value(); }
 
 template<ElementInterface E>
-size_t solverData<E>::neighbour_idx(const int f) const
+size_t solverData<E>::neighbour_idx(const size_t f) const
 {
-    const auto i = d.cell_info.get_neighbour_idx(orderedPair{.layer=z_idx,.face=static_cast<size_t>(f)});
+    const auto i = d.cell_info.get_neighbour_idx(orderedPair{.layer=z_idx,.face=f});
     if (!i)
     {
         const std::string err = std::format("neighbour_idx invoked for a face without a neighbour at index {} of face {}",
@@ -185,94 +186,82 @@ size_t solverData<E>::neighbour_idx(const int f) const
 }
 
 template<ElementInterface E>
-double solverData<E>::rhs(int f) const
+double solverData<E>::rhs(const size_t f) const
 {
     // const auto elevation = d.get_elevation(f);
-    const auto* face_geometry = std::get_if<Interior>(&d.cell_info.cell_geometry[f][z_idx]);
-    if (!face_geometry)
-    {
-        const std::string err = std::format("Boundary face detected in non-boundary function. At triangle {}, face {}, and layer {}",
-            this->face->cell_global_id,f,z_idx);
-        CHM_THROW_EXCEPTION(module_error,err);
-    }
+    const auto& interior_face = d.cell_info.get_faceType<Interior>(orderedPair{.layer=z_idx,.face=f});
 
     // TODO neighbour.z - z = the distance between the neighbour centre and the centre of the current cell.
     // Therefore, when one defines alpha for this term, as written it must include the distance between
-    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face + d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() *
-        K_unsaturated(f) * (face_geometry->geometry.elevation.neighbour - face_geometry->geometry.elevation.owner);
+    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face + d.cell_info.get_coefficient(orderedPair{.layer=z_idx,.face=f}) / soil_water_capacity() *
+        K_unsaturated(f) * (interior_face.geometry.elevation.neighbour - interior_face.geometry.elevation.owner);
 }
 
 template<ElementInterface E>
-double solverData<E>::diagonal(const int f) const
+double solverData<E>::diagonal(const size_t f) const
 {
-    return 1.0 / cellFacesAndVerticalLayers.face + d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f); /* TODO everything about geometry or constant
+    return 1.0 / cellFacesAndVerticalLayers.face + d.cell_info.get_coefficient(orderedPair{.layer=z_idx,.face=f}) / soil_water_capacity() * K_unsaturated(f); /* TODO everything about geometry or constant
                                                                       *  in time goes in alpha, could make it a type
                                                                       */
 }
 
 template<ElementInterface E>
-double solverData<E>::off_diagonal(const int f) const
+double solverData<E>::off_diagonal(const size_t f) const
 {
-    return -d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f); // TODO see diagonal
+    return -d.cell_info.get_coefficient(orderedPair{.layer=z_idx,.face=f}) / soil_water_capacity() * K_unsaturated(f); // TODO see diagonal
     // TODO off diagonal contributions
 }
 
 template<ElementInterface E>
-double solverData<E>::side_boundary_diagonal(int) {
+double solverData<E>::side_boundary_diagonal(size_t) {
     return 1.0 / cellFacesAndVerticalLayers.face;
 }
 
 template<ElementInterface E>
-double solverData<E>::side_boundary_off_diagonal(const int)
+double solverData<E>::side_boundary_off_diagonal(const size_t)
 {
     return 0.0;
 }
 
 template<ElementInterface E>
-double solverData<E>::side_boundary_rhs(const int f) const
+double solverData<E>::side_boundary_rhs(const size_t f) const
 {
     if (f > 2)
         CHM_THROW_EXCEPTION(module_error,"side boundary must only be faces 0, 1, or 2");
 
-    const auto* face_geo = std::get_if<Boundary>(&d.cell_info.cell_geometry[z_idx][f]);
-    if (!face_geo)
-    {
-        const std::string err = std::format("Interior face detected in a boundary function. At triangle {}, face {}, and layer {}",
-            this->face->cell_global_id,f,z_idx);
-        CHM_THROW_EXCEPTION(module_error,err);
-    }
-    const auto elevation_change = face_geo->DeltaZ;
+    const auto& boundary_face = d.cell_info.get_faceType<Boundary>(orderedPair{.layer=z_idx,.face=f});
+    const auto elevation_change = boundary_face.DeltaZ;
 
-    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face + d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f) * elevation_change;
+    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face + d.cell_info.get_coefficient(orderedPair{.layer=z_idx,.face=f}) / soil_water_capacity() * K_unsaturated(f) * elevation_change;
 }
 
 template<ElementInterface E>
-double solverData<E>::bottom_boundary_diagonal([[maybe_unused]] int) {
+double solverData<E>::bottom_boundary_diagonal([[maybe_unused]] size_t) {
     return 1.0 / cellFacesAndVerticalLayers.face;
 }
 
 template<ElementInterface E>
-double solverData<E>::bottom_boundary_off_diagonal([[maybe_unused]] int)
+double solverData<E>::bottom_boundary_off_diagonal([[maybe_unused]] size_t)
 {
     return 0.0;
 }
 
 template<ElementInterface E>
-double solverData<E>::bottom_boundary_rhs(const int f) const
+double solverData<E>::bottom_boundary_rhs(const size_t f) const
 {
     // WARNING: alpha for the bottom boundary must not include the distance to the neighbour
     // cell centre. Impossible to obtain since it doesn't exist. But its worth being aware.
-    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face + d.cell_info.coefficient.at(f).at(z_idx) / soil_water_capacity() * K_unsaturated(f);
+    return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face + d.cell_info.get_coefficient(orderedPair{.layer=z_idx,.face=f}) / soil_water_capacity() * K_unsaturated(f);
 }
 
 template<ElementInterface E>
-double solverData<E>::top_boundary_diagonal(int)
+double solverData<E>::top_boundary_diagonal(size_t)
 {
     return 1.0 / cellFacesAndVerticalLayers.face; // TODO add to comment here what kind of BC this represents
 }
 
 template<ElementInterface E>
-double solverData<E>::top_boundary_off_diagonal(int)
+double solverData<E>::top_boundary_off_diagonal(size_t)
 {
     // top boundary is no flux
     // off-diagonal terms require that psi_j - psi != 0
@@ -280,7 +269,7 @@ double solverData<E>::top_boundary_off_diagonal(int)
 }
 
 template<ElementInterface E>
-double solverData<E>::top_boundary_rhs(int) const
+double solverData<E>::top_boundary_rhs(size_t) const
 {
     return d.psi_n.at(z_idx) / cellFacesAndVerticalLayers.face;
 }

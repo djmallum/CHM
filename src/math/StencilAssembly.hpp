@@ -99,16 +99,16 @@ namespace math::optin {                                                         
 namespace math::optin {
 
 template <class C>
-concept CellStencil = requires(const C& c, int f) {
-    { c.idx() }            -> std::convertible_to<int>;
+concept CellStencil = requires(const C& c, size_t f) {
+    { c.idx() }            -> std::convertible_to<size_t>;
     { c.has_neighbour(f) } -> std::convertible_to<bool>;
-    { c.neighbour_idx(f) } -> std::convertible_to<int>;
+    { c.neighbour_idx(f) } -> std::convertible_to<size_t>;
     { c.diagonal(f) }      -> std::convertible_to<double>;
     { c.off_diagonal(f) }  -> std::convertible_to<double>;
 };
 
 template <class S>
-concept LinearSystem = requires(S& s, int i, int j, double v) {
+concept LinearSystem = requires(S& s, size_t i, size_t j, double v) {
     s.matrixSumIntoGlobalValues(i, j, v);
     s.rhsSumIntoGlobalValue(i, v);
 };
@@ -118,8 +118,8 @@ concept LinearSystem = requires(S& s, int i, int j, double v) {
 // below, not by a with_/without_ tag.
 template <class C>
 concept VerticallyStacked = requires(const C& c) {
-    { c.top_face()    } -> std::convertible_to<int>;
-    { c.bottom_face() } -> std::convertible_to<int>;
+    { c.top_face()    } -> std::convertible_to<size_t>;
+    { c.bottom_face() } -> std::convertible_to<size_t>;
 };
 
 // vertical_semantics axis — same as v2
@@ -141,25 +141,25 @@ concept LibraryManaged = std::is_same_v<vertical_semantics_t<C>, library_managed
 // =========================================================================
 // Interior-face RHS
 DEFINE_EXPLICIT_FEATURE(rhs, RHS,
-    (const C& c, int f) { { c.rhs(f) } -> std::convertible_to<double>; })
+    (const C& c, size_t f) { { c.rhs(f) } -> std::convertible_to<double>; })
 
 // Donor scheme on interior faces (donor_term + donor_on_diag)
 DEFINE_EXPLICIT_FEATURE(donor, Donor,
-    (const C& c, int f) {
+    (const C& c, size_t f) {
         { c.donor_term(f)    } -> std::convertible_to<double>;
         { c.donor_on_diag(f) } -> std::convertible_to<bool>;
     })
 
 // Donor scheme on boundary faces (independent axis)
 DEFINE_EXPLICIT_FEATURE(boundary_donor, BoundaryDonor,
-    (const C& c, int f) {
+    (const C& c, size_t f) {
         { c.boundary_donor_term(f)    } -> std::convertible_to<double>;
         { c.boundary_donor_on_diag(f) } -> std::convertible_to<bool>;
     })
 
 // --- User-managed boundary axis (single set of boundary_* methods) -------
 DEFINE_EXPLICIT_FEATURE(boundary, Boundary,
-    (const C& c, int f) {
+    (const C& c, size_t f) {
         { c.boundary_diagonal(f)     } -> std::convertible_to<double>;
         { c.boundary_off_diagonal(f) } -> std::convertible_to<double>;
         { c.boundary_rhs(f)          } -> std::convertible_to<double>;
@@ -167,7 +167,7 @@ DEFINE_EXPLICIT_FEATURE(boundary, Boundary,
 
 // --- Library-managed boundary axes (one per FaceKind) --------------------
 DEFINE_EXPLICIT_FEATURE(side_boundary, SideBoundary,
-    (const C& c, int f) {
+    (const C& c, size_t f) {
         { c.side_boundary_diagonal(f)     } -> std::convertible_to<double>;
         { c.side_boundary_off_diagonal(f) } -> std::convertible_to<double>;
         { c.side_boundary_rhs(f)          } -> std::convertible_to<double>;
@@ -198,7 +198,7 @@ using optin::LinearSystem;
 enum class FaceKind { Side, VerticalTop, VerticalBottom };
 
 template <CellStencil C>
-constexpr FaceKind classify_face(const C& c, int f)
+constexpr FaceKind classify_face(const C& c, size_t f)
 {
     // VerticallyStacked<C> includes single layer meshes, as these indeed have boundary conditions
     if constexpr (optin::VerticallyStacked<C>) {
@@ -273,7 +273,7 @@ constexpr bool bottom_boundary_active_v =
 
 // ---------- interior face ------------------------------------------------
 template <LinearSystem S, CellStencil C>
-void interior_face(S& sys, const C& c, int f)
+void interior_face(S& sys, const C& c, size_t f)
 {
     const auto i = c.idx();
     const auto j = c.neighbour_idx(f);
@@ -294,7 +294,7 @@ void interior_face(S& sys, const C& c, int f)
 
 // ---------- boundary face: dispatched by vertical_semantics + FaceKind ---
 template <LinearSystem S, CellStencil C>
-void boundary_face(S& sys, const C& c, int f, [[maybe_unused]] const FaceKind kind)
+void boundary_face(S& sys, const C& c, size_t f, [[maybe_unused]] const FaceKind kind)
 {
     const auto i = c.idx();
 
@@ -338,7 +338,7 @@ void boundary_face(S& sys, const C& c, int f, [[maybe_unused]] const FaceKind ki
 }
 
 template <LinearSystem S, CellStencil C>
-void assemble_face(S& sys, const C& c, int f)
+void assemble_face(S& sys, const C& c, size_t f)
 {
     if (c.has_neighbour(f))
         interior_face<S, C>(sys, c, f);
@@ -353,7 +353,7 @@ template <size_t faceCount, LinearSystem S, CellStencil C>
 void assemble_all_neighbours(S& sys, const C& c)
 {
     check_explicit_choices<C>();
-    for (int f = 0; f < faceCount; ++f)
+    for (size_t f = 0; f < faceCount; ++f)
         detail::assemble_face<S, C>(sys, c, f);
 }
 }

@@ -26,6 +26,7 @@ struct cellInfo
     template <class F> [[nodiscard]] const F& get_faceType(const orderedPair& p) const;
     [[nodiscard]] double value_at_face(const orderedPair&, const Pair& p) const;
     [[nodiscard]] std::optional<int> get_neighbour_idx(const orderedPair&) const;
+    size_t cell_id() const { return cell_global_id;};
 
 private:
 
@@ -33,16 +34,19 @@ private:
     const LayerNeighbourArray<faceType,P> cell_geometry;
     const LayerNeighbourArray<double,P> coefficient;
     const LayerNeighbourArray<opt<int>,P> neighbour_idx_;
+    const size_t cell_global_id;
 
     cellInfo(
     const LayerNeighbourArray<opt<faceInterpolator>>& interp,
     const LayerNeighbourArray<faceType>& geom,
     const LayerNeighbourArray<double>& a,
-    const LayerNeighbourArray<opt<int>>& neighbours
+    const LayerNeighbourArray<opt<int>>& neighbours,
+    const size_t& cell_id
 ) : interp_to_face(interp),
     cell_geometry(geom),
     coefficient(a),
-    neighbour_idx_(neighbours)
+    neighbour_idx_(neighbours),
+    cell_global_id(cell_id)
     {}
 };
 
@@ -294,7 +298,7 @@ cellInfo<P> cellInfo<P>::build(E& face,const Params& _params,const Sizes sizes)
                 geometry[layer][nn]);
         }
     }
-    return cellInfo{face_interp, geometry, alpha, neighbour_idx};
+    return cellInfo{face_interp, geometry, alpha, neighbour_idx,face->cell_global_id};
 }
 template <orderedPair P> double cellInfo<P>::get_coefficient(const orderedPair& p) const
 {
@@ -308,7 +312,18 @@ bool cellInfo<P>::is_faceType(const orderedPair& p) const
 }
 template <orderedPair P> template<class F> const F& cellInfo<P>::get_faceType(const orderedPair& p) const
 {
-    return std::get<F>(cell_geometry[p.layer][p.face]);
+    const auto* face_type = std::get_if<F>(&cell_geometry[p.layer][p.face]);
+    if (!face_type)
+    {
+        const std::string expected = std::is_same_v<F,Boundary> ? "Boundary" : "Interior";
+        const std::string received = std::is_same_v<F,Boundary> ? "Interior" : "Boundary";
+        const std::string err = std::format("{} face detected where a {} was expected. At triangle {}, face {}, and layer {}",
+            expected,
+            received,
+            this->cell_global_id,p.face,p.layer);
+        CHM_THROW_EXCEPTION(module_error,err);
+    }
+    return *face_type;
 }
 template <orderedPair P> double cellInfo<P>::value_at_face(const orderedPair& op, const Pair& p) const
 {

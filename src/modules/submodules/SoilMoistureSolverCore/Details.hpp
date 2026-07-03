@@ -75,7 +75,7 @@ constexpr std::array all_neighbours = {
     Neighbour::Bottom
 };
 
-static_assert(all_neighbours.size() == dim_size.face,"Length of all_neighbours array does not match dim_size.face");
+static_assert(all_neighbours.size() == cellFacesAndVerticalLayers.face,"Length of all_neighbours array does not match dim_size.face");
 
 class faceInterpolator
 {
