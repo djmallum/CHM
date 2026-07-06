@@ -17,7 +17,7 @@ namespace SoilMoistureSolver
 
 using namespace detail;
 
-static Params param_builder(const config_file& cfg, const global& g)
+inline Params param_builder(const config_file& cfg, const global& g)
 {
     Params p{};
     p.recharge_soil_depth = cfg.get<double>("recharge_soil_depth");
@@ -93,28 +93,25 @@ auto SoilMoistureSolverCore<M>::try_solution(const M& domain)
     }
 }
 
-static std::string get_theta_name(const int layer) noexcept { return "theta" + std::to_string(layer); }
-static std::string get_psi_name(const int layer) noexcept { return "psi" + std::to_string(layer); }
-
 struct Name
 {
     HashName psi;
     HashName theta;
 };
-static const std::array<Name, cellFacesAndVerticalLayers.layer>& build_output_names()
-{
-    static constexpr std::array<Name,cellFacesAndVerticalLayers.layer> names = []
-    {
-        std::array n{
-            Name{"theta_lower"_s,"psi_lower"_s},
-            Name{"theta_recharge"_s,"psi_recharge"_s},
-            Name{"theta_detention"_s,"psi_detention"_s}
-        };
-        return n;
-    }();
 
-    return names;
-}
+    namespace detail {
+    inline const std::array<Name, cellFacesAndVerticalLayers.layer>& build_output_names()
+    {
+        static constexpr std::array<Name, cellFacesAndVerticalLayers.layer> names = []
+        {
+            constexpr std::array n{Name{"theta_lower"_s, "psi_lower"_s}, Name{"theta_recharge"_s, "psi_recharge"_s},
+                         Name{"theta_detention"_s, "psi_detention"_s}};
+            return n;
+        }();
+
+        return names;
+    }
+    }
 
 template<MeshInterface M>
 template <Indexable T>

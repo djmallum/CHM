@@ -4,51 +4,6 @@
 namespace SoilMoistureSolver::detail
 {
 
-bool orderedPair::top_or_bottom_boundary() const {
-    return (layer == 0 && face_index_to_Neighbour(*this) == Neighbour::Bottom) ||
-        (layer == dim_size.layer - 1 && face_index_to_Neighbour(*this) == Neighbour::Top);
-}
-
-constexpr Neighbour face_index_to_Neighbour(const orderedPair& op)
-{
-    switch (op.face)
-    {
-        case 0:
-            return Neighbour::Lateral_0;
-        case 1:
-            return Neighbour::Lateral_1;
-        case 2:
-            return Neighbour::Lateral_2;
-        case 3:
-            return Neighbour::Bottom;
-        case 4:
-            return Neighbour::Top;
-    default:
-        CHM_THROW_EXCEPTION(module_error,"Index out of bounds");
-    }
-}
-constexpr Neighbour face_index_to_Neighbour(const size_t nn)
-{
-    orderedPair op{.layer = 0,.face = nn};
-    return face_index_to_Neighbour(op);
-}
-constexpr int Neighbour_to_face_index(const Neighbour N)
-{
-    switch (N) {
-    case Neighbour::Lateral_0:
-        return 0;
-    case Neighbour::Lateral_1:
-        return 1;
-    case Neighbour::Lateral_2:
-        return 2;
-    case Neighbour::Bottom:
-        return 3;
-    case Neighbour::Top:
-        return 4;
-    default:
-        CHM_THROW_EXCEPTION(module_error,"Neighbour out of bounds");
-    }
-}
 faceInterpolator::faceInterpolator(const Geometry& g)
     : geometry_(g) {}
 

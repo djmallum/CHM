@@ -33,12 +33,12 @@ SoilMoistureMovement::SoilMoistureMovement(const config_file& cfg)
 {
     // TODO Add depends/provides
 
-    auto _provides = [this](HashName s)
+    auto _provides = [this](const HashName s)
     {
         this->provides(s);
     };
 
-    auto _depends = [this](HashName s)
+    auto _depends = [this](const HashName s)
     {
         this->depends(s);
     };

@@ -73,7 +73,7 @@ double solverData<E>::soil_water_capacity() const
     return -std::pow(d.psi_n.at(z_idx) / d.air_entry_tension,-1/d.pore_size_dist_index) / (d.pore_size_dist_index * d.psi_n.at(z_idx)); //may need to correct this near saturation...
 }
 
-static double K_unsaturated_Campbell(const data& d, const size_t layer)
+inline double K_unsaturated_Campbell(const data& d, const size_t layer)
 {
     return d.K_saturated * std::pow(d.air_entry_tension / d.psi_n.at(layer),2+3/d.pore_size_dist_index);
 }
@@ -93,8 +93,6 @@ template <ElementInterface E> double solverData<E>::_K_unsat_lateral_face(size_t
 
         return d.cell_info.value_at_face(op, pair_to_interp);
     }
-
-
 
     return K_unsaturated_Campbell(d,op.layer);
 

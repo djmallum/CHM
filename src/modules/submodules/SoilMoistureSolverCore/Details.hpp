@@ -10,7 +10,7 @@ struct orderedPair {
     const size_t face{};
 
     auto operator<=>(const orderedPair&) const = default;
-    [[nodiscard]] bool top_or_bottom_boundary() const;
+    [[nodiscard]] constexpr bool top_or_bottom_boundary() const;
 };
 
 static inline constexpr size_t NUM_SIDES = 3; // Because triangle
@@ -57,10 +57,54 @@ enum class Neighbour
     Bottom
 };
 
-constexpr Neighbour face_index_to_Neighbour(const orderedPair&);
-constexpr Neighbour face_index_to_Neighbour(size_t);
+constexpr Neighbour face_index_to_Neighbour(const orderedPair& op)
+{
+    switch (op.face)
+    {
+    case 0:
+        return Neighbour::Lateral_0;
+    case 1:
+        return Neighbour::Lateral_1;
+    case 2:
+        return Neighbour::Lateral_2;
+    case 3:
+        return Neighbour::Bottom;
+    case 4:
+        return Neighbour::Top;
+    default:
+        CHM_THROW_EXCEPTION(module_error,"Index out of bounds");
+    }
+}
 
-constexpr int Neighbour_to_face_index(Neighbour);
+constexpr Neighbour face_index_to_Neighbour(const size_t nn)
+{
+    const orderedPair op{.layer = 0,.face = nn};
+    return face_index_to_Neighbour(op);
+}
+
+constexpr size_t Neighbour_to_face_index(const Neighbour N)
+{
+    switch (N) {
+    case Neighbour::Lateral_0:
+        return 0u;
+    case Neighbour::Lateral_1:
+        return 1u;
+    case Neighbour::Lateral_2:
+        return 2u;
+    case Neighbour::Bottom:
+        return 3u;
+    case Neighbour::Top:
+        return 4u;
+    default:
+        CHM_THROW_EXCEPTION(module_error,"Neighbour out of bounds");
+    }
+}
+
+constexpr bool orderedPair::top_or_bottom_boundary() const
+{
+    return (layer == 0 && face_index_to_Neighbour(*this) == Neighbour::Bottom) ||
+        (layer == cellFacesAndVerticalLayers.layer - 1 && face_index_to_Neighbour(*this) == Neighbour::Top);
+}
 
 // Do this to double-check Neighbour will cast correctly
 static_assert(Neighbour::Bottom == static_cast<Neighbour>(4) &&
