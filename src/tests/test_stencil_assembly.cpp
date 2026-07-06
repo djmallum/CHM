@@ -2,6 +2,8 @@
 
 #include "gtest/gtest.h"
 #include <iomanip>
+#include <vector>
+#include <numeric>
 
 struct MatrixSizes
 {
@@ -55,8 +57,10 @@ class TestStencilAssembly : public ::testing::Test {
     protected:
     static constexpr auto ROWS = 10u;
     static constexpr auto COLUMNS = 10u;
+    static constexpr auto face_number = 4u;
     std::unique_ptr<TestLinearSystem> _t = std::make_unique<TestLinearSystem>(MatrixSizes{.rows=ROWS,.columns= COLUMNS});
     TestStencilAssembly() = default;
+
 };
 
 TEST_F(TestStencilAssembly, LinearSystemZeroed)
@@ -123,3 +127,122 @@ TEST_F(TestStencilAssembly, LinearSystemPutToRHS)
         count++;
     }
 };
+
+class SolverData
+{
+public:
+    SolverData() = default;
+
+    size_t idx() const {}
+    bool has_neighbour(const size_t f) const {}
+    size_t neighbour_idx(const size_t f) const {}
+    double diagonal(const size_t f) const {}
+    double off_diagonal(const size_t f) const {}
+
+    constexpr size_t top_face() const { return 3u;}
+    constexpr size_t bottom_face() const { return 4u;}
+
+    using donor_choice = math::without_donor_tag;
+    using boundary_donor_choice = math::without_boundary_donor_tag;
+    using boundary_choice = math::without_boundary_tag;
+
+    using rhs_choice = math::with_rhs_tag;
+
+};
+
+template<size_t T>
+static void assign_neighbours(TestLinearSystem& ls, const size_t idx, const std::array<unsigned, T> neigh)
+{
+    for (const auto n : neigh)
+    {
+        ls.matrixSumIntoGlobalValues(idx, n, n);
+    }
+}
+static void build_expected_matrix(TestLinearSystem& ls)
+{
+    /*
+     * For testing, construct the following system
+     *
+     * 4 triangle system with 3 layers
+     *
+     * Imagine a single, central, vertically stacked column of three triangular prisms
+     *
+     * With a similar stacking of triangular prisms at each of the three side faces of the central column.
+     *
+     * Each vertical layer has 4 triangles, and with three layers for a total of 12 cells.
+     *
+     * Each cell has 5 faces, only the middle triangle in the central stack has no impact of boundary conditions.
+     *
+     * Indexing is as follows: 0 for bottom centre, then 1, 2, 3 in a counter-clockwise ordering.
+     *
+     * Layer 2 has 4, then 5, 6, 7.
+     *
+     * Layer 3 has 8, then 9, 10, 11
+     *
+     * Final Matrix is 12x12, 12 equations per cell and 12 possibly contributing cells. Only neighbours will contribute.
+     */
+
+    constexpr auto num_cells = 12u;
+    constexpr auto num_neighbours = 3u;
+    const std::vector<std::vector<size_t>> real_neighbors = {{
+        {1, 2, 3, 4},       // Cell 0
+        {0, 5},             // Cell 1
+        {0, 6},             // Cell 2
+        {0, 7},             // Cell 3
+        {0, 5, 6, 7, 8},    // Cell 4
+        {4, 1, 9},          // Cell 5
+        {4, 2, 10},         // Cell 6
+        {4, 3, 11},         // Cell 7
+        {4, 9, 10, 11},     // Cell 8
+        {8, 5},             // Cell 9
+        {8, 6},             // Cell 10
+        {8, 7},             // Cell 11
+    }};
+    constexpr auto indices = []() {
+        std::array<size_t,num_cells> arr;
+        std::iota(arr.begin(), arr.end(), 0u);
+        return arr;
+    }();
+    static_assert(indices[0] == 0);
+    static_assert(indices[11] == 11);
+
+    for (const auto idx : indices)
+    {
+        // diagonal
+        ls.matrixSumIntoGlobalValues(idx,idx,idx);
+        const auto neighbours = real_neighbors[idx];
+        for (const auto neighbour : neighbours)
+        {
+
+        }
+    }
+
+    // Cell 0: bottom layer, central
+    size_t idx = indices[0];
+    ls.rhsSumIntoGlobalValue(idx,-static_cast<int>(idx));
+    assign_neighbours(ls, idx, std::array{1u,2u,3u,4u});
+
+    // Cell 1: Bottom layer, edge
+    size_t idx = indices[1];
+    ls.rhsSumIntoGlobalValue(idx,-3u*static_cast<int>(idx));
+    assign_neighbours(ls, idx, std::array{0u,5u});
+
+
+}
+
+TEST_F(TestStencilAssembly, BuildMatrixRhsThroughPublicInterface)
+{
+    //
+    auto solver_data = SolverData{};
+    auto linear_system = TestLinearSystem{*_t};
+
+    build_expected_matrix(linear_system);
+
+
+
+    math::LinearAlgebra::assemble_all_neighbours<face_number>(*_t, solver_data);
+
+
+
+
+}
