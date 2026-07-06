@@ -148,38 +148,47 @@ static faceType get_geometry(const E& face, const Params& p ,const orderedPair& 
     return Interior(face, op, p);
 }
 
-template <ElementInterface E, size_t NumNeighbours, size_t... Is>
-std::array<faceType, NumNeighbours> build_layers(E& face, const Params& p, const size_t i, std::index_sequence<Is...>) {
-    std::array<std::optional<faceType>, NumNeighbours> scratch{};
+template <ElementInterface E, size_t NumNeighbours, size_t... FaceIndices>
+std::array<faceType, NumNeighbours>
+build_layers_from_optional(E& face, const Params& p, const size_t layer_idx, std::index_sequence<FaceIndices...>)
+{
+    static_assert(sizeof...(FaceIndices) == NumNeighbours,
+                  "index sequence must match NumNeighbours (one per face)");
+
+    std::array<std::optional<faceType>, NumNeighbours> face_slots{};
     for (const auto neighbour : all_neighbours)
     {
-        orderedPair op{.layer =i,.face = static_cast<size_t>(Neighbour_to_face_index(neighbour))};
-        scratch[i].emplace(get_geometry(face, p, op));
+        const auto face_idx = Neighbour_to_face_index(neighbour);
+        orderedPair op{.layer = layer_idx, .face = face_idx};
+        face_slots[face_idx].emplace(get_geometry(face, p, op));   // <-- index by face, not layer
     }
-    return { *std::move(scratch[Is])... };
+    return { *std::move(face_slots[FaceIndices])... };
 }
 
-
-template <ElementInterface E, orderedPair P = cellFacesAndVerticalLayers, size_t... Ns>
-std::array<std::array<faceType, P.face>, P.layer>
-build_geometry(E& face, const Params& p, std::index_sequence<Ns...>) {
-    return { build_layers<E,P.face>(face, p, Ns, std::make_index_sequence<P.layer>{}) ... };
+template <ElementInterface E, orderedPair Dims = cellFacesAndVerticalLayers, size_t... LayerIndices>
+std::array<std::array<faceType, Dims.face>, Dims.layer>
+build_cell_geometry(E& face, const Params& p, std::index_sequence<LayerIndices...>)
+{
+    return { build_layers_from_optional<E, Dims.face>(
+                 face, p, LayerIndices,
+                 std::make_index_sequence<Dims.face>{}
+             )... };
 }
 
-template<orderedPair P>
+template<orderedPair Dims>
 template<class E>
     requires ElementInterface<E>
-cellInfo<P> cellInfo<P>::build(E& face,const Params& _params,const Sizes sizes)
+cellInfo<Dims> cellInfo<Dims>::build(E& face,const Params& _params,const Sizes sizes)
 {
     auto geometry =
-        build_geometry<E, P>(face, _params, std::make_index_sequence<P.layer>{});
+        build_cell_geometry<E, Dims>(face, _params, std::make_index_sequence<Dims.layer>{});
 
-    LayerNeighbourArray<opt<faceInterpolator>,P> face_interp;
-    LayerNeighbourArray<double,P> alpha{};
-    LayerNeighbourArray<double,P> face_area{};
-    LayerNeighbourArray<opt<int>,P> neighbour_idx{};
+    LayerNeighbourArray<opt<faceInterpolator>,Dims> face_interp;
+    LayerNeighbourArray<double,Dims> alpha{};
+    LayerNeighbourArray<double,Dims> face_area{};
+    LayerNeighbourArray<opt<int>,Dims> neighbour_idx{};
 
-    static_assert(geometry.size() == P.layer && geometry[0].size() == P.face,
+    static_assert(geometry.size() == Dims.layer && geometry[0].size() == Dims.face,
                   "geometry matrix built improperly");
 
     std::array<double, cellFacesAndVerticalLayers.layer> volume;
