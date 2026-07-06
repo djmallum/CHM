@@ -4,26 +4,53 @@
 #include "gtest/gtest.h"
 #include <iomanip>
 
+using namespace SoilMoistureSolver::detail;
+
 class TestHelperFunctions : public ::testing::Test
 {
     protected:
+    static constexpr auto op_top    = orderedPair{.layer = cellFacesAndVerticalLayers.layer - 1, .face = cellFacesAndVerticalLayers.face - 1};
+    static constexpr auto op_bottom = orderedPair{.layer = 0u, .face = 3u};
+    static constexpr auto op_interior = orderedPair{.layer = 1u, .face = 0u};
 
 };
 
-TEST_F(TestHelperFunctions, NeighbourToIdxConversions)
+TEST_F(TestHelperFunctions, FaceIndexToNeighbourFromOrderedPair)
 {
     using namespace SoilMoistureSolver::detail;
 
-    constexpr auto op = orderedPair{.layer = cellFacesAndVerticalLayers.layer - 1,
-                                    .face = cellFacesAndVerticalLayers.face - 1};
-
     constexpr auto target = Neighbour::Top;
 
-    EXPECT_TRUE(op.top_or_bottom_boundary());
-    EXPECT_EQ(face_index_to_Neighbour(op),target);
-    EXPECT_EQ(Neighbour_to_face_index(target),op.face);
-    EXPECT_EQ(face_index_to_Neighbour(op.face),target);
-    EXPECT_EQ(Neighbour_to_face_index(face_index_to_Neighbour(op)),op.face);
+    EXPECT_EQ(face_index_to_Neighbour(op_top), target);
+    EXPECT_EQ(face_index_to_Neighbour(op_bottom), Neighbour::Bottom);
+    EXPECT_EQ(face_index_to_Neighbour(op_interior), Neighbour::Lateral_0);
+}
+
+TEST_F(TestHelperFunctions, NeighbourToFaceIndex)
+{
+    using namespace SoilMoistureSolver::detail;
+
+    EXPECT_EQ(Neighbour_to_face_index(Neighbour::Top), op_top.face);
+    EXPECT_EQ(Neighbour_to_face_index(Neighbour::Bottom), op_bottom.face);
+    EXPECT_EQ(Neighbour_to_face_index(Neighbour::Lateral_0), op_interior.face);
+}
+
+TEST_F(TestHelperFunctions, FaceIndexToNeighbourFromFaceIndex)
+{
+    using namespace SoilMoistureSolver::detail;
+
+    EXPECT_EQ(face_index_to_Neighbour(op_top.face), Neighbour::Top);
+    EXPECT_EQ(face_index_to_Neighbour(op_bottom.face), Neighbour::Bottom);
+    EXPECT_EQ(face_index_to_Neighbour(op_interior.face), Neighbour::Lateral_0);
+}
+
+TEST_F(TestHelperFunctions, RoundTripFaceIndexToNeighbourAndBack)
+{
+    using namespace SoilMoistureSolver::detail;
+
+    EXPECT_EQ(Neighbour_to_face_index(face_index_to_Neighbour(op_top)), op_top.face);
+    EXPECT_EQ(Neighbour_to_face_index(face_index_to_Neighbour(op_bottom)), op_bottom.face);
+    EXPECT_EQ(Neighbour_to_face_index(face_index_to_Neighbour(op_interior)), op_interior.face);
 }
 
 struct MatrixSizes
