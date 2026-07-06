@@ -432,6 +432,7 @@ if (BUILD_TESTS)
             tests/test_triangulation.cpp
 			tests/main.cpp
 			tests/test_stencil_assembly.cpp
+			tests/test_soilmoisture_helper_functions.cpp
 	)
 
 	set(GTEST_LINK

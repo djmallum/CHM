@@ -57,6 +57,13 @@ enum class Neighbour
     Bottom
 };
 
+constexpr bool operator==(Neighbour lhs, const size_t rhs) {
+    return static_cast<int>(lhs) == rhs;
+}
+constexpr bool operator==(const size_t lhs,const Neighbour rhs) {
+    return rhs == lhs;
+}
+
 constexpr Neighbour face_index_to_Neighbour(const orderedPair& op)
 {
     switch (op.face)
