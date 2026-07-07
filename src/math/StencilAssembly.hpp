@@ -18,6 +18,8 @@
 
 
 #include <concepts>
+#include <format>
+#include <stdexcept>
 #include <type_traits>
 
 namespace math
@@ -161,7 +163,6 @@ DEFINE_EXPLICIT_FEATURE(boundary_donor, BoundaryDonor,
 DEFINE_EXPLICIT_FEATURE(boundary, Boundary,
     (const C& c, size_t f) {
         { c.boundary_diagonal(f)     } -> std::convertible_to<double>;
-        { c.boundary_off_diagonal(f) } -> std::convertible_to<double>;
         { c.boundary_rhs(f)          } -> std::convertible_to<double>;
     })
 
@@ -169,21 +170,18 @@ DEFINE_EXPLICIT_FEATURE(boundary, Boundary,
 DEFINE_EXPLICIT_FEATURE(side_boundary, SideBoundary,
     (const C& c, size_t f) {
         { c.side_boundary_diagonal(f)     } -> std::convertible_to<double>;
-        { c.side_boundary_off_diagonal(f) } -> std::convertible_to<double>;
         { c.side_boundary_rhs(f)          } -> std::convertible_to<double>;
     })
 
 DEFINE_EXPLICIT_FEATURE(top_boundary, TopBoundary,
     (const C& c) {
         { c.top_boundary_diagonal()     } -> std::convertible_to<double>;
-        { c.top_boundary_off_diagonal() } -> std::convertible_to<double>;
         { c.top_boundary_rhs()          } -> std::convertible_to<double>;
     })
 
 DEFINE_EXPLICIT_FEATURE(bottom_boundary, BottomBoundary,
     (const C& c) {
         { c.bottom_boundary_diagonal()     } -> std::convertible_to<double>;
-        { c.bottom_boundary_off_diagonal() } -> std::convertible_to<double>;
         { c.bottom_boundary_rhs()          } -> std::convertible_to<double>;
     })
 
@@ -242,12 +240,6 @@ constexpr bool rhs_active_v =
     std::is_same_v<typename optin::rhs_choice_of<C>::type, with_rhs_tag>;
 
 template <class C>
-constexpr bool boundary_donor_active_v =
-    optin::BoundaryDonorChoiceMade<C> &&
-    std::is_same_v<typename optin::boundary_donor_choice_of<C>::type,
-                   with_boundary_donor_tag>;
-
-template <class C>
 constexpr bool user_boundary_active_v =
     optin::BoundaryChoiceMade<C> &&
     std::is_same_v<typename optin::boundary_choice_of<C>::type,
@@ -275,6 +267,8 @@ constexpr bool bottom_boundary_active_v =
 template <LinearSystem S, CellStencil C>
 void interior_face(S& sys, const C& c, size_t f)
 {
+    if (!c.has_neighbour(f))
+        throw std::out_of_range(std::format("Neighbour {} has no neighbour", f));
     const auto i = c.idx();
     const auto j = c.neighbour_idx(f);
     auto diag = c.diagonal(f);
@@ -325,13 +319,7 @@ void boundary_face(S& sys, const C& c, size_t f, [[maybe_unused]] const FaceKind
     } else {
         if constexpr (user_boundary_active_v<C>) {
             double diag = c.boundary_diagonal(f);
-            double off  = c.boundary_off_diagonal(f);
-            if constexpr (boundary_donor_active_v<C>) {
-                const double a = c.boundary_donor_term(f);
-                if (c.boundary_donor_on_diag(f)) diag += a; else off += a;
-            }
             sys.matrixSumIntoGlobalValues(i, i,                  diag);
-            sys.matrixSumIntoGlobalValues(i, c.neighbour_idx(f), off);
             sys.rhsSumIntoGlobalValue   (i,                      c.boundary_rhs(f));
         }
     }
