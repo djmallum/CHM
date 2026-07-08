@@ -318,8 +318,7 @@ void boundary_face(S& sys, const C& c, size_t f, [[maybe_unused]] const FaceKind
         }
     } else {
         if constexpr (user_boundary_active_v<C>) {
-            double diag = c.boundary_diagonal(f);
-            sys.matrixSumIntoGlobalValues(i, i,                  diag);
+            sys.matrixSumIntoGlobalValues(i, i,                  c.boundary_diagonal(f));
             sys.rhsSumIntoGlobalValue   (i,                      c.boundary_rhs(f));
         }
     }
