@@ -1,248 +1,273 @@
 #include "StencilAssembly.hpp"
 
 #include "gtest/gtest.h"
+#include <boost/math/policies/policy.hpp>
+#include <boost/multi_array/base.hpp>
 #include <iomanip>
 #include <vector>
-#include <numeric>
+#include <optional>
 
-struct MatrixSizes
-{
-    size_t rows;
-    size_t columns;
-};
-class TestLinearSystem
-{
-    MatrixSizes _s;
-    std::vector<double> _d;
-    std::vector<double> _rhs;
-public:
-    explicit TestLinearSystem(const MatrixSizes&& s) : _s(s), _d(_s.rows * _s.columns,0.0), _rhs(_s.rows,0.0) {};
-    void matrixSumIntoGlobalValues(const int i, const int j, const double v)
-    {
-        _d.at(i + j *_s.rows) = v;
-    };
-    void rhsSumIntoGlobalValue(const int i, const double v)
-    {
-        _rhs.at(i) = v;
-    };
 
-    friend std::ostream& operator<<(std::ostream& os, const TestLinearSystem& sys);
+struct TestLinearSystem {
+    // Recorded calls
+    struct MatrixCall { size_t i, j; double v; };
+    struct RhsCall    { size_t i; double v; };
 
-    const std::vector<double>& get_matrix() { return _d; }
-    const std::vector<double>& get_rhs() { return _rhs; }
-};
+    std::vector<MatrixCall> matrix_calls;
+    std::vector<RhsCall>    rhs_calls;
 
-std::ostream& operator<<(std::ostream& os, const TestLinearSystem& sys)
-{
-    os << "RHS Vector:\n";
-    for (size_t row = 0; row < sys._rhs.size(); ++row)
-        os << "  [" << std::setw(3) << row << "] " << std::setw(12) << sys._rhs[row] << "\n";
-
-    os << "\nMatrix (" << sys._s.rows << " x " << sys._s.columns << "):\n";
-    os << std::scientific << std::setprecision(6);
-    for (size_t row = 0; row < sys._s.rows; ++row) {
-        os << "  ";
-        for (size_t col = 0; col < sys._s.columns; ++col) {
-            os << std::setw(14) << sys._d[row + col * sys._s.rows];
-        }
-        os << "\n";
+    // Concept interface (just records)
+    void matrixSumIntoGlobalValues(const size_t i, const size_t j, const double v) {
+        matrix_calls.push_back({i, j, v});
     }
 
-    return os;
-}
+    void rhsSumIntoGlobalValue(const size_t i, const double v) {
+        rhs_calls.push_back({i, v});
+    }
+};
 
 static_assert(math::optin::LinearSystem<TestLinearSystem>);
 
-class TestStencilAssembly : public ::testing::Test {
-    protected:
-    static constexpr auto ROWS = 10u;
-    static constexpr auto COLUMNS = 10u;
-    static constexpr auto face_number = 4u;
-    std::unique_ptr<TestLinearSystem> _t = std::make_unique<TestLinearSystem>(MatrixSizes{.rows=ROWS,.columns= COLUMNS});
-    TestStencilAssembly() = default;
+static constexpr size_t num_neighbours= 3;
 
-};
+template<typename T>
+struct CountedValue {
+    T value{};
+    mutable size_t access_count = 0;
 
-TEST_F(TestStencilAssembly, LinearSystemZeroed)
-{
-    const auto& matrix = _t->get_matrix();
-    const auto& rhs = _t->get_rhs();
-
-    for (const auto m : matrix)
-        EXPECT_EQ(m,0.0);
-
-    for (const auto r : rhs)
-        EXPECT_EQ(r,0.0);
-}
-
-TEST_F(TestStencilAssembly, LinearSystemPutToMatrix)
-{
-    constexpr auto value = 2.5;
-    const auto row = 3u;
-    const auto column = 6u;
-    static_assert(row <= ROWS, "row constant violating definition");
-    static_assert(column <= COLUMNS, "column constant violating definition");
-
-    _t->matrixSumIntoGlobalValues(row, column, value);
-
-    const auto& matrix = _t->get_matrix();
-    const auto& rhs = _t->get_rhs();
-
-    auto count = 0u;
-    for (const auto m : matrix)
-    {
-        if (count == row + ROWS * column)
-            EXPECT_EQ(m,value) << *_t;
-        else
-            EXPECT_EQ(m,0.0) << *_t;
-        count++;
+    CountedValue() = default;
+    CountedValue(T v) : value(v) {}  // Add this
+    operator T() const {
+        ++access_count;
+        return value;
     }
 
-    for (const auto r : rhs)
-        EXPECT_EQ(r,0.0) << *_t;
-}
-
-TEST_F(TestStencilAssembly, LinearSystemPutToRHS)
-{
-    constexpr auto value = 2.5;
-    constexpr auto row = 3u;
-    _t->rhsSumIntoGlobalValue(row,value);
-    const auto& matrix = _t->get_matrix();
-    const auto& rhs = _t->get_rhs();
-
-    auto count = 0u;
-    for (const auto m : matrix)
-    {
-        ASSERT_EQ(m,0.0) << *_t << "\nCount: " << count << "\nm: " << m;
-        count++;
-    }
-
-    count = 0u;
-    for (const auto r : rhs)
-    {
-        if (count == row)
-            EXPECT_EQ(r,value) << *_t;
-        else
-            EXPECT_EQ(r,0.0) << *_t;
-        count++;
+    CountedValue& operator=(const T& v) {
+        value = v;
+        return *this;
     }
 };
 
-class SolverData
+struct SolverData
 {
-public:
-    SolverData() = default;
-
-    size_t idx() const {}
-    bool has_neighbour(const size_t f) const {}
-    size_t neighbour_idx(const size_t f) const {}
-    double diagonal(const size_t f) const {}
-    double off_diagonal(const size_t f) const {}
-
-    constexpr size_t top_face() const { return 3u;}
-    constexpr size_t bottom_face() const { return 4u;}
+    CountedValue<size_t> _idx;
+    std::array<std::optional<size_t>,num_neighbours> _neighbours;
+    CountedValue<double> _diagonal;
+    CountedValue<double> _off_diagonal;
+    CountedValue<double> _boundary_diagonal;
+    CountedValue<double> _boundary_rhs;
+    CountedValue<double> _rhs;
+    CountedValue<size_t> _top_face;
+    CountedValue<size_t> _bottom_face;
 
     using donor_choice = math::without_donor_tag;
     using boundary_donor_choice = math::without_boundary_donor_tag;
-    using boundary_choice = math::without_boundary_tag;
-
+    using boundary_choice = math::with_boundary_tag;
     using rhs_choice = math::with_rhs_tag;
+
+    size_t idx() const { return _idx; }
+    size_t neighbour_idx(const size_t f) const { return _neighbours[f].value(); }
+    size_t top_face() const { return _top_face;}
+    size_t bottom_face() const { return _bottom_face;}
+
+    bool has_neighbour(const size_t f) const {
+        return _neighbours[f].has_value();
+    }
+
+    double diagonal(const size_t) const { return _diagonal; }
+    double off_diagonal(const size_t) const { return _off_diagonal; }
+    double boundary_diagonal(size_t) const { return _boundary_diagonal;}
+    double boundary_rhs(size_t) const { return _boundary_rhs;}
+    double rhs(const size_t) const { return _rhs; }
 
 };
 
-template<size_t T>
-static void assign_neighbours(TestLinearSystem& ls, const size_t idx, const std::array<unsigned, T> neigh)
-{
-    for (const auto n : neigh)
+class TestStencilAssembly : public ::testing::Test {
+protected:
+    static auto order_lambda()
     {
-        ls.matrixSumIntoGlobalValues(idx, n, n);
-    }
-}
-static void build_expected_matrix(TestLinearSystem& ls)
-{
-    /*
-     * For testing, construct the following system
-     *
-     * 4 triangle system with 3 layers
-     *
-     * Imagine a single, central, vertically stacked column of three triangular prisms
-     *
-     * With a similar stacking of triangular prisms at each of the three side faces of the central column.
-     *
-     * Each vertical layer has 4 triangles, and with three layers for a total of 12 cells.
-     *
-     * Each cell has 5 faces, only the middle triangle in the central stack has no impact of boundary conditions.
-     *
-     * Indexing is as follows: 0 for bottom centre, then 1, 2, 3 in a counter-clockwise ordering.
-     *
-     * Layer 2 has 4, then 5, 6, 7.
-     *
-     * Layer 3 has 8, then 9, 10, 11
-     *
-     * Final Matrix is 12x12, 12 equations per cell and 12 possibly contributing cells. Only neighbours will contribute.
-     */
-
-    constexpr auto num_cells = 12u;
-    constexpr auto num_neighbours = 3u;
-    const std::vector<std::vector<size_t>> real_neighbors = {{
-        {1, 2, 3, 4},       // Cell 0
-        {0, 5},             // Cell 1
-        {0, 6},             // Cell 2
-        {0, 7},             // Cell 3
-        {0, 5, 6, 7, 8},    // Cell 4
-        {4, 1, 9},          // Cell 5
-        {4, 2, 10},         // Cell 6
-        {4, 3, 11},         // Cell 7
-        {4, 9, 10, 11},     // Cell 8
-        {8, 5},             // Cell 9
-        {8, 6},             // Cell 10
-        {8, 7},             // Cell 11
-    }};
-    constexpr auto indices = []() {
-        std::array<size_t,num_cells> arr;
-        std::iota(arr.begin(), arr.end(), 0u);
-        return arr;
-    }();
-    static_assert(indices[0] == 0);
-    static_assert(indices[11] == 11);
-
-    for (const auto idx : indices)
-    {
-        // diagonal
-        ls.matrixSumIntoGlobalValues(idx,idx,idx);
-        const auto neighbours = real_neighbors[idx];
-        for (const auto neighbour : neighbours)
+        return [](auto const& a, auto const& b)
         {
-
+            if (a.i != b.i) return a.i < b.i;
+            if constexpr (requires { a.j; }) {
+                if (a.j != b.j) return a.j < b.j;
+            }
+            return a.v < b.v;
+        };
+    }
+    using MatrixCall = TestLinearSystem::MatrixCall;
+    using RhsCall = TestLinearSystem::RhsCall;
+    TestLinearSystem linear_system{};
+    SolverData solver_data{};
+    struct Expected
+    {
+        std::vector<MatrixCall> matrix;
+        std::vector<RhsCall>    rhs;
+    };
+    Expected expected;
+    void enable_no_boundaries()
+    {
+        auto count = 1u;
+        for (auto& neighbour : solver_data._neighbours)
+        {
+            neighbour.emplace(count);
+            ++count;
         }
+
+        build_expected_matrix_rhs();
     }
 
-    // Cell 0: bottom layer, central
-    size_t idx = indices[0];
-    ls.rhsSumIntoGlobalValue(idx,-static_cast<int>(idx));
-    assign_neighbours(ls, idx, std::array{1u,2u,3u,4u});
+    void enable_with_boundaries()
+    {
+        solver_data._neighbours[1u].emplace(2u);
 
-    // Cell 1: Bottom layer, edge
-    size_t idx = indices[1];
-    ls.rhsSumIntoGlobalValue(idx,-3u*static_cast<int>(idx));
-    assign_neighbours(ls, idx, std::array{0u,5u});
+        build_expected_matrix_rhs();
+    }
 
+    /**
+     * Build expected struct, matrix and rhs, representing A and b in Ax=b,
+     *
+     * Core Assumptions
+     *
+     * 1. Only looking at cell with index 0.
+     * 2. Access members of solver_data with .value to avoid incremented the access counter and interfering with test isolation
+     */
+    void build_expected_matrix_rhs()
+    {
+        for (const auto neighbour : solver_data._neighbours)
+        {
+            if (neighbour)
+            {
+                expected.matrix.push_back(MatrixCall{.i = 0, .j = 0, .v = solver_data._diagonal.value});
+                expected.matrix.push_back(MatrixCall{.i = 0, .j = *neighbour, .v = solver_data._off_diagonal.value});
+                expected.rhs.push_back(RhsCall{.i = 0, .v = solver_data._rhs.value});
+            }
+            else
+            {
+                expected.matrix.push_back(MatrixCall{.i = 0, .j = 0, .v = solver_data._boundary_diagonal.value});
+                expected.rhs.push_back(RhsCall{.i = 0, .v = solver_data._boundary_rhs.value});
+            }
+        }
 
-}
+        std::ranges::sort(expected.matrix, order_lambda());
+        std::ranges::sort(expected.rhs, order_lambda());
+    }
+    void do_setup()
+    {
+        solver_data = SolverData{._idx = 0,
+                                 ._diagonal = {2.5},
+                                 ._off_diagonal = {1.0},
+                                 ._boundary_diagonal = {-9999.0},
+                                 ._boundary_rhs = {-3333.0},
+                                 ._rhs = {33.0},
+                                 ._top_face = {2},
+                                 ._bottom_face = {3}};
 
-TEST_F(TestStencilAssembly, BuildMatrixRhsThroughPublicInterface)
+    }
+
+    std::pair<std::vector<MatrixCall>,std::vector<RhsCall>> get_finished_matrix()
+    {
+        math::LinearAlgebra::assemble_all_neighbours<num_neighbours>(linear_system, solver_data);
+
+        std::ranges::sort(linear_system.matrix_calls,order_lambda());
+        std::ranges::sort(linear_system.rhs_calls,order_lambda());
+
+        const auto& matrix = linear_system.matrix_calls;
+        const auto& rhs = linear_system.rhs_calls;
+
+        return {std::move{matrix},std::move{rhs}};
+    }
+    void SetUp() override { do_setup(); };
+};
+
+TEST_F(TestStencilAssembly, NoBoundaryCheckAccessNumbers)
 {
-    //
-    auto solver_data = SolverData{};
-    auto linear_system = TestLinearSystem{*_t};
+    enable_no_boundaries();
 
-    build_expected_matrix(linear_system);
+    math::LinearAlgebra::assemble_all_neighbours<num_neighbours>(linear_system, solver_data);
 
+    const auto expected_access_count = solver_data._neighbours.size();
+    EXPECT_EQ(solver_data._idx.access_count,expected_access_count)
+        << "_idx is accessed directly via idx() once per neighbour";
+    EXPECT_EQ(solver_data._diagonal.access_count,expected_access_count)
+        << "diagonal() should be called once per neighbour";
+    EXPECT_EQ(solver_data._off_diagonal.access_count,expected_access_count)
+        << "off_diagonal() should be called once per neighbour";
+    EXPECT_EQ(solver_data._rhs.access_count,expected_access_count)
+        << "rhs() should be called once per neighbour";
+    EXPECT_EQ(solver_data._boundary_diagonal.access_count,0u)
+        << "Because _neighbours.size() == num_neighbours, none of the faces are boundaries and so this should never be accessed";
+    EXPECT_EQ(solver_data._boundary_rhs.access_count,0u)
+        << "Because _neighbours.size() == num_neighbours, none of the faces are boundaries and so this should never be accessed";
+    EXPECT_EQ(solver_data._top_face.access_count,0u)
+        << "top_face() is only accessed on boundary faces, and there are no boundary faces for this test";
+    EXPECT_EQ(solver_data._bottom_face.access_count,0u)
+        << "bottom_face() is only accessed on boundary faces, and there are no boundary faces for this test";
+}
 
+TEST_F(TestStencilAssembly, WithBoundaryCheckAccessNumbers)
+{
+    enable_with_boundaries();
 
-    math::LinearAlgebra::assemble_all_neighbours<face_number>(*_t, solver_data);
+    math::LinearAlgebra::assemble_all_neighbours<num_neighbours>(linear_system, solver_data);
 
+    EXPECT_EQ(solver_data._boundary_diagonal.access_count,2u)
+        << "2 faces of " << num_neighbours << " should be boundaries. Check set up to confirm";
+    EXPECT_EQ(solver_data._boundary_rhs.access_count,2u)
+        << "2 faces of " << num_neighbours << " should be boundaries. Check set up to confirm";
+}
 
+TEST_F(TestStencilAssembly, NoBoundaryCheckValuesSet)
+{
+    enable_no_boundaries();
 
+    auto [matrix,rhs] = get_finished_matrix();
+
+    ASSERT_EQ(matrix.size(),expected.matrix.size());
+    ASSERT_EQ(rhs.size(),expected.rhs.size());
+
+    for (size_t i = 0; i < expected.matrix.size(); ++i)
+    {
+        EXPECT_EQ(expected.matrix[i].i,matrix[i].i) << "Entry: " << i;
+        EXPECT_EQ(expected.matrix[i].j,matrix[i].j) << "Entry: " << i;
+        EXPECT_DOUBLE_EQ(expected.matrix[i].v,matrix[i].v) << "Entry: " << i;
+    }
+    for (size_t i = 0; i < expected.rhs.size(); ++i)
+    {
+        EXPECT_EQ(expected.rhs[i].i,rhs[i].i) << "Entry: " << i;
+        EXPECT_DOUBLE_EQ(expected.rhs[i].v,rhs[i].v) << "Entry: " << i;
+    }
+}
+
+TEST_F(TestStencilAssembly, WithBoundaryCheckValuesSet)
+{
+    enable_with_boundaries();
+
+    auto [matrix,rhs] = get_finished_matrix();
+
+    ASSERT_EQ(matrix.size(),expected.matrix.size());
+    ASSERT_EQ(rhs.size(),expected.rhs.size());
+
+    for (size_t i = 0; i < expected.matrix.size(); ++i)
+    {
+        EXPECT_EQ(expected.matrix[i].i,matrix[i].i) << "Entry: " << i;
+        EXPECT_EQ(expected.matrix[i].j,matrix[i].j) << "Entry: " << i;
+        EXPECT_DOUBLE_EQ(expected.matrix[i].v,matrix[i].v) << "Entry: " << i;
+    }
+    for (size_t i = 0; i < expected.rhs.size(); ++i)
+    {
+        EXPECT_EQ(expected.rhs[i].i,rhs[i].i) << "Entry: " << i;
+        EXPECT_DOUBLE_EQ(expected.rhs[i].v,rhs[i].v) << "Entry: " << i;
+    }
+}
+TEST_F(TestStencilAssembly, WithBoundaryNotFirstRowCheckValuesSet)
+{
+    enable_with_boundaries();
+
+    auto [matrix,rhs] = get_finished_matrix();
+
+    ASSERT_EQ(matrix.size(),expected.matrix.size());
+    ASSERT_EQ(rhs.size(),expected.rhs.size());
 
 }
+
