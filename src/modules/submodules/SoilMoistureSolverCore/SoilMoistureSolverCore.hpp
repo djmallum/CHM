@@ -28,7 +28,7 @@ inline Params param_builder(const config_file& cfg, const global& g)
     return p;
 }
 
-template<MeshInterface M>
+template<typename T,MeshInterface<T> M>
 class SoilMoistureSolverCore
 {
 public:
@@ -50,12 +50,12 @@ private:
 
     void build_matrix(M&);
     auto try_solution(const M& domain);
-    template<Indexable T>
-    void write_output(M& domain, T& runoff_sol);
+    template<Indexable I>
+    void write_output(M& domain, I& runoff_sol);
 };
 
-template<MeshInterface M>
-void SoilMoistureSolverCore<M>::build_matrix(M& domain)
+template<typename T, MeshInterface<T> M>
+void SoilMoistureSolverCore<T,M>::build_matrix(M& domain)
 {
 #pragma omp parallel for
     for (size_t i = 0; i < domain->size_local_faces(); i++)
@@ -72,8 +72,8 @@ void SoilMoistureSolverCore<M>::build_matrix(M& domain)
     }
 }
 
-template<MeshInterface M>
-auto SoilMoistureSolverCore<M>::try_solution(const M& domain)
+template<typename T, MeshInterface<T> M>
+auto SoilMoistureSolverCore<T,M>::try_solution(const M& domain)
 {
     try
     {
@@ -113,9 +113,9 @@ struct Name
     }
     }
 
-template<MeshInterface M>
-template <Indexable T>
-void SoilMoistureSolverCore<M>::write_output(M& domain, T& runoff_sol)
+template<typename T, MeshInterface<T> M>
+template <Indexable I>
+void SoilMoistureSolverCore<T,M>::write_output(M& domain, I& runoff_sol)
 {
     const auto& output_names = build_output_names();
 #pragma omp parallel for
@@ -139,8 +139,8 @@ void SoilMoistureSolverCore<M>::write_output(M& domain, T& runoff_sol)
         domain->ghost_neighbors_communicate_variable(output_names.at(layer).psi);
     }
 }
-template <MeshInterface M>
-void SoilMoistureSolverCore<M>::run(M& domain)
+template <typename T,MeshInterface<T> M>
+void SoilMoistureSolverCore<T,M>::run(M& domain)
 {
     // TODO maybe include the following if necessary
     // if(is_water(face))
@@ -159,8 +159,8 @@ void SoilMoistureSolverCore<M>::run(M& domain)
     write_output(domain, runoff_sol);
 }
 
-//template <MeshInterface M>
-//template <ElementInterface E> cellInfo<dim_size> SoilMoistureSolverCore<M>::build_cell_geometry(E& face)
+//template<typename T, MeshInterface<T> M>
+//template <ElementInterface E> cellInfo<dim_size> SoilMoistureSolverCore<T,M>::build_cell_geometry(E& face)
 //{
 //    auto geometry =
 //        build_geometry<E, dim_size.face, dim_size.layer>(face, _params, std::make_index_sequence<dim_size.layer>{});
@@ -291,8 +291,8 @@ void SoilMoistureSolverCore<M>::run(M& domain)
 //    }
 //    return cellInfo{face_interp, geometry, alpha, neighbour_idx};
 //}
-template <MeshInterface M>
-void SoilMoistureSolverCore<M>::init(M& domain)
+template<typename T, MeshInterface<T> M>
+void SoilMoistureSolverCore<T,M>::init(M& domain)
 {
     /*
      * Since this is made to work directly with a soil module with specific parameters,
@@ -312,25 +312,25 @@ void SoilMoistureSolverCore<M>::init(M& domain)
         constexpr auto OP = orderedPair{.layer=cellFacesAndVerticalLayers.layer,.face=cellFacesAndVerticalLayers.face};
         auto face = domain->face(i);
 
-        cellInfo<OP> cell_info = cellInfo<OP>::build(face,_params,sizes);
+        cellInfo<OP> cell_info = cellInfo<OP>::build<T>(face,_params,sizes);
 
         face->template make_module_data<data>(ID,cell_info,face);
     }
 
     // TODO set domain parameters
 }
-template <MeshInterface M>
+template<typename T, MeshInterface<T> M>
 template <typename F>
     requires std::invocable<F,HashName>
-void SoilMoistureSolverCore<M>::depends(F&&)
+void SoilMoistureSolverCore<T,M>::depends(F&&)
 {
     //depends on nothing
 }
 
-template <MeshInterface M>
+template<typename T, MeshInterface<T> M>
 template <typename F>
     requires std::invocable<F,HashName>
-void SoilMoistureSolverCore<M>::provides(F&& f)
+void SoilMoistureSolverCore<T,M>::provides(F&& f)
 {
     for (const auto& names = build_output_names(); const auto& [psi, theta] : names)
     {

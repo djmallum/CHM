@@ -19,7 +19,7 @@ using faceType = std::variant<Boundary,Interior>;
 template<orderedPair P>
 struct cellInfo
 {
-    template<class E> requires ElementInterface<E>
+    template<typename T, ElementInterface<T> E>
     static cellInfo build(E& face,const Params&,Sizes);
 
     [[nodiscard]] double get_coefficient(const orderedPair&) const;
@@ -54,7 +54,7 @@ private:
 class data : public face_info
 {
 public:
-    template<ElementInterface E>
+    template<typename T,ElementInterface<T> E>
     explicit data(cellInfo<cellFacesAndVerticalLayers>  cell,
         const E& face);
 
@@ -73,7 +73,7 @@ inline double data::theta(const int i) const
     return result;
 }
 
-template <ElementInterface E>
+template<typename T,ElementInterface<T> E>
 data::data(cellInfo<cellFacesAndVerticalLayers> cell,
     const E& face)
 : cell_info(std::move(cell))
@@ -89,7 +89,7 @@ data::data(cellInfo<cellFacesAndVerticalLayers> cell,
     std::ranges::fill(psi_n, initial_psi);
 }
 
-template<ElementInterface E>
+template<typename T,ElementInterface<T> E>
 static faceType get_lateral_boundary(const E& face,const size_t nn)
 {
     const auto dir_vec = face->downslope_dir();
@@ -112,7 +112,7 @@ static faceType get_lateral_boundary(const E& face,const size_t nn)
     return Boundary(DeltaZ, dist_to_face, face_index_to_Neighbour(nn));
 }
 
-template<ElementInterface E>
+template<typename T,ElementInterface<T> E>
 static faceType get_geometry(const E& face, const Params& p ,const orderedPair& op)
 {
 
@@ -149,7 +149,7 @@ static faceType get_geometry(const E& face, const Params& p ,const orderedPair& 
     return Interior(face, op, p);
 }
 
-template <ElementInterface E, size_t NumNeighbours, size_t... FaceIndices>
+template <typename T, ElementInterface<T> E, size_t NumNeighbours, size_t... FaceIndices>
 std::array<faceType, NumNeighbours>
 build_layers_from_optional(E& face, const Params& p, const size_t layer_idx, std::index_sequence<FaceIndices...>)
 {
@@ -166,7 +166,7 @@ build_layers_from_optional(E& face, const Params& p, const size_t layer_idx, std
     return { *std::move(face_slots[FaceIndices])... };
 }
 
-template <ElementInterface E, orderedPair Dims = cellFacesAndVerticalLayers, size_t... LayerIndices>
+template <typename T, ElementInterface<T> E, orderedPair Dims = cellFacesAndVerticalLayers, size_t... LayerIndices>
 std::array<std::array<faceType, Dims.face>, Dims.layer>
 build_cell_geometry(E& face, const Params& p, std::index_sequence<LayerIndices...>)
 {
@@ -177,8 +177,7 @@ build_cell_geometry(E& face, const Params& p, std::index_sequence<LayerIndices..
 }
 
 template<orderedPair Dims>
-template<class E>
-    requires ElementInterface<E>
+template<typename T, ElementInterface<T> E>
 cellInfo<Dims> cellInfo<Dims>::build(E& face,const Params& _params,const Sizes sizes)
 {
     auto geometry =
@@ -207,9 +206,9 @@ cellInfo<Dims> cellInfo<Dims>::build(E& face,const Params& _params,const Sizes s
         {
             const auto nn = static_cast<size_t>(neighbour);
             std::visit(
-                [&face_interp, nn, layer]<typename T>(T&& arg)
+                [&face_interp, nn, layer]<typename Face>(Face&& arg)
                 {
-                    if constexpr (std::is_same_v<T, Interior>)
+                    if constexpr (std::is_same_v<Face, Interior>)
                     {
                         face_interp[layer][nn].emplace(arg.geometry);
                     }
@@ -226,9 +225,9 @@ cellInfo<Dims> cellInfo<Dims>::build(E& face,const Params& _params,const Sizes s
                 face_area[layer][nn] = side_length * depths[layer];
                 // neighbour
                 neighbour_idx[layer][nn] = std::visit(
-                    [layer, nn,sizes, &face]<typename T>(T&&) -> std::optional<int>
+                    [layer, nn,sizes, &face]<typename Face>(Face&&) -> std::optional<int>
                     {
-                        if constexpr (std::is_same_v<T, Interior>)
+                        if constexpr (std::is_same_v<Face, Interior>)
                         {
                             return std::optional<int>(sizes.global * layer + face->neighbor(nn)->cell_global_id);
                         }
@@ -242,9 +241,9 @@ cellInfo<Dims> cellInfo<Dims>::build(E& face,const Params& _params,const Sizes s
                 face_area[layer][nn] = tri_area;
                 // neighbour
                 neighbour_idx[layer][nn] = std::visit(
-                    [layer,sizes, &face]<typename T>(T&&) -> std::optional<int>
+                    [layer,sizes, &face]<typename Face>(Face&&) -> std::optional<int>
                     {
-                        if constexpr (std::is_same_v<T, Interior>)
+                        if constexpr (std::is_same_v<Face, Interior>)
                         {
                             if (layer == cellFacesAndVerticalLayers.layer - 1)
                             {
@@ -267,9 +266,9 @@ cellInfo<Dims> cellInfo<Dims>::build(E& face,const Params& _params,const Sizes s
                 face_area[layer][nn] = tri_area;
                 // neighbour
                 neighbour_idx[layer][nn] = std::visit(
-                    [layer,sizes, &face]<typename T>(T&&) -> std::optional<int>
+                    [layer,sizes, &face]<typename Face>(Face&&) -> std::optional<int>
                     {
-                        if constexpr (std::is_same_v<T, Interior>)
+                        if constexpr (std::is_same_v<Face, Interior>)
                         {
                             if (layer == 0)
                             {
@@ -291,13 +290,13 @@ cellInfo<Dims> cellInfo<Dims>::build(E& face,const Params& _params,const Sizes s
 
             alpha[layer][nn] = _params.time_step_seconds * face_area[layer][nn] / volume[layer];
             alpha[layer][nn] *= std::visit(
-                []<typename T>(T&& arg) -> double
+                []<typename Face>(Face&& arg) -> double
                 {
-                    if constexpr (std::is_same_v<T, Interior>)
+                    if constexpr (std::is_same_v<Face, Interior>)
                     {
                         return arg.geometry.cell_centre_distance;
                     }
-                    else if constexpr (std::is_same_v<T, Boundary>)
+                    else if constexpr (std::is_same_v<Face, Boundary>)
                     {
                         // There exists a mythical neighbour past the boundary
                         return 2.0 * arg.distance_to_face;

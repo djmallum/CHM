@@ -63,6 +63,6 @@ public:
     void init(mesh& domain) override;
 
 private:
-    using Solver = SoilMoistureSolver::SoilMoistureSolverCore<mesh>;
+    using Solver = SoilMoistureSolver::SoilMoistureSolverCore<face_info,mesh>;
     Solver _solver;
 };
