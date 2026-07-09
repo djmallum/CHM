@@ -1,5 +1,6 @@
 #include "StencilAssembly.hpp"
-
+#include "linear_system_for_tests.hpp"
+#include "access_tracker.hpp"
 #include "gtest/gtest.h"
 #include <boost/math/policies/policy.hpp>
 #include <boost/multi_array/base.hpp>
@@ -7,46 +8,7 @@
 #include <vector>
 #include <optional>
 
-
-struct TestLinearSystem {
-    // Recorded calls
-    struct MatrixCall { size_t i, j; double v; };
-    struct RhsCall    { size_t i; double v; };
-
-    std::vector<MatrixCall> matrix_calls;
-    std::vector<RhsCall>    rhs_calls;
-
-    // Concept interface (just records)
-    void matrixSumIntoGlobalValues(const size_t i, const size_t j, const double v) {
-        matrix_calls.push_back({i, j, v});
-    }
-
-    void rhsSumIntoGlobalValue(const size_t i, const double v) {
-        rhs_calls.push_back({i, v});
-    }
-};
-
-static_assert(math::optin::LinearSystem<TestLinearSystem>);
-
 static constexpr size_t num_neighbours= 3;
-
-template<typename T>
-struct CountedValue {
-    T value{};
-    mutable size_t access_count = 0;
-
-    CountedValue() = default;
-    CountedValue(T v) : value(v) {}  // Add this
-    operator T() const {
-        ++access_count;
-        return value;
-    }
-
-    CountedValue& operator=(const T& v) {
-        value = v;
-        return *this;
-    }
-};
 
 struct SolverData
 {
@@ -260,14 +222,3 @@ TEST_F(TestStencilAssembly, WithBoundaryCheckValuesSet)
         EXPECT_DOUBLE_EQ(expected.rhs[i].v,rhs[i].v) << "Entry: " << i;
     }
 }
-TEST_F(TestStencilAssembly, WithBoundaryNotFirstRowCheckValuesSet)
-{
-    enable_with_boundaries();
-
-    auto [matrix,rhs] = get_finished_matrix();
-
-    ASSERT_EQ(matrix.size(),expected.matrix.size());
-    ASSERT_EQ(rhs.size(),expected.rhs.size());
-
-}
-
