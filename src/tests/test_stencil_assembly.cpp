@@ -127,7 +127,7 @@ protected:
 
     }
 
-    std::pair<std::vector<MatrixCall>,std::vector<RhsCall>> get_finished_matrix()
+    auto get_finished_matrix()
     {
         math::LinearAlgebra::assemble_all_neighbours<num_neighbours>(linear_system, solver_data);
 
@@ -137,7 +137,7 @@ protected:
         const auto& matrix = linear_system.matrix_calls;
         const auto& rhs = linear_system.rhs_calls;
 
-        return {std::move{matrix},std::move{rhs}};
+        return std::tie(matrix,rhs);
     }
     void SetUp() override { do_setup(); };
 };

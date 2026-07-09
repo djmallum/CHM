@@ -4,6 +4,7 @@
 
 #include "triangulation.hpp"
 #include "Details.hpp"
+#include "interior_boundary.hpp"
 #include "Soil.h"
 
 

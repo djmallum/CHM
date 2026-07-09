@@ -3,7 +3,7 @@
 
 using namespace SoilMoistureSolver::detail;
 
-class TestHelperFunctions : public ::testing::Test
+class TestSoilMoistureHelperFunctions : public ::testing::Test
 {
     protected:
     static constexpr auto op_top    = orderedPair{.layer = cellFacesAndVerticalLayers.layer - 1, .face = cellFacesAndVerticalLayers.face - 1};
@@ -18,7 +18,7 @@ class TestHelperFunctions : public ::testing::Test
 
 };
 
-TEST_F(TestHelperFunctions, FaceIndexToNeighbourFromOrderedPair)
+TEST_F(TestSoilMoistureHelperFunctions, FaceIndexToNeighbourFromOrderedPair)
 {
     using namespace SoilMoistureSolver::detail;
 
@@ -29,7 +29,7 @@ TEST_F(TestHelperFunctions, FaceIndexToNeighbourFromOrderedPair)
     EXPECT_EQ(face_index_to_Neighbour(op_interior), Neighbour::Lateral_0);
 }
 
-TEST_F(TestHelperFunctions, NeighbourToFaceIndex)
+TEST_F(TestSoilMoistureHelperFunctions, NeighbourToFaceIndex)
 {
     using namespace SoilMoistureSolver::detail;
 
@@ -38,7 +38,7 @@ TEST_F(TestHelperFunctions, NeighbourToFaceIndex)
     EXPECT_EQ(Neighbour_to_face_index(Neighbour::Lateral_0), op_interior.face);
 }
 
-TEST_F(TestHelperFunctions, FaceIndexToNeighbourFromFaceIndex)
+TEST_F(TestSoilMoistureHelperFunctions, FaceIndexToNeighbourFromFaceIndex)
 {
     using namespace SoilMoistureSolver::detail;
 
@@ -47,7 +47,7 @@ TEST_F(TestHelperFunctions, FaceIndexToNeighbourFromFaceIndex)
     EXPECT_EQ(face_index_to_Neighbour(op_interior.face), Neighbour::Lateral_0);
 }
 
-TEST_F(TestHelperFunctions, FaceIndexToNeighbourAndBack)
+TEST_F(TestSoilMoistureHelperFunctions, FaceIndexToNeighbourAndBack)
 {
     using namespace SoilMoistureSolver::detail;
 

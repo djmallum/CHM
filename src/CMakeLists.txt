@@ -68,6 +68,7 @@ set(MODULE_SRCS
 
 
 		modules/submodules/SoilMoistureSolverCore/Details.cpp
+		modules/submodules/SoilMoistureSolverCore/interior_boundary.cpp
 
 		CACHE INTERNAL "" FORCE
 )
@@ -433,6 +434,8 @@ if (BUILD_TESTS)
 			tests/main.cpp
 			tests/test_stencil_assembly.cpp
 			tests/test_soilmoisture_helper_functions.cpp
+			modules/submodules/SoilMoistureSolverCore/test_face_interpolator.cpp
+			tests/test_building_cell_geometry.cpp
 	)
 
 	set(GTEST_LINK
