@@ -1,8 +1,11 @@
-//
-// Created by Allum, Donovan on 2026-09-03.
-//
 export module penman_monteith;
+#include <cmath>
 
+export struct GridParams
+{
+    double vegetation_height;
+    double wind_measurement_height;
+};
 export struct Input
 {
     double temperature;
@@ -10,6 +13,12 @@ export struct Input
     double saturated_vapour_pressure;
     double air_pressure;
     double net_radiation;
+    double wind_speed;
+    const GridParams* const params;
+    double z_0() const {return params->vegetation_height/7.6;}
+    double d() const {return params->vegetation_height*0.67;}
+    double wind_measurement_height() const { return params->wind_measurement_height;}
+    Input() = delete;
 };
 export class Params
 {
@@ -17,13 +26,8 @@ public:
     double heat_capacity_air;
     double ground_flux;
     size_t seconds_per_step;
-    bool first_run() const;
-    void set_first_run(bool cond) const;
-    void heights() const;
-private:
-    // TODO smells bad, change so that it is just set on construction
-    mutable bool _first_run = true;
-    mutable double _veg_height = 0.0;
+    double kappa;
+    Params() = delete;
 };
 
 class Components
@@ -51,20 +55,10 @@ export struct Output
     double evapotranspiration;
     double stomatal_resistance;
 };
-double delta                (const Input&);
-double gamma                (const Input&,const Params&);
-double air_density          (const Input&);
 double get_aero_resistance      (const Input&);
 double get_stomatal_resistance  (const Input&);
-
 export Output calc_evapotranspiration(const Params& parameters, const Input& input)
 {
-    if (parameters.first_run())
-    {
-        // TODO put heights inside set_first_run
-        parameters.heights();
-        parameters.set_first_run(false);
-    }
 
     const auto components = Components(&input,&parameters);
 
@@ -84,7 +78,6 @@ Output::Output(const Components& components)
     evapotranspiration = (components.radiation + components.mass) /
             ( components.delta + components.gamma
                 * ( 1 + components.stomatal_resistance / components.aero_resistance ));
-    // Units are W/m^2
 
     // TODO PM and PT methods should both stop at W/m^2 and conversion done in module
 
@@ -94,10 +87,22 @@ Output::Output(const Components& components)
 
     stomatal_resistance = components.stomatal_resistance;
 }
+double get_aero_resistance(const Input& input, const Params& parameters)
+{
+    if (input.wind_measurement_height() - input.d() > 0)
+    {
+        return std::pow( std::log((input.wind_measurement_height() - input.d())/input.z_0()),2) /
+            (std::pow(parameters.kappa,2) * input.wind_speed);
+    }
+    else
+    {
+        return 0; // I don't know if this is right, but it is at least... safe.
+    }
+}
 
 Components::Components(const Input* input,const Params* parameters) : _input(input), _parameters(parameters)
 {
-    aero_resistance = get_aero_resistance(*_input);
+    aero_resistance = get_aero_resistance(*_input,*_parameters);
     stomatal_resistance = get_stomatal_resistance(*_input);
     this->delta = delta(*_input);
     radiation = delta(*_input) * _input->net_radiation * (1 - _parameters->ground_flux);  //Units: W/m^2 * kPa/K
