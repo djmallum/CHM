@@ -1,5 +1,3 @@
-
-
 set(FILTER_SRCS
 		filters/macdonald_undercatch.cpp
 		filters/scale_wind_speed.cpp
@@ -89,7 +87,15 @@ set(MODEL_SRCS
         modules/infil_submodules/Crack.cpp
 
         modules/submodules/double_range.cpp
-        CACHE INTERNAL "" FORCE )
+
+
+		CACHE INTERNAL "" FORCE)
+
+set(CXX_MODULES_SRCS
+		modules/submodules/penman_monteith.cppm
+		modules/submodules/priestly_taylor.cppm
+		modules/submodules/physics_functions.cppm
+)
 
 set(CHM_SRCS
 		#main.cpp needs to be added below so we can re use CHM_SRCS in the gtest build
@@ -261,6 +267,12 @@ add_executable(
 		${FILTER_SRCS}	
         ${MODEL_SRCS}
         ${MODULE_SRCS}
+)
+
+target_sources(CHM
+		PRIVATE
+		FILE_SET CXX_MODULES FILES
+			${CXX_MODULES_SRCS}
 )
 
 
