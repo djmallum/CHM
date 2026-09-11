@@ -1,6 +1,8 @@
 //
 // Created by Allum, Donovan on 2026-09-07.
 //
+module;
+#include <cstddef>
 export module priestly_taylor;
 import physics_functions;
 struct Output {
@@ -32,6 +34,6 @@ Output calc_evapotranspiration(const Input& input, const Params& parameters)
     // Justification for unit conversions in PenmanMonteith
     output.evapotranspiration *= 1.0 / (WATER_DENSITY * (input.air_temperature));
 
-    output.evapotranspiration *= MM_PER_M * parameters.seconds_per_step;
+    output.evapotranspiration *= MM_PER_M * static_cast<double>(parameters.seconds_per_step);
     return output;
 }

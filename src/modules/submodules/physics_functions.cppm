@@ -1,10 +1,10 @@
 //
 // Created by Allum, Donovan on 2026-09-07.
 //
-
-export module physics_functions;
+module;
 #include <cmath>
 #include <compare>
+export module physics_functions;
 
 /*
  **NewType** A design pattern where instead of passing around raw doubles, you pass around a struct with a single double
@@ -89,11 +89,12 @@ export struct Metre : Units {};
 export struct MiliMetre : Units {};
 export struct Percent : Units
 {
-    explicit Percent(const double v)
+    Percent(const double v) noexcept : Units{v} {}
+    Percent(const Percent& p) noexcept : Units{p.value}
     {
-        value = v;
         // TODO error if v<0 or v>1
     }
+    Percent() noexcept : Units{} {}
 };
 
 export KpAPerKelvin saturation_vapour_pressure_slope(Celsius air_temperature);
