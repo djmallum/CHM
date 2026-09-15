@@ -22,6 +22,7 @@
 //
 
 #include "PBSM3D.hpp"
+import ShearVelocity;
 
 REGISTER_MODULE_CPP(PBSM3D);
 
@@ -690,29 +691,11 @@ void PBSM3D::run(mesh& domain)
 
                 if (z0_ustar_coupling)
                 {
-                    // Calculate the new value of z0 to take into account partially filled
-                    // vegetation and the momentum sink
-                    auto ustarFn = [&](double ustar) -> double {
-                        // Li and Pomeroy 2000, eqn 5.
-                        // This formulation has the following coeffs built in
-                        // c_2 = 1.6;
-                        // c_3 = 0.07519;
-                        // c_4 = 0.5;
-                        // g   = 9.81;
-
-                        return u2 * PhysConst::kappa / log(2.0 / (0.6131702345e-2 * ustar * ustar + .5 * lambda)) -
-                            ustar;
-                    };
-                    try
-                    {
-                        auto r = boost::math::tools::bracket_and_solve_root(ustarFn, 1.0, 1.0, false, tol, max_iter);
-                        ustar = r.first + (r.second - r.first) / 2.0;
-                    }
-                    catch (...)
-                    {
-                        // Didn't converge
-                        d.saltation = false;
-                    }
+                    using namespace ShearVelocity::LiPomeroy;
+                    auto input = Input{.lambda = lambda, .u2 = u2, .max_iter = max_iter};
+                    const auto output = z0(input);
+                    ustar = output.ustar;
+                    d.saltation = output.saltation;
                 }
                 else
                 {
