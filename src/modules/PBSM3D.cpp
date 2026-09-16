@@ -124,9 +124,22 @@ PBSM3D::PBSM3D(config_file cfg) : module_base("PBSM3D", parallel::domain, cfg)
     use_exp_fetch = cfg.get("use_exp_fetch", false);
     use_tanh_fetch = cfg.get("use_tanh_fetch", true);
     use_PomLi_probability = cfg.get("use_PomLi_probability", false);
-    z0_ustar_coupling = cfg.get("z0_ustar_coupling", false);
 
-    // Determine if we account for sub-grid topography impact on snow redistribution
+    switch (std::string z0_ustar_coupling_string = cfg.get("z0_ustar_coupling", "Off"))
+    {
+        case "LiPomeroy":
+            z0_ustar_coupling = ShearVelocity::Type::LiPomeroy;
+            break;
+        case "YuPomeroy":
+            z0_ustar_coupling = ShearVelocity::Type::YuPomeroy;
+            break;
+        case "Off":
+            z0_ustar_coupling = ShearVelocity::Type::Off;
+        default:
+            CHM_THROW_EXCEPTION(module_error,"Invalid z0_ustar_coupling options. Options are LiPomeroy, YuPomeroy, or Off. Defaults to Off if not listed");
+    }
+
+        // Determine if we account for sub-grid topography impact on snow redistribution
     use_subgrid_topo = cfg.get("use_subgrid_topo", false);
     use_subgrid_topo_V2 = cfg.get("use_subgrid_topo_V2", false);
 
@@ -689,39 +702,51 @@ void PBSM3D::run(mesh& domain)
                 if (debug_output)
                     (*face)["lambda"_s] = lambda;
 
-                if (z0_ustar_coupling)
+                switch (z0_ustar_coupling)
+                {
+                case ShearVelocity::Type::LiPomeroy:
                 {
                     using namespace ShearVelocity::LiPomeroy;
                     auto input = Input{.lambda = lambda, .u2 = u2, .max_iter = max_iter};
-                    const auto output = z0(input);
+                    const auto output = friction_velocity(input);
                     ustar = output.ustar;
                     d.saltation = output.saltation;
+                    break;
                 }
-                else
+                case ShearVelocity::Type::YuPomeroy:
+                {
+                    using namespace ShearVelocity::YuPomeroy;
+                    const auto input = Input{};
+                    const auto output = friction_velocity(input);
+                    ustar = output.ustar;
+                    d.saltation = true;
+                }
+                case ShearVelocity::Type::Off:
                 {
                     // follow PBSM (Pom & Li 2000; Alpine3D) and don't calculate the feedback of z0 on u*
                     ustar = u2 * PhysConst::kappa / log(2.0 / 0.0002);
+                }
                 }
 
                 if (ustar >= u_star_saltation_threshold)
                 {
                     d.saltation = true;
 
-                    if (z0_ustar_coupling)
-                    {
-                        // Update z0 for blowing snow conditions
-                        // Li and Pomeroy 2000, eqn 5.
-                        // This formulation has the following coeffs built in
-                        // c_2 = 1.6;
-                        // c_3 = 0.07519;
-                        // c_4 = 0.5;
-                        // g   = 9.81;
-                        d.z0 = 0.6131702345e-2 * ustar * ustar + .5 * lambda; // pom and li 2000, eqn 4
-                    }
-                    else
-                    {
-                        d.z0 = Snow::Z0_SNOW;
-                    }
+                    switch (z0_ustar_coupling) {
+                       case ShearVelocity::Type::LiPomeroy: {
+                           using namespace ShearVelocity::LiPomeroy;
+                           d.z0 = z0(ustar,lambda);
+                           break;
+                       }
+                       case ShearVelocity::Type::YuPomeroy: {
+                           using namespace ShearVelocity::YuPomeroy;
+                           d.z0 = z0();
+                       }
+                       case ShearVelocity::Type::Off:
+                           d.z0 = Snow::Z0_SNOW;
+                           break;
+                       }
+
                 }
             }
 
