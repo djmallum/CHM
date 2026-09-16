@@ -12,12 +12,15 @@ struct Input
 {
     double lambda;
     double u2;
+    double ustar_threshold;
     uintmax_t max_iter;
+
 };
 
 struct Output
 {
     double ustar{};
+    double z0{};
     bool saltation = true;
 };
 
@@ -34,6 +37,9 @@ Output z0(Input& input)
     {
         const auto r = boost::math::tools::bracket_and_solve_root(ustarFn, 1.0, 1.0, false, tol, input.max_iter);
         output.ustar = r.first + (r.second - r.first) / 2.0;
+        if output.ustar >= input.ustar_threshold {
+            output.z0 = ustarFn(output.ustar);
+        }
     }
     catch (...)
     {

@@ -55,6 +55,8 @@
 #include <boost/math/tools/roots.hpp>
 #include <boost/math/tools/tuple.hpp>
 
+import ShearVelocity;
+
 
 /**
  * \ingroup modules snow
@@ -362,7 +364,7 @@ class PBSM3D : public module_base
     // Couple the calculation of u* and z0 via the z0 value from
     // Li and Pomeroy 2000, eqn 5.
     // to modify the u* estimation instead of using a snow z0 for u* estimation
-    bool z0_ustar_coupling;
+    ShearVelocity::Type z0_ustar_coupling;
 
     class data : public face_info
     {
