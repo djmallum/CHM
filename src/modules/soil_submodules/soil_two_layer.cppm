@@ -31,12 +31,6 @@ export struct State {
         const Params& params
     );
 private:    
-    void distribute_infiltration(input, K);
-    void manage_detention(input, params, K);
-    void manage_depression(input, params);
-    void manage_groundwater(input, params, K);
-    void manage_subsurface_runoff(input);
-    void remove_tiny_moisutre();
 };
 
 export struct Output {
@@ -96,6 +90,31 @@ export struct Params
     bool excess_to_ssr = true;
 };
 
+struct SubsurfaceRunoff;
+
+export class SoilConceptual
+{
+    State& state;
+    const Params& params;
+    const Input input;
+    const UnsaturatedConductivity K;
+public:
+    SoilConceptual(State& state, const Params& params, const Input& input) :
+        state(state),
+        params(params),
+        input(input),
+        K(UnsaturatedConductivity(state, params))
+    {
+    };
+
+    SubsurfaceRunoff distribute_infiltration();
+    void manage_detention();
+    void manage_depression();
+    void manage_groundwater();
+    void manage_subsurface_runoff();
+    void remove_tiny_moisture();
+};
+
 namespace
 {
 void push_excess_down(double& storage, double maximum, double& downstream)
@@ -131,57 +150,62 @@ void ThawFractions::recompute(const Input& input, const Params& params)
             rechr = lower = 1.0;
     }
 };
+struct SubsurfaceRunoff {
+    double from_rechr = 0.0;
+    double from_full_depth = 0.0;
+    double excess = 0.0;
+    double soil_excess_to_runoff = 0.0; // Better name TODO
+    double soil_excess_to_gw = 0.0;
+}
 
-void State::distribute_infiltration(
-    Output& output,
-    const Input& input, 
-    const UnsaturatedConductivity& K
-)
+SubsurfaceRunoff SoilConceptual::distribute_infiltration()
 {
+    SubsurfaceRunoff runoff{};
     if (params.soil_storage_max <= 0.0)
     {
-        excess = input.infil + condensation;
-        return;
+        runoff.excess = input.infil + state.condensation;
+        return runoff;
     }
 
-    double lower_storage = soil_storage - soil_rechr_storage;
-    const double potential = input.infil + condensation;
-    double possible = thaw_fraction.rechr *
+    double lower_storage = state.soil_storage - state.soil_rechr_storage;
+    const double potential = input.infil + state.condensation;
+    double possible = state.thaw_fraction.rechr *
                       (params.soil_rechr_max - params.soil_rechr_storage);
     if (possible > potential || !params.allow_runoff_from_infiltration)
         possible = potential;
     else
-        soil_excess_to_runoff = potential - possible;
+        runoff.soil_excess_to_runoff = potential - possible;
 
-    soil_rechr_storage += possible;
-    if (soil_rechr_storage > params.soil_rechr_max)
-        push_excess_down(soil_rechr_storage, params.soil_rechr_max, lower_storage);
-    soil_storage = lower_storage + soil_rechr_storage;
-    if (soil_storage > params.soil_storage_max)
-        push_excess_down(soil_storage, params.soil_storage_max,
-                         soil_excess_to_gw);
+    state.soil_rechr_storage += possible;
+    if (state.soil_rechr_storage > params.soil_rechr_max)
+        push_excess_down(state.soil_rechr_storage, params.soil_rechr_max, lower_storage);
+    state.soil_storage = lower_storage + state.soil_rechr_storage;
+    if (state.soil_storage > params.soil_storage_max)
+        push_excess_down(state.soil_storage, params.soil_storage_max,
+                         runoff.soil_excess_to_gw);
 
     if (input.swe == 0.0 && params.soil_rechr_max > 0.0)
     {
-        rechr_to_ssr = soil_rechr_storage / params.soil_rechr_max *
-                             K.rechr_to_ssr * thaw_fration.rechr;
-        output.rechr_to_ssr = std::min(output.rechr_to_ssr,
-                                      soil_rechr_storage * thaw_fraction.rechr);
-        soil_rechr_storage = std::max(0.0,
-                                            soil_rechr_storage - output.rechr_to_ssr);
-        state.soil_storage -= output.rechr_to_ssr;
-        output.soil_to_ssr = output.rechr_to_ssr;
+        runoff.from_rechr = state.soil_rechr_storage / params.soil_rechr_max *
+                             K.rechr_to_ssr * state.thaw_fration.rechr;
+        runoff.from_rechr = std::min(runoff.from_rechr,
+                                      state.soil_rechr_storage * state.thaw_fraction.rechr);
+        state.soil_rechr_storage = std::max(0.0,
+                    state.soil_rechr_storage - runoff.from_rechr);
+        state.soil_storage -= runoff.from_rechr;
+        runoff.from_full_depth = runoff.from_rechr;
     }
 
     const double groundwater_limit = K.soil_to_gw * thaw_fraction.lower;
-    if (soil_excess_to_gw > groundwater_limit)
-        push_excess_down(soil_excess_to_gw, groundwater_limit, excess);
-    if (params.excess_to_ssr && excess > 0.0)
+    if (runoff.soil_excess_to_gw > groundwater_limit)
+        push_excess_down(runoff.soil_excess_to_gw, groundwater_limit, runoff.excess);
+    if (params.excess_to_ssr && runoff.excess > 0.0)
     {
-        const double excess_to_ssr_value = excess * (1.0 - thaw_fraction.lower);
-        push_excess_down(excess, excess_to_ssr_value, output.soil_to_ssr);
+        const double excess_to_ssr_value = runoff.excess * (1.0 - state.thaw_fraction.lower);
+        push_excess_down(runoff.excess, excess_to_ssr_value, runoff.from_full_depth);
     }
-}
+    return runoff;
+};
 
 enum class DetentionRegime {
     Snow,
@@ -193,27 +217,22 @@ constexpr DetentionRegime detention_regime_for(double swe)
     return swe > 0.0 ? DetentionRegime::Snow : DetentionRegime::Organic;
 }
 
-void manage_detention(
-    const Output& output,
-    const Input& input, 
-    const Params& params,
-    const UnsaturatedConductivity& K
-)
+void SoilConceptual::manage_detention(SubsurfaceRunoff& runoff)
 {
     const auto regime = detention_regime_for(input.swe);
     state.detention_max = regime == DetentionRegime::Organic 
         ? params.detention_organic_max : params.detention_snow_max;
 
-    output.soil_excess_to_runoff += input.runoff + output.excess + input.routing_residual; // TODO Deal with routing Residual
+    state.soil_excess_to_runoff += input.runoff + runoff.excess + input.routing_residual; // TODO Deal with routing Residual
 
-    if (state.soil_excess_to_runoff > 0.0)
+    if (runoff.soil_excess_to_runoff > 0.0)
     {
         const double space = state.detention_max - state.detention_storage;
         if (space > 0.0)
         {
-            const double stored = std::min(output.soil_excess_to_runoff, space);
+            const double stored = std::min(runoff.soil_excess_to_runoff, space);
             state.detention_storage += stored;
-            state.soil_excess_to_runoff -= stored;
+            runoff.soil_excess_to_runoff -= stored;
         }
     }
     if (state.detention_storage > 0.0 && K.detention_to_runoff > 0.0)
@@ -221,15 +240,20 @@ void manage_detention(
         const double transfer = std::min(state.detention_storage,
                                           K.detention_to_runoff);
         state.detention_storage -= transfer;
-        state.soil_excess_to_runoff += transfer;
+        runoff.soil_excess_to_runoff += transfer;
         if (state.detention_storage < 0.0001)
             state.detention_storage = 0.0;
     }
-}
+};
 
-void manage_depression(State& state, const Input& input, const Params& params)
+struct DepressionOutput
 {
-    if (state.soil_excess_to_runoff > 0.0 && input.depression_max > 0.0)
+    double depression_to_gw = 0.0;
+};
+DepressionOutput SoilConceptual::manage_depression(SubsurfaceRunoff& runoff)
+{
+    DepressionOutput depression_to_gw{};
+    if (runoff.soil_excess_to_runoff > 0.0 && input.depression_max > 0.0)
     {
         double space = (input.depression_max - state.depression_storage) *
                        (1.0 - std::exp(-std::min(12.0,
@@ -239,9 +263,9 @@ void manage_depression(State& state, const Input& input, const Params& params)
             space = input.depression_max - state.depression_storage;
         if (space > 0.0)
         {
-            const double stored = std::min(state.soil_excess_to_runoff, space);
+            const double stored = std::min(runoff.soil_excess_to_runoff, space);
             state.depression_storage += stored;
-            state.soil_excess_to_runoff -= stored;
+            runoff.soil_excess_to_runoff -= stored;
             state.runoff_to_depression += stored;
         }
     }
@@ -250,18 +274,14 @@ void manage_depression(State& state, const Input& input, const Params& params)
         const double transfer = std::min(state.depression_storage,
                                           K.depression_to_gw);
         state.depression_storage -= transfer;
-        state.depression_to_gw += transfer;
+        depression_to_gw.depression_to_gw += transfer;
     }
+    return depression_to_gw;
 }
 
-void manage_groundwater(
-    State& state, 
-    const Input& input, 
-    const Params& params,
-    const UnsaturatedConductivity& K
-)
+void SoilConceptual::manage_groundwater(SubsurfaceRunoff& runoff)
 {
-    state.soil_excess_to_gw += state.depression_to_gw;
+    runoff.soil_excess_to_gw += state.depression_to_gw;
     state.depression_to_gw = 0.0;
     state.ground_water_storage += state.soil_excess_to_gw;
     if (state.ground_water_storage > params.ground_water_max)
@@ -371,7 +391,7 @@ export Output step_soil(
     const Params& params
 )
 {
-    Output output{};
+    runoffoutput{};
     if (params.soil_storage_max == 0.0)
     {
         output.excess = input.infil + state.condensation;
@@ -388,7 +408,7 @@ export Output step_soil(
         output.remaining_ET = 0.0;
     }
 
-    distribute_infiltration(input, K);
+    const auto subsurface_runoff = distribute_infiltration(input, K);
     manage_detention(input, params, K);
     manage_depression(input, params);
     manage_groundwater(input, params, K);
